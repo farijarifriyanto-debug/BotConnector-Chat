@@ -3,7 +3,7 @@ import { fetchCapabilities, fetchImageModels, fetchModels, generateImage, stream
 import { deleteConv, listConvs, putConv } from '../db/convs'
 import { runAssistant } from '../lib/agent'
 import { deleteImagesOf, saveImage } from '../lib/images'
-import { composedSystem, fileIdsOf, newConv, newId, titleFrom, toApiMessages } from '../lib/conv'
+import { MEMORY_ID, composedSystem, fileIdsOf, newConv, newId, titleFrom, toApiMessages } from '../lib/conv'
 import { research, ResearchError, type Progress } from '../lib/research'
 import { ChatError, type Attachment, type ChatModel, type Conv, type Msg } from '../lib/types'
 import '../local/engine'
@@ -21,6 +21,8 @@ interface ChatState {
   models: ChatModel[]; modelId: string; imageModels: ImageModel[]; imageModelId: string; modelsState: ModelsState; caps: Capabilities | null
   busy: boolean; status: RunStatus | null
   init(): Promise<void>; loadModels(): Promise<void>; syncCustom(): void; selectImageModel(id: string): void
+  updateConv(id: string, patch: Partial<Pick<Conv, 'title' | 'system' | 'pinned'>>): Promise<void>
+  saveMemory(patch: Partial<Pick<Conv, 'system' | 'memory' | 'useMemory'>>): Promise<void>
   selectModel(id: string): void; newChat(): void; open(id: string): void; remove(id: string): Promise<void>; reset(): void
   send(text: string, opts: SendOptions, attachments?: Attachment[]): Promise<void>; regenerate(opts: SendOptions): Promise<void>; stop(): void
 }
@@ -120,6 +122,17 @@ export const useChat = create<ChatState>((set, get) => {
       })
     },
     selectImageModel(id) { set({ imageModelId: id }) },
+    async updateConv(id, patch) {
+      const s = get(), saved = s.convs.find(c => c.id === id)
+      if (saved) { const next = { ...saved, ...patch, ...(patch.title !== undefined ? { titled: true } : {}) }; replace(next); await putConv(next).catch(() => {}); return }
+      if (s.draft?.id === id) set({ draft: { ...s.draft, ...patch } })
+    },
+    async saveMemory(patch) {
+      const cur = get().convs.find(c => c.id === MEMORY_ID) ?? { ...newConv(''), id: MEMORY_ID, kind: 'memory' as const }
+      const next = { ...cur, ...patch, updatedAt: Date.now() }
+      set(s => ({ convs: sortConvs([next, ...s.convs.filter(c => c.id !== MEMORY_ID)]) }))   // not "put": this record must never become the open chat
+      await putConv(next).catch(() => {})
+    },
     selectModel(id) { useSettings.getState().setModel(id); set(s => ({ modelId: id, draft: s.draft && !s.activeId ? { ...s.draft, model: id } : s.draft })) },
     newChat() { if (get().busy) return; set(s => ({ activeId: null, draft: newConv(s.modelId) })) },
     open(id) { if (!get().busy) set({ activeId: id }) },

@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { FlatList, Image, KeyboardAvoidingView, Platform, Pressable, Text, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import { ChatOptionsSheet } from '../components/ChatOptionsSheet'
 import { Composer } from '../components/Composer'
 import { Icon } from '../components/Icons'
 import { MessageView } from '../components/MessageView'
@@ -17,7 +18,7 @@ const STARTERS = ['s1', 's2', 's3', 's4'] as const
 export function ChatScreen() {
   const th = useTheme(), t = useT()
   const chat = useChat(), conv = useChat(currentConv)
-  const [imgSheet, setImgSheet] = useState(false), [menu, setMenu] = useState(false), [models, setModels] = useState(false), [settings, setSettings] = useState(false)
+  const [optSheet, setOptSheet] = useState(false), [imgSheet, setImgSheet] = useState(false), [menu, setMenu] = useState(false), [models, setModels] = useState(false), [settings, setSettings] = useState(false)
   const list = useRef<FlatList>(null)
   const msgs = conv?.messages ?? []
   const model = chat.models.find(m => m.id === chat.modelId)
@@ -32,7 +33,7 @@ export function ChatScreen() {
     <SafeAreaView style={{ flex: 1, backgroundColor: th.bg }} edges={['top', 'bottom', 'left', 'right']}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, height: 48 }}>
         <Pressable testID="open-menu" onPress={() => setMenu(true)} hitSlop={10} accessibilityRole="button" accessibilityLabel={t('menu')}><Icon name="MenuIcon" size={22} color={th.ink} /></Pressable>
-        <Text numberOfLines={1} style={{ flex: 1, color: th.ink, fontSize: 16, fontWeight: '700' }}>{conv?.title || t('newChat')}</Text>
+        <Pressable testID="header-title" onPress={() => conv && setOptSheet(true)} accessibilityRole="button" accessibilityLabel={t('instructions')} style={{ flex: 1 }}><Text numberOfLines={1} style={{ color: th.ink, fontSize: 16, fontWeight: '700' }}>{conv?.title || t('newChat')}</Text></Pressable>
         <Pressable testID="header-model" onPress={() => setModels(true)} accessibilityRole="button" accessibilityLabel={t('menuModel')} style={{ flexDirection: 'row', alignItems: 'center', gap: 4, maxWidth: 150, height: 34, paddingHorizontal: 11, borderRadius: 17, borderWidth: 1, borderColor: th.lineStrong, backgroundColor: th.surface }}>
           <Text numberOfLines={1} style={{ color: th.ink, fontSize: 13, fontWeight: '600', flexShrink: 1 }}>{model?.name ?? t('model')}</Text><Icon name="Chevron" size={14} color={th.muted} />
         </Pressable>
@@ -58,6 +59,7 @@ export function ChatScreen() {
       <Sidebar open={menu} convs={chat.convs} activeId={chat.activeId} onClose={() => setMenu(false)} onNew={chat.newChat} onOpen={chat.open} onDelete={id => void chat.remove(id)} onSettings={() => setSettings(true)} />
       <ModelSheet visible={models} models={chat.models} selected={chat.modelId} onSelect={id => { chat.selectModel(id); setModels(false) }} onClose={() => setModels(false)} />
       <ModelSheet visible={imgSheet} models={chat.imageModels.map((m): ChatModel => ({ id: m.id, name: m.name, access: m.access, vision: false, tools: false, reasoning: false, available: true }))} selected={chat.imageModelId} onSelect={chat.selectImageModel} onClose={() => setImgSheet(false)} />
+      <ChatOptionsSheet visible={optSheet} conv={conv} onClose={() => setOptSheet(false)} />
       <SettingsSheet visible={settings} onClose={() => setSettings(false)} />
     </SafeAreaView>
   )
