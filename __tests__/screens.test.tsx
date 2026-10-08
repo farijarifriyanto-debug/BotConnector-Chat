@@ -3,6 +3,7 @@ import { fireEvent, render } from '@testing-library/react-native'
 import React from 'react'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { SettingsSheet } from '../src/components/SettingsSheet'
+import { FeatureGuide } from '../src/components/FeatureGuide'
 import { Sidebar } from '../src/components/Sidebar'
 import { LoginScreen } from '../src/screens/LoginScreen'
 import { OnboardingScreen, seenOnboarding } from '../src/screens/OnboardingScreen'
@@ -53,5 +54,12 @@ describe('screens', () => {
     expect(done).not.toHaveBeenCalled()
     await fireEvent.press(r.getByTestId('ob-skip'))
     expect(done).toHaveBeenCalledTimes(1); expect(seenOnboarding()).toBe(true)
+  })
+
+  it('the start screen explains the buttons that exist, and nothing else', async () => {
+    const r = await render(<FeatureGuide features={[{ icon: 'Globe', title: 'fgWeb', body: 'fgWebBody' }, { icon: 'Chevron', title: 'fgModel', body: 'fgModelBody' }]} />)
+    expect(r.getByTestId('feature-fgWeb')).toBeTruthy(); expect(r.getByTestId('feature-fgModel')).toBeTruthy()
+    expect(r.queryByTestId('feature-fgImage')).toBeNull(); expect(r.queryByTestId('feature-fgResearch')).toBeNull()
+    expect(r.getByText('Search the internet for up-to-date answers. Turn it on under the message box.')).toBeTruthy()
   })
 })

@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { FlatList, Image, KeyboardAvoidingView, Platform, Pressable, Text, View } from 'react-native'
+import { FlatList, Image, ScrollView, KeyboardAvoidingView, Platform, Pressable, Text, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { ChatOptionsSheet } from '../components/ChatOptionsSheet'
 import { Composer } from '../components/Composer'
+import { FeatureGuide, type Feature } from '../components/FeatureGuide'
 import { Icon } from '../components/Icons'
 import { MessageView } from '../components/MessageView'
 import { ModelSheet } from '../components/ModelSheet'
@@ -19,6 +20,14 @@ import type { ChatModel } from '../lib/types'
 import { useTheme } from '../theme/theme'
 
 const STARTERS = ['s1', 's2', 's3', 's4'] as const
+/** Only what is actually available in this session is explained. */
+const guideFor = (on: { attach: boolean; web: boolean; research: boolean; image: boolean }): Feature[] => [
+  ...(on.attach ? [{ icon: 'Plus', title: 'fgAttach', body: 'fgAttachBody' } as const] : []),
+  ...(on.web ? [{ icon: 'Globe', title: 'fgWeb', body: 'fgWebBody' } as const] : []),
+  ...(on.research ? [{ icon: 'Research', title: 'fgResearch', body: 'fgResearchBody' } as const] : []),
+  ...(on.image ? [{ icon: 'Image', title: 'fgImage', body: 'fgImageBody' } as const] : []),
+  { icon: 'Chevron', title: 'fgModel', body: 'fgModelBody' } as const,
+]
 
 export function ChatScreen() {
   const th = useTheme(), t = useT()
@@ -46,7 +55,7 @@ export function ChatScreen() {
       </View>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         {msgs.length === 0 ? (
-          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 }}>
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24, paddingVertical: 20 }} keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive">
             <Image source={require('../../assets/bico/bico-mark.png')} style={{ width: 64, height: 64 }} accessibilityIgnoresInvertColors />
             <Text style={{ color: th.ink, fontSize: 22, fontWeight: '800', marginTop: 12, textAlign: 'center' }}>{t(guest && !model ? 'guestEmpty' : 'emptyTitle')}</Text>
             <Text style={{ color: th.muted, fontSize: 14.5, marginTop: 6, textAlign: 'center' }}>{t(guest && !model ? 'guestEmptySub' : 'emptySub')}</Text>
@@ -59,7 +68,8 @@ export function ChatScreen() {
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 10, marginTop: 22, alignSelf: 'stretch', maxWidth: 420 }}>
               {(model || !guest) && STARTERS.map(k => <Pressable key={k} testID={`starter-${k}`} onPress={() => void chat.send(t(k), opts)} disabled={!model} accessibilityRole="button" style={{ width: '48.5%', minHeight: 52, justifyContent: 'center', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 14, borderWidth: 1, borderColor: th.lineStrong, backgroundColor: th.surface, opacity: model ? 1 : 0.5 }}><Text style={{ color: th.ink, fontSize: 14, textAlign: 'center' }}>{t(k)}</Text></Pressable>)}
             </View>
-          </View>
+            <FeatureGuide features={guideFor({ attach: !guest, web, research: web && !guest, image: chat.imageModels.length > 0 })} />
+          </ScrollView>
         ) : (
           <FlatList ref={list} data={msgs} keyExtractor={m => m.id} contentContainerStyle={{ padding: 12, gap: 12 }} keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive"
             renderItem={({ item }) => <MessageView msg={item} streaming={chat.busy && item.id === last?.id && item.role === 'assistant'} status={chat.busy && item.id === last?.id ? chat.status : null} isLastAssistant={item.id === lastAssistant} canAct={!chat.busy} onRegenerate={() => void chat.regenerate(opts)} />} />
