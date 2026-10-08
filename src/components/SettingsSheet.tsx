@@ -16,6 +16,7 @@ import { PersonalizationSheet } from './PersonalizationSheet'
 import { ProvidersSheet } from './ProvidersSheet'
 import { SearchSheet } from './SearchSheet'
 import { SyncSection } from './SyncSection'
+import { UsageSheet } from './UsageSheet'
 
 export const DELETE_PHRASE = 'HAPUS AKUN'   // the server accepts only this exact phrase, whatever the app language is
 const REASON = { wrong_password: 'dAcctWrong', confirmation: 'dAcctBadPhrase', rate_limited: 'dAcctRate', session: 'dAcctSession', unavailable: 'dAcctDown', network: 'dAcctNet' } as const
@@ -23,7 +24,7 @@ const REASON = { wrong_password: 'dAcctWrong', confirmation: 'dAcctBadPhrase', r
 const cap = (x: string) => x.charAt(0).toUpperCase() + x.slice(1)
 export function SettingsSheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const th = useTheme(), t = useT(), s = useSettings(), account = useAuth(a => a.account), guest = useAuth(a => a.status === 'guest')
-  const [providers, setProviders] = useState(false), [local, setLocal] = useState(false), [personal, setPersonal] = useState(false), [laptop, setLaptop] = useState(false), [langOpen, setLangOpen] = useState(false), [search, setSearch] = useState(false), [deleting, setDeleting] = useState(false), [pw, setPw] = useState(''), [phrase, setPhrase] = useState(''), [busy, setBusy] = useState(false), [err, setErr] = useState<DeleteFailure | null>(null)
+  const [providers, setProviders] = useState(false), [local, setLocal] = useState(false), [personal, setPersonal] = useState(false), [laptop, setLaptop] = useState(false), [langOpen, setLangOpen] = useState(false), [usage, setUsage] = useState(false), [search, setSearch] = useState(false), [deleting, setDeleting] = useState(false), [pw, setPw] = useState(''), [phrase, setPhrase] = useState(''), [busy, setBusy] = useState(false), [err, setErr] = useState<DeleteFailure | null>(null)
   const done = () => { setDeleting(false); setPw(''); setPhrase(''); setErr(null); setBusy(false) }
   const close = () => { if (!busy) { done(); onClose() } }
   const confirmLogout = () => Alert.alert(t('logout'), t('logoutConfirm'), [{ text: t('cancel'), style: 'cancel' }, { text: t('logout'), style: 'destructive', onPress: () => { onClose(); useChat.getState().reset(); void useAuth.getState().logout() } }])
@@ -71,6 +72,7 @@ export function SettingsSheet({ visible, onClose }: { visible: boolean; onClose:
                   <Text style={{ color: th.ink, fontSize: 16, fontWeight: '600' }}>{account?.display_name || account?.email || t('acctDefault')}</Text>
                   {!!account?.email && !!account?.display_name && <Text style={{ color: th.muted, fontSize: 13, marginTop: 2 }}>{account.email}</Text>}
                   {!!account?.plan && <Text style={{ color: th.muted, fontSize: 13, marginTop: 6 }}>{t('planLabel')}: {account.plan}</Text>}
+                  <Pressable testID="open-usage" onPress={() => setUsage(true)} accessibilityRole="button" style={{ marginTop: 12, padding: 12, borderRadius: 10, borderWidth: 1, borderColor: th.lineStrong, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}><Text style={{ color: th.ink, fontWeight: '600' }}>{t('usageTitle')}</Text><Icon name="ChevR" size={16} color={th.muted} /></Pressable>
                 </>)}
               </View>
               {label(t('language'))}
@@ -94,6 +96,7 @@ export function SettingsSheet({ visible, onClose }: { visible: boolean; onClose:
       </KeyboardAvoidingView>
       <SearchSheet visible={search} onClose={() => setSearch(false)} />
       <LanguageSheet visible={langOpen} onClose={() => setLangOpen(false)} />
+      {!guest && <UsageSheet visible={usage} onClose={() => setUsage(false)} />}
       <LaptopSheet visible={laptop} onClose={() => setLaptop(false)} onUsed={onClose} />
       <PersonalizationSheet visible={personal} onClose={() => setPersonal(false)} />
       <ProvidersSheet visible={providers} onClose={() => setProviders(false)} />

@@ -107,6 +107,23 @@ export async function generateImage(req: { model: string; prompt: string; size?:
   } finally { clearTimeout(timer); signal?.removeEventListener('abort', onAbort) }
 }
 
+// ---------- usage ----------
+export type WindowKey = 'fiveHour' | 'weekly' | 'monthly'
+export interface Usage {
+  plan: string
+  /** plan allowance windows, as the percentage of the allowance used (never money); empty on plans without a fixed allowance */
+  windows: Partial<Record<WindowKey, { percent: number; resetsAt: string | null }>>
+  payg: { currency: string; balance: number; reserved: number; available: number; monthSpend: number; spendLimit: number | null }
+}
+const num = (v: unknown, d = 0) => (typeof v === 'number' && Number.isFinite(v) ? v : d)
+export async function fetchUsage(signal?: AbortSignal): Promise<Usage> {
+  const j = await getJson<any>('/v1/usage', signal)
+  const windows: Usage['windows'] = {}
+  for (const k of ['fiveHour', 'weekly', 'monthly'] as const) { const w = j?.quota?.windows?.[k]; if (w && typeof w === 'object') windows[k] = { percent: Math.max(0, Math.min(100, num(w.used_percent))), resetsAt: typeof w.resets_at === 'string' ? w.resets_at : null } }
+  const p = j?.payg ?? {}
+  return { plan: typeof j?.plan === 'string' ? j.plan : '', windows, payg: { currency: typeof p.currency === 'string' && p.currency ? p.currency : 'USD', balance: num(p.balance_micros), reserved: num(p.reserved_micros), available: num(p.available_micros), monthSpend: num(p.current_period_spend_micros), spendLimit: typeof p.monthly_spend_limit_micros === 'number' ? p.monthly_spend_limit_micros : null } }
+}
+
 export interface Capabilities { files: boolean; web: boolean; filesReason?: string }
 export async function fetchCapabilities(): Promise<Capabilities> {
   const j = await getJson<any>('/v1/client/capabilities')
