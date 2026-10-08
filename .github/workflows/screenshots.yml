@@ -1,0 +1,65 @@
+name: App Store screenshots
+# Manual: gh workflow run screenshots.yml
+# Photographs the REAL app in the iOS Simulator (iPhone 6.9" and iPad 13"), in Indonesian and English, on screens that need no account.
+on:
+  workflow_dispatch:
+jobs:
+  shots:
+    runs-on: macos-26
+    timeout-minutes: 60
+    env:
+      NODE_OPTIONS: --max-old-space-size=4096
+      EXPO_PUBLIC_SCREENSHOT: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select Xcode
+        run: |
+          XCODE=$(ls -d /Applications/Xcode_26*.app | sort -V | tail -n 1)
+          sudo xcode-select -s "$XCODE"; xcodebuild -version
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Generate the native iOS project
+        run: |
+          npx expo prebuild --platform ios --no-install
+          cd ios && pod install
+      - name: Build for the simulator
+        run: |
+          WS=$(ls -d ios/*.xcworkspace | head -n 1); SCHEME=$(basename "$WS" .xcworkspace)
+          xcodebuild -workspace "$WS" -scheme "$SCHEME" -configuration Release -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath build CODE_SIGNING_ALLOWED=NO ARCHS=arm64 ONLY_ACTIVE_ARCH=NO build | tail -n 40
+          ls -d build/Build/Products/Release-iphonesimulator/*.app
+      - name: Photograph the screens
+        run: |
+          APP=$(ls -d build/Build/Products/Release-iphonesimulator/*.app | head -n 1)
+          BID=id.botconnector.app
+          mkdir -p shots
+          pick() { xcrun simctl list devices available | grep -E "$1" | sed -E 's/^ *(.*) \(([0-9A-F-]{36})\).*/\2|\1/' | sort -t'|' -k2 -V | tail -n 1; }
+          SEQ=0
+          scene() { SEQ=$((SEQ+1)); echo "$SEQ:$2" > "$1/Documents/shot.txt"; sleep 4; }
+          snap() { xcrun simctl io "$1" screenshot "$2"; }
+          shoot() { # udid outdir lang
+            local U=$1 D=$2 L=$3
+            xcrun simctl terminate "$U" $BID 2>/dev/null || true; xcrun simctl uninstall "$U" $BID 2>/dev/null || true
+            xcrun simctl install "$U" "$APP"; xcrun simctl launch "$U" $BID >/dev/null; sleep 8
+            local C; C=$(xcrun simctl get_app_container "$U" $BID data); echo "container: $C"
+            scene "$C" dark; scene "$C" lang-$L; snap "$U" "$D/$L-01-login.png"
+            scene "$C" guest; snap "$U" "$D/$L-02-intro.png"
+            local n=3
+            for s in home local providers settings; do scene "$C" $s; snap "$U" "$D/$L-0$n-$s.png"; n=$((n+1)); done
+          }
+          for kind in "iphone|iPhone [0-9]+ Pro Max" "ipad|iPad Pro 13-inch"; do
+            name=${kind%%|*}; rx=${kind#*|}; ROW=$(pick "$rx"); U=${ROW%%|*}; echo "$name -> $ROW"
+            test -n "$U"; xcrun simctl boot "$U"; xcrun simctl bootstatus "$U" -b >/dev/null
+            xcrun simctl ui "$U" appearance dark
+            xcrun simctl status_bar "$U" override --time 9:41 --batteryState charged --batteryLevel 100 --cellularMode active --cellularBars 4 --wifiBars 3 || true
+            mkdir -p shots/$name
+            for L in id en; do shoot "$U" shots/$name $L; done
+            xcrun simctl shutdown "$U"
+          done
+          for f in shots/*/*.png; do echo "$f $(sips -g pixelWidth -g pixelHeight "$f" | awk '/pixel/{printf $2"x"}')"; done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: appstore-screenshots
+          path: shots

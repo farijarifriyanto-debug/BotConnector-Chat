@@ -16,6 +16,7 @@ import { Sidebar } from '../components/Sidebar'
 import { useT } from '../hooks/useT'
 import { LocalModelsSheet } from '../components/LocalModelsSheet'
 import { ProvidersSheet } from '../components/ProvidersSheet'
+import { SHOT, useShot } from '../lib/shot'
 import { useAuth } from '../store/auth'
 import { currentConv, useChat } from '../store/chat'
 import { useSearch } from '../store/search'
@@ -42,6 +43,8 @@ export function ChatScreen() {
   const model = chat.models.find(m => m.id === chat.modelId)
   const web = guest ? ownSearch : chat.caps?.web !== false
   const lastAssistant = useMemo(() => { for (let i = msgs.length - 1; i >= 0; i--) if (msgs[i].role === 'assistant') return msgs[i].id; return null }, [msgs])
+  const scene = useShot(x => x.scene)
+  useEffect(() => { if (SHOT) { setLocalSheet(scene === 'local'); setProvSheet(scene === 'providers'); setSettings(scene === 'settings') } }, [scene])   // screenshot build only
   useEffect(() => { void chat.init() }, [])   // eslint-disable-line react-hooks/exhaustive-deps
   const opts = { web, research: false }
   const last = msgs[msgs.length - 1]
