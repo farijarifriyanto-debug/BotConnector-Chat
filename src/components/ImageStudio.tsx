@@ -1,7 +1,7 @@
 import * as FileSystem from 'expo-file-system/legacy'
 import * as Sharing from 'expo-sharing'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { ActivityIndicator, Image, Keyboard, Modal, Platform, Pressable, ScrollView, Share, View } from 'react-native'
+import { ActivityIndicator, Alert, Image, Keyboard, Modal, Platform, Pressable, ScrollView, Share, View } from 'react-native'
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context'
 import { Text, TextInput } from './Text'
 import { Icon } from './Icons'
@@ -64,10 +64,11 @@ export function ImageStudio({ visible, onClose }: { visible: boolean; onClose: (
   }
   const share = async (s: Shot) => { const u = imageUri(s.uri); if (await Sharing.isAvailableAsync().catch(() => false)) await Sharing.shareAsync(u, { mimeType: s.msg.attachments?.[0]?.mime ?? 'image/png' }).catch(() => {}); else await Share.share({ url: u }).catch(() => {}) }
 
+  const confirmDelete = (s: Shot) => Alert.alert(t('stDeleteQ'), s.msg.image?.prompt || undefined, [{ text: t('cancel'), style: 'cancel' }, { text: t('stDelete'), style: 'destructive', onPress: () => { setShownUri(null); void useChat.getState().deletePicture(s.convId, s.msg.id) } }])
   const label = (txt: string) => <Text style={{ color: th.muted2, fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 18, marginBottom: 8 }}>{txt}</Text>
-  const action = (testID: string, icon: 'Share' | 'Pencil' | 'Refresh', text: string, onPress: () => void, enabled = true) => (
-    <Pressable testID={testID} disabled={!enabled} onPress={onPress} accessibilityRole="button" accessibilityLabel={text} accessibilityState={{ disabled: !enabled }} style={{ flex: 1, minHeight: 56, alignItems: 'center', justifyContent: 'center', gap: 4, borderRadius: 12, borderWidth: 1, borderColor: th.line, backgroundColor: th.surface, opacity: enabled ? 1 : 0.4, paddingHorizontal: 4 }}>
-      <Icon name={icon} size={20} color={th.ink} /><Text numberOfLines={1} style={{ color: th.ink, fontSize: 12 }}>{text}</Text>
+  const action = (testID: string, icon: 'Share' | 'Pencil' | 'Refresh' | 'Trash', text: string, onPress: () => void, enabled = true, danger = false) => (
+    <Pressable testID={testID} disabled={!enabled} onPress={onPress} accessibilityRole="button" accessibilityLabel={text} accessibilityState={{ disabled: !enabled }} style={{ flexGrow: 1, flexBasis: '47%', minHeight: 56, alignItems: 'center', justifyContent: 'center', gap: 4, borderRadius: 12, borderWidth: 1, borderColor: th.line, backgroundColor: th.surface, opacity: enabled ? 1 : 0.4, paddingHorizontal: 4 }}>
+      <Icon name={icon} size={20} color={danger ? th.danger : th.ink} /><Text numberOfLines={1} style={{ color: danger ? th.danger : th.ink, fontSize: 12 }}>{text}</Text>
     </Pressable>)
   return (
     // iOS draws a page sheet below the status bar itself (a full-screen modal put the title under the clock), so only Android needs the top inset
@@ -141,10 +142,11 @@ export function ImageStudio({ visible, onClose }: { visible: boolean; onClose: (
                 </Pressable>
                 {!!shown.msg.image?.prompt && <Text numberOfLines={3} style={{ color: th.muted, fontSize: 13, marginTop: 8 }}>{shown.msg.image.prompt}</Text>}
                 <Text style={{ color: th.muted2, fontSize: 12, marginTop: 2 }}>{[shown.msg.image?.model, shown.msg.image?.size].filter(Boolean).join(' · ')}</Text>
-                <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
                   {action('studio-share', 'Share', t('stShare'), () => void share(shown))}
                   {action('studio-edit', 'Pencil', t('stEdit'), () => void editAgain(shown), !!model.refs && !busy)}
                   {action('studio-regen', 'Refresh', t('stRegen'), () => { sent.current = true; void useChat.getState().regenerate({ web: false, research: false }) }, canRegen)}
+                  {action('studio-delete', 'Trash', t('stDelete'), () => confirmDelete(shown), !busy, true)}
                 </View>
                 {canRegen && <Text style={{ color: th.muted2, fontSize: 12, marginTop: 6 }}>{t('stRegenNote')}</Text>}
                 {!model.refs && <Text style={{ color: th.muted2, fontSize: 12, marginTop: 6 }}>{t('stRefNone')}</Text>}

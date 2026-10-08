@@ -13,7 +13,7 @@ jest.mock('../src/lib/attachments', () => ({ MAX_IMAGES: 4, pickPhotos: (...a: u
 jest.mock('expo-secure-store', () => ({ getItemAsync: jest.fn(), setItemAsync: jest.fn(), deleteItemAsync: jest.fn() }))
 jest.mock('expo-sqlite', () => ({ openDatabaseAsync: jest.fn() }))
 jest.mock('expo-sharing', () => ({ isAvailableAsync: async () => true, shareAsync: jest.fn(async () => {}) }))
-jest.mock('expo-file-system/legacy', () => ({ documentDirectory: 'file:///doc/', readAsStringAsync: jest.fn(async () => 'QUJD'), EncodingType: { Base64: 'base64' } }))
+jest.mock('expo-file-system/legacy', () => ({ documentDirectory: 'file:///doc/', deleteAsync: jest.fn(async () => {}), readAsStringAsync: jest.fn(async () => 'QUJD'), EncodingType: { Base64: 'base64' } }))
 
 const ratioModel = { id: 'img-a', name: 'Img A', access: 'free' as const, sizes: ['auto', '1024x1024', '1536x1024'], refs: false }
 const refModel = { id: 'img-b', name: 'Img B', access: 'plan' as const, sizes: ['1024x1024'], refs: true }
@@ -105,5 +105,30 @@ describe('AI Image Studio', () => {
     expect(recentShots([conv('c', [{ ...shot('bad', 1), error: 'quota' }])])).toEqual([])
     await act(async () => { useChat.setState({ imageModels: [], imageModelId: '' } as never) })
     expect(r.getByTestId('studio-nomodel')).toBeTruthy()
+  })
+})
+
+describe('deleting a picture', () => {
+  it('asks first, then removes the picture and the request that made it; the chat goes when nothing is left', async () => {
+    const u: Msg = { id: 'u', role: 'user', content: 'kucing', createdAt: 5 }, a = shot('s1', 10), b = shot('s2', 20)
+    const { send } = setup({ convs: [conv('c1', [u, a, { id: 'u2', role: 'user', content: 'anjing', createdAt: 15 }, b])], activeId: 'c1' })
+    const realDelete = useChat.getState().deletePicture, deletePicture = jest.fn(async () => {}); useChat.setState({ deletePicture } as never)
+    const alert = jest.spyOn(require('react-native').Alert, 'alert').mockImplementation(((_t: string, _m: unknown, buttons: { style?: string; onPress?: () => void }[]) => { buttons.find(x => x.style === 'destructive')?.onPress?.() }) as never)
+    const r = await render(<Studio />)
+    await fireEvent.press(r.getByTestId('studio-delete'))
+    expect(alert).toHaveBeenCalledTimes(1); expect(deletePicture).toHaveBeenCalledWith('c1', 's2'); expect(send).not.toHaveBeenCalled()
+    alert.mockRestore(); useChat.setState({ deletePicture: realDelete } as never)
+  })
+  it('the store drops the file, the picture answer and its request, and keeps the rest of the chat', async () => {
+    const mod = jest.requireActual('../src/store/chat') as typeof import('../src/store/chat')
+    const u: Msg = { id: 'u', role: 'user', content: 'k', createdAt: 5 }, a = shot('s1', 10), keep: Msg = { id: 'k', role: 'assistant', content: 'halo', createdAt: 1 }
+    mod.useChat.setState({ convs: [conv('c1', [keep, u, a]), conv('c2', [{ id: 'u3', role: 'user', content: 'x', createdAt: 1 }, shot('s9', 2)])], busy: false } as never)
+    await mod.useChat.getState().deletePicture('c1', 's1')
+    expect(jest.requireMock('expo-file-system/legacy').deleteAsync).toHaveBeenCalledWith('file:///doc/images/s1.png', { idempotent: true })   // the file itself is gone, not just the list entry
+    expect(mod.useChat.getState().convs.find(c => c.id === 'c1')!.messages.map(m => m.id)).toEqual(['k'])
+    await mod.useChat.getState().deletePicture('c1', 'k')          // a text answer is not a picture: nothing happens
+    expect(mod.useChat.getState().convs.find(c => c.id === 'c1')!.messages).toHaveLength(1)
+    await mod.useChat.getState().deletePicture('c2', 's9')          // the only picture of that chat: the chat is removed
+    expect(mod.useChat.getState().convs.find(c => c.id === 'c2')).toBeUndefined()
   })
 })

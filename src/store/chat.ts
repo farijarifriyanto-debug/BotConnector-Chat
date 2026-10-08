@@ -30,6 +30,8 @@ interface ChatState {
   startWith(system: string): void
   updateConv(id: string, patch: Partial<Pick<Conv, 'title' | 'system' | 'pinned'>>): Promise<void>
   saveMemory(patch: Partial<Pick<Conv, 'system' | 'memory' | 'useMemory'>>): Promise<void>
+  /** removes one made picture (its file, the answer and the request that asked for it); an emptied chat goes away too */
+  deletePicture(convId: string, msgId: string): Promise<void>
   selectModel(id: string): void; newChat(): void; open(id: string): void; remove(id: string): Promise<void>; reset(): void
   send(text: string, opts: SendOptions, attachments?: Attachment[]): Promise<void>; regenerate(opts: SendOptions): Promise<void>; stop(): void
 }
@@ -169,6 +171,16 @@ export const useChat = create<ChatState>((set, get) => {
       const s = get(), conv = currentConv(s); if (s.busy || !conv) return
       const msgs = [...conv.messages]; const prev = msgs.at(-1)?.image; while (msgs.length && msgs[msgs.length - 1].role === 'assistant') msgs.pop()
       if (msgs.length) await run(conv, msgs, prev ? { ...opts, image: true, size: prev.size || opts.size } : opts)   // same kind of picture and size as the one being redone
+    },
+    async deletePicture(convId, msgId) {
+      const conv = get().convs.find(c => c.id === convId); if (get().busy || !conv) return
+      const at = conv.messages.findIndex(m => m.id === msgId); const msg = conv.messages[at]
+      if (!msg || msg.role !== 'assistant' || !msg.attachments?.some(a => a.kind === 'image' && a.uri)) return   // only a picture answer can be deleted here
+      await deleteImagesOf([msg])
+      const drop = new Set([msgId]); const before = conv.messages[at - 1]; if (before?.role === 'user') drop.add(before.id)   // the request that asked for it
+      const messages = conv.messages.filter(m => !drop.has(m.id))
+      if (!messages.length) { await get().remove(convId); return }
+      const next = { ...conv, messages, updatedAt: Date.now() }; replace(next); await putConv(next).catch(() => {}); scheduleSync()
     },
     stop() { controller?.abort() },
   }
