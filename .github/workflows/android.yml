@@ -50,7 +50,7 @@ jobs:
           python3 - <<'PY'
           import re
           p='android/app/build.gradle'; s=open(p).read()
-          s=s.replace("    signingConfigs {\n","    signingConfigs {\n        release {\n            storeFile file('upload.jks')\n            storePassword BC_STORE_PASSWORD\n            keyAlias BC_KEY_ALIAS\n            keyPassword BC_KEY_PASSWORD\n        }\n",1)
+          s=s.replace("    signingConfigs {\n","    signingConfigs {\n        release {\n            storeFile file('upload.jks')\n            storePassword project.findProperty("BC_STORE_PASSWORD")\n            keyAlias project.findProperty("BC_KEY_ALIAS")\n            keyPassword project.findProperty("BC_KEY_PASSWORD")\n        }\n",1)
           i=s.index("        release {\n            // Caution!")
           j=s.index("signingConfig signingConfigs.debug",i)
           s=s[:j]+"signingConfig signingConfigs.release"+s[j+len("signingConfig signingConfigs.debug"):]
