@@ -13,7 +13,7 @@ on:
         default: true
 jobs:
   ios:
-    runs-on: macos-15
+    runs-on: macos-26
     timeout-minutes: 60
     env:
       BUNDLE_ID: id.botconnector.app
@@ -25,9 +25,8 @@ jobs:
       - name: Select Xcode
         run: |
           ls -d /Applications/Xcode*.app
-          # Xcode 26.3 breaks ExpoModulesJSI (SWIFT_RETURNS_RETAINED on RuntimeScheduler); stay on 26.2
-          XCODE=$(ls -d /Applications/Xcode_26.2*.app 2>/dev/null | sort -V | tail -n 1)
-          [ -n "$XCODE" ] || XCODE=$(find /Applications -maxdepth 1 -name "Xcode_26*.app" | sort -V | tail -n 1)
+          # Expo SDK 57 needs a newer Swift than Xcode 26.2/26.3 (macos-15 image); take the newest stable 26.x
+          XCODE=$(ls -d /Applications/Xcode_26*.app | sort -V | tail -n 1)
           sudo xcode-select -s "$XCODE"; xcodebuild -version
 
       - uses: actions/setup-node@v4
