@@ -24,8 +24,10 @@ jobs:
 
       - name: Select Xcode
         run: |
-          XCODE=$(find /Applications -maxdepth 1 -name "Xcode_26*.app" | sort -V | tail -n 1)
-          [ -n "$XCODE" ] || XCODE=$(find /Applications -maxdepth 1 -name "Xcode*.app" | sort -V | tail -n 1)
+          ls -d /Applications/Xcode*.app
+          # Xcode 26.3 breaks ExpoModulesJSI (SWIFT_RETURNS_RETAINED on RuntimeScheduler); stay on 26.2
+          XCODE=$(ls -d /Applications/Xcode_26.2*.app 2>/dev/null | sort -V | tail -n 1)
+          [ -n "$XCODE" ] || XCODE=$(find /Applications -maxdepth 1 -name "Xcode_26*.app" | sort -V | tail -n 1)
           sudo xcode-select -s "$XCODE"; xcodebuild -version
 
       - uses: actions/setup-node@v4
