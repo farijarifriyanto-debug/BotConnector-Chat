@@ -1,0 +1,54 @@
+name: Android screenshots
+# Manual: gh workflow run android-shots.yml
+# Photographs the REAL app in an Android emulator (1080x1920), Indonesian and English, on screens that need no account.
+on:
+  workflow_dispatch:
+jobs:
+  shots:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      NODE_OPTIONS: --max-old-space-size=4096
+      EXPO_PUBLIC_SCREENSHOT: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules; sudo udevadm trigger --name-match=kvm
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - run: npm ci
+      - name: Generate the native Android project
+        run: npx expo prebuild --platform android --no-install
+      - name: Make the release build debuggable (so run-as can hand it the screen to show) and build for the emulator
+        working-directory: android
+        run: |
+          python3 - <<'PY'
+          p='app/build.gradle'; s=open(p).read()
+          i=s.index("        release {\n            // Caution!")
+          s=s[:i]+"        release {\n            debuggable true\n"+s[i+len("        release {\n"):]
+          open(p,'w').write(s)
+          PY
+          ./gradlew assembleRelease -PreactNativeArchitectures=x86_64 --no-daemon
+      - name: Photograph the screens in the emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: google_apis
+          profile: pixel
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: bash scripts/ci/android_shots.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: android-screenshots
+          path: shots
