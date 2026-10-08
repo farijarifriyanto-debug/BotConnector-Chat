@@ -1,8 +1,9 @@
 import * as Clipboard from 'expo-clipboard'
 import React, { memo, useState } from 'react'
-import { ActivityIndicator, Linking, Pressable, Share, Text, View } from 'react-native'
+import { ActivityIndicator, Image, Linking, Pressable, Share, Text, View } from 'react-native'
 import { errorText } from '../i18n/strings'
 import { useT } from '../hooks/useT'
+import { imageUri } from '../lib/images'
 import type { Progress } from '../lib/research'
 import { ChatError, type Msg } from '../lib/types'
 import { useSettings } from '../store/settings'
@@ -50,7 +51,7 @@ function MessageViewBase({ msg, streaming, status, isLastAssistant, canAct, onRe
       </View>
     </View>
   )
-  const copy = async () => { await Clipboard.setStringAsync(msg.content); setCopied(true); setTimeout(() => setCopied(false), 1500) }
+  const copy = async () => { await Clipboard.setStringAsync(msg.content || msg.image?.prompt || ''); setCopied(true); setTimeout(() => setCopied(false), 1500) }
   const showTyping = streaming && !msg.content && !status && !msg.reasoning
   return (
     <View style={{ marginVertical: 8, paddingHorizontal: 16 }} accessibilityLabel={t('assistant')}>
@@ -67,6 +68,10 @@ function MessageViewBase({ msg, streaming, status, isLastAssistant, canAct, onRe
         </View>)}
       {msg.research && !streaming && <Text style={{ color: th.muted, fontSize: 12, marginBottom: 6 }}>🔎 {t('researchLog', { s: msg.research.searches, p: msg.research.pages })}</Text>}
       {showTyping ? <ActivityIndicator color={th.muted2} style={{ alignSelf: 'flex-start', marginVertical: 8 }} /> : !!msg.content && <Markdown text={msg.content} sources={msg.sources} />}
+      {(msg.attachments ?? []).filter(a => a.kind === 'image' && a.uri && imageUri(a.uri)).map(a => (
+        <Pressable key={a.uri} testID="generated-image" accessibilityRole="imagebutton" accessibilityLabel={msg.image?.prompt || t('imgAlt')} onPress={() => void Share.share({ url: imageUri(a.uri!) })} style={{ marginTop: 4, alignSelf: 'flex-start', width: '100%', maxWidth: 420, aspectRatio: 1, borderRadius: 14, overflow: 'hidden', backgroundColor: th.surface3 }}>
+          <Image source={{ uri: imageUri(a.uri!) }} style={{ width: '100%', height: '100%' }} resizeMode="contain" accessibilityIgnoresInvertColors />
+        </Pressable>))}
       {!!msg.error && <Text accessibilityRole="alert" style={{ color: th.danger, fontSize: 14, marginTop: 6 }}>{errorLine(msg.error, lang, t)}</Text>}
       {!!msg.sources?.length && (
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6, marginTop: 8 }}>
@@ -77,7 +82,7 @@ function MessageViewBase({ msg, streaming, status, isLastAssistant, canAct, onRe
               <Text style={{ color: th.ink, fontSize: 12.5 }}>{domain(s.url)}</Text>
             </Pressable>) : null)}
         </View>)}
-      {!streaming && !!msg.content && (
+      {!streaming && (!!msg.content || !!msg.attachments?.length) && (
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6 }}>
           <Pressable onPress={copy} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('copy')} style={{ flexDirection: 'row', alignItems: 'center', gap: 5, padding: 6 }}><Icon name={copied ? 'Check' : 'Copy'} size={16} color={th.muted} /><Text style={{ color: th.muted, fontSize: 12.5 }}>{copied ? t('copied') : t('copy')}</Text></Pressable>
           <Pressable onPress={() => void Share.share({ message: msg.content + (msg.sources?.length ? '\n\n' + msg.sources.map((s, i) => `${i + 1}. ${s.title} ${s.url}`).join('\n') : '') })} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('share')} style={{ flexDirection: 'row', alignItems: 'center', gap: 5, padding: 6 }}><Icon name="Share" size={16} color={th.muted} /><Text style={{ color: th.muted, fontSize: 12.5 }}>{t('share')}</Text></Pressable>

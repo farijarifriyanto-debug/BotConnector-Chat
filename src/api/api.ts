@@ -18,7 +18,8 @@ export function classify(status: number, code: string | undefined, wait?: number
   if (status === 401 || code === 'AUTH_REQUIRED' || code === 'invalid_api_key') return new ChatError('auth', o)
   if (code && /^privacy_/i.test(code)) return new ChatError('privacy', o)
   if (/^payg_balance|payg_balance_or_limit$/i.test(code ?? '') || status === 402) return new ChatError('balance', o)
-  if (/free_model_requires_plan/i.test(code ?? '')) return new ChatError('plan', o)
+  if (/free_model_requires_plan|image_plan_required/i.test(code ?? '')) return new ChatError('plan', o)
+  if (/image_quota_reached|free_daily_budget_exhausted/i.test(code ?? '')) return new ChatError('quota', o)
   if (code && /^files_|file_not_ready|file_/.test(code)) return new ChatError('files', o)
   if (status === 413 || /request_too_large/i.test(code ?? '')) return new ChatError('too_large', o)
   if (status === 429) return new ChatError('capacity', o)
@@ -79,6 +80,31 @@ export async function fetchModels(): Promise<ChatModel[]> {
       }
     })
     .sort((a, b) => rank[a.access] - rank[b.access] || a.name.localeCompare(b.name))
+}
+
+// ---------- image generation ----------
+export interface ImageModel { id: string; name: string; access: Access; sizes: string[]; refs: boolean }
+export async function fetchImageModels(): Promise<ImageModel[]> {
+  const j = await getJson<{ data?: any[] }>('/v1/media/models')
+  return (j.data ?? []).filter(m => m && typeof m.id === 'string' && m.botconnector_modality === 'image')
+    .map((m): ImageModel => ({ id: String(m.id), name: String(m.name || prettyId(String(m.id))), access: accessOf(m.botconnector_access), sizes: Array.isArray(m.botconnector_sizes) ? m.botconnector_sizes.filter((x: unknown) => typeof x === 'string') : [], refs: m.supports_reference_images === true }))
+    .sort((a, b) => a.name.localeCompare(b.name))
+}
+export interface GeneratedImage { b64: string; mime: string; left?: number }
+/** One picture; the server decides free/plan/PAYG and enforces the quota. */
+export async function generateImage(req: { model: string; prompt: string; size?: string }, signal?: AbortSignal): Promise<GeneratedImage> {
+  const timeout = new AbortController(); const timer = setTimeout(() => timeout.abort(), 240_000)
+  const onAbort = () => timeout.abort(); signal?.addEventListener('abort', onAbort)
+  try {
+    const j = await postJson<any>('/v1/images/generations', { model: req.model, prompt: req.prompt, n: 1, size: req.size || '1024x1024' }, timeout.signal)
+    const b64 = j?.data?.[0]?.b64_json
+    if (typeof b64 !== 'string' || !b64) throw new ChatError('unavailable')
+    const q = j?.botconnector?.image_quota
+    return { b64, mime: typeof j?.botconnector?.mime_type === 'string' ? j.botconnector.mime_type : 'image/png', left: typeof q?.remaining === 'number' ? q.remaining : undefined }
+  } catch (e) {
+    if (e instanceof ChatError && e.kind !== 'aborted') throw e
+    throw new ChatError(signal?.aborted ? 'aborted' : e instanceof ChatError ? 'aborted' : 'unavailable')   // our own 4-minute timeout is "unavailable"
+  } finally { clearTimeout(timer); signal?.removeEventListener('abort', onAbort) }
 }
 
 export interface Capabilities { files: boolean; web: boolean; filesReason?: string }

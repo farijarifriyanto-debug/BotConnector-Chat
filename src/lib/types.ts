@@ -22,6 +22,8 @@ export interface Attachment {
   size: number
   /** Images are sent inline (vision models). */
   dataUrl?: string
+  /** Generated pictures live in a file on this phone (a chat file would be far too big to keep in the database). */
+  uri?: string
   /** Documents are uploaded once; the server retrieves the relevant parts for every question. */
   fileId?: string
   status?: 'uploading' | 'processing' | 'ready' | 'failed'

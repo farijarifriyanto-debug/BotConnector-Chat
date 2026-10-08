@@ -40,7 +40,7 @@ export function toApiMessages(system: string, messages: Msg[], vision: boolean):
   const out: ApiMessage[] = []
   if (system.trim()) out.push({ role: 'system', content: system.trim() })
   for (const m of messages) {
-    if (m.role === 'assistant') { if (m.content.trim()) out.push({ role: 'assistant', content: m.content }); else if (m.image) out.push({ role: 'assistant', content: '[An image was generated for the previous request.]' }); continue }
+    if (m.role === 'assistant') { if (m.content.trim()) out.push({ role: 'assistant', content: m.content }); else if (m.image && !m.error) out.push({ role: 'assistant', content: '[An image was generated for the previous request.]' }); continue }
     const images = vision ? (m.attachments ?? []).filter(a => a.kind === 'image' && a.dataUrl) : []
     out.push({ role: 'user', content: images.length ? [{ type: 'text', text: m.content || ' ' }, ...images.map(a => ({ type: 'image_url', image_url: { url: a.dataUrl } }))] : m.content })
   }

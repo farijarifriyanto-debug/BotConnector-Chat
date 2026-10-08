@@ -1,7 +1,8 @@
 import { create } from 'zustand'
-import { fetchCapabilities, fetchModels, streamCompletion, type Capabilities } from '../api/api'
+import { fetchCapabilities, fetchImageModels, fetchModels, generateImage, streamCompletion, type Capabilities, type ImageModel } from '../api/api'
 import { deleteConv, listConvs, putConv } from '../db/convs'
 import { runAssistant } from '../lib/agent'
+import { deleteImagesOf, saveImage } from '../lib/images'
 import { composedSystem, newConv, newId, titleFrom, toApiMessages } from '../lib/conv'
 import { research, ResearchError, type Progress } from '../lib/research'
 import { ChatError, type ChatModel, type Conv, type Msg } from '../lib/types'
@@ -12,14 +13,14 @@ import { useSettings } from './settings'
 
 const TITLE_PROMPT = 'Write a short title (at most 6 words) for this conversation, in the same language as the user. No quotes, no trailing punctuation. Reply with the title only.'
 export interface RunStatus { searching?: string; reading?: string; research?: Progress }
-export interface SendOptions { web: boolean; research: boolean }
+export interface SendOptions { web: boolean; research: boolean; image?: boolean }
 type ModelsState = 'idle' | 'loading' | 'ready' | 'error' | 'auth'
 
 interface ChatState {
   convs: Conv[]; activeId: string | null; draft: Conv | null
-  models: ChatModel[]; modelId: string; modelsState: ModelsState; caps: Capabilities | null
+  models: ChatModel[]; modelId: string; imageModels: ImageModel[]; imageModelId: string; modelsState: ModelsState; caps: Capabilities | null
   busy: boolean; status: RunStatus | null
-  init(): Promise<void>; loadModels(): Promise<void>; syncCustom(): void
+  init(): Promise<void>; loadModels(): Promise<void>; syncCustom(): void; selectImageModel(id: string): void
   selectModel(id: string): void; newChat(): void; open(id: string): void; remove(id: string): Promise<void>; reset(): void
   send(text: string, opts: SendOptions): Promise<void>; regenerate(opts: SendOptions): Promise<void>; stop(): void
 }
@@ -68,7 +69,12 @@ export const useChat = create<ChatState>((set, get) => {
     }
     try {
       const question = [...history].reverse().find(x => x.role === 'user')?.content.trim() ?? ''
-      if (opts.research && caps?.web !== false) {
+      if (opts.image) {
+        const im = get().imageModels.find(x => x.id === get().imageModelId); if (!im) throw new ChatError('unavailable')
+        const g = await generateImage({ model: im.id, prompt: question, size: im.sizes.find(x => x === '1024x1024') ?? undefined }, signal)
+        const file = await saveImage(g.b64, g.mime)
+        update({ content: '', attachments: [{ kind: 'image', name: 'image', mime: g.mime, size: file.size, uri: file.uri }], image: { prompt: question, modelId: im.id, model: im.name, size: '1024x1024', ...(g.left !== undefined ? { left: String(g.left) } : {}) }, model: im.name, ms: Date.now() - t0 }, true)
+      } else if (opts.research && caps?.web !== false) {
         const planner = isPrivate(m) ? m : models.find(x => x.access === 'free' && x.available && !x.reasoning) ?? m   // a local or custom model plans its own research; its questions never go to a cloud model
         const res = await research({ question, history: toApiMessages('', history.slice(0, -1), false), system: composedSystem(base, convs), writer: m, planner, signal,
           onProgress: p => set({ status: { research: p } }), onText: c => update({ content: c }), onReasoning: r => update({ reasoning: r }) })
@@ -81,7 +87,7 @@ export const useChat = create<ChatState>((set, get) => {
       const firstQ = history.filter(x => x.role === 'user')
       if (!isPrivate(m) && !base.titled && firstQ.length === 1 && cur.messages.at(-1)?.content && base.title === titleFrom(firstQ[0].content)) void autoTitle(base.id, base.title, firstQ[0].content, cur.messages.at(-1)!.content)
     } catch (e) {
-      update({ error: signal.aborted ? 'aborted' : errorCode(e) }, true)
+      update({ error: signal.aborted ? 'aborted' : errorCode(e), ...(opts.image ? { image: { prompt: '', modelId: '', model: '', size: '' } } : {}) }, true)   // keeps "regenerate" in image mode
     } finally {
       if (timer) clearTimeout(timer)
       controller = null; set({ busy: false, status: null })
@@ -91,7 +97,7 @@ export const useChat = create<ChatState>((set, get) => {
   }
 
   return {
-    convs: [], activeId: null, draft: null, models: [], modelId: '', modelsState: 'idle', caps: null, busy: false, status: null,
+    convs: [], activeId: null, draft: null, models: [], modelId: '', imageModels: [], imageModelId: '', modelsState: 'idle', caps: null, busy: false, status: null,
     async init() { void get().loadModels(); try { set({ convs: await listConvs() }) } catch { /* an unreadable database starts empty */ } },
     async loadModels() {
       set({ modelsState: 'loading' })
@@ -102,6 +108,7 @@ export const useChat = create<ChatState>((set, get) => {
         const modelId = pick(get().modelId)
         set(s => ({ models: list, modelId, modelsState: list.length ? 'ready' : 'error', draft: s.draft ?? (s.activeId ? null : newConv(modelId)) }))
       } catch (e) { set({ modelsState: e instanceof ChatError && e.kind === 'auth' ? 'auth' : 'error' }) }
+      fetchImageModels().then(list => set(s => ({ imageModels: list, imageModelId: list.some(m => m.id === s.imageModelId) ? s.imageModelId : (list.find(m => m.access === 'free')?.id ?? list[0]?.id ?? '') }))).catch(() => {})
       fetchCapabilities().then(caps => set({ caps })).catch(() => set({ caps: { files: false, web: true } }))
     },
     /** Providers were added, refreshed or removed: swap their models in the picker without asking the cloud again. */
@@ -112,14 +119,16 @@ export const useChat = create<ChatState>((set, get) => {
         return { models, modelId, draft: s.draft && !s.activeId ? { ...s.draft, model: modelId } : s.draft }
       })
     },
+    selectImageModel(id) { set({ imageModelId: id }) },
     selectModel(id) { useSettings.getState().setModel(id); set(s => ({ modelId: id, draft: s.draft && !s.activeId ? { ...s.draft, model: id } : s.draft })) },
     newChat() { if (get().busy) return; set(s => ({ activeId: null, draft: newConv(s.modelId) })) },
     open(id) { if (!get().busy) set({ activeId: id }) },
     async remove(id) {
+      await deleteImagesOf(get().convs.find(c => c.id === id)?.messages ?? [])
       await deleteConv(id).catch(() => {})
       set(s => ({ convs: s.convs.filter(c => c.id !== id), ...(s.activeId === id ? { activeId: null, draft: newConv(s.modelId) } : {}) }))
     },
-    reset() { controller?.abort(); set({ convs: [], activeId: null, draft: null, models: [], modelId: '', modelsState: 'idle', caps: null, busy: false, status: null }) },
+    reset() { controller?.abort(); set({ convs: [], activeId: null, draft: null, models: [], imageModels: [], imageModelId: '', modelId: '', modelsState: 'idle', caps: null, busy: false, status: null }) },
     async send(text, opts) {
       const s = get(), conv = currentConv(s), body = text.trim()
       if (s.busy || !conv || !body || !s.models.length) return
@@ -128,8 +137,8 @@ export const useChat = create<ChatState>((set, get) => {
     },
     async regenerate(opts) {
       const s = get(), conv = currentConv(s); if (s.busy || !conv) return
-      const msgs = [...conv.messages]; while (msgs.length && msgs[msgs.length - 1].role === 'assistant') msgs.pop()
-      if (msgs.length) await run(conv, msgs, opts)
+      const msgs = [...conv.messages]; const wasImage = !!msgs.at(-1)?.image; while (msgs.length && msgs[msgs.length - 1].role === 'assistant') msgs.pop()
+      if (msgs.length) await run(conv, msgs, wasImage ? { ...opts, image: true } : opts)
     },
     stop() { controller?.abort() },
   }

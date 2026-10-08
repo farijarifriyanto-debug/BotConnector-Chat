@@ -9,6 +9,7 @@ import { SettingsSheet } from '../components/SettingsSheet'
 import { Sidebar } from '../components/Sidebar'
 import { useT } from '../hooks/useT'
 import { currentConv, useChat } from '../store/chat'
+import type { ChatModel } from '../lib/types'
 import { useTheme } from '../theme/theme'
 
 const STARTERS = ['s1', 's2', 's3', 's4'] as const
@@ -16,7 +17,7 @@ const STARTERS = ['s1', 's2', 's3', 's4'] as const
 export function ChatScreen() {
   const th = useTheme(), t = useT()
   const chat = useChat(), conv = useChat(currentConv)
-  const [menu, setMenu] = useState(false), [models, setModels] = useState(false), [settings, setSettings] = useState(false)
+  const [imgSheet, setImgSheet] = useState(false), [menu, setMenu] = useState(false), [models, setModels] = useState(false), [settings, setSettings] = useState(false)
   const list = useRef<FlatList>(null)
   const msgs = conv?.messages ?? []
   const model = chat.models.find(m => m.id === chat.modelId)
@@ -52,10 +53,11 @@ export function ChatScreen() {
           <FlatList ref={list} data={msgs} keyExtractor={m => m.id} contentContainerStyle={{ padding: 12, gap: 12 }} keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive"
             renderItem={({ item }) => <MessageView msg={item} streaming={chat.busy && item.id === last?.id && item.role === 'assistant'} status={chat.busy && item.id === last?.id ? chat.status : null} isLastAssistant={item.id === lastAssistant} canAct={!chat.busy} onRegenerate={() => void chat.regenerate(opts)} />} />
         )}
-        <Composer busy={chat.busy} model={model} webAvailable={web} onSend={(text, o) => void chat.send(text, o)} onStop={chat.stop} />
+        <Composer busy={chat.busy} model={model} webAvailable={web} onSend={(text, o) => void chat.send(text, o)} onStop={chat.stop} image={{ available: chat.imageModels.length > 0, modelName: chat.imageModels.find(m => m.id === chat.imageModelId)?.name ?? '', onPick: () => setImgSheet(true) }} />
       </KeyboardAvoidingView>
       <Sidebar open={menu} convs={chat.convs} activeId={chat.activeId} onClose={() => setMenu(false)} onNew={chat.newChat} onOpen={chat.open} onDelete={id => void chat.remove(id)} onSettings={() => setSettings(true)} />
       <ModelSheet visible={models} models={chat.models} selected={chat.modelId} onSelect={id => { chat.selectModel(id); setModels(false) }} onClose={() => setModels(false)} />
+      <ModelSheet visible={imgSheet} models={chat.imageModels.map((m): ChatModel => ({ id: m.id, name: m.name, access: m.access, vision: false, tools: false, reasoning: false, available: true }))} selected={chat.imageModelId} onSelect={chat.selectImageModel} onClose={() => setImgSheet(false)} />
       <SettingsSheet visible={settings} onClose={() => setSettings(false)} />
     </SafeAreaView>
   )
