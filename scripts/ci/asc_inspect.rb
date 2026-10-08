@@ -27,8 +27,9 @@ if ver
     a = l['attributes']
     puts "  #{a['locale']}: description=#{yn.(a['description'])} keywords=#{yn.(a['keywords'])} whatsNew=#{yn.(a['whatsNew'])} promo=#{yn.(a['promotionalText'])} support=#{yn.(a['supportUrl'])} marketing=#{yn.(a['marketingUrl'])}"
     ASC.list("/v1/appStoreVersionLocalizations/#{l['id']}/appScreenshotSets").each do |s|
-      n = ASC.list("/v1/appScreenshotSets/#{s['id']}/appScreenshots").size
-      puts "     screenshots #{s['attributes']['screenshotDisplayType']}: #{n}"
+      shots = ASC.list("/v1/appScreenshotSets/#{s['id']}/appScreenshots")
+      st = shots.map { |x| x.dig('attributes', 'assetDeliveryState', 'state') }.tally
+      puts "     screenshots #{s['attributes']['screenshotDisplayType']}: #{shots.size} #{st}"
     end
   end
   puts "\n== review detail (yes/no only)"
