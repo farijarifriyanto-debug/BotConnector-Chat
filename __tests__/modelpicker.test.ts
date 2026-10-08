@@ -37,7 +37,7 @@ describe('model brand marks', () => {
     expect(b('Claude Sonnet 5.5', 'plan')).toBe('claude'); expect(b('Gemini 2.5 Flash Lite')).toBe('gemini'); expect(b('Gemma 3 1B', 'local')).toBe('gemma')
     expect(b('GPT-OSS 20B')).toBe('openai'); expect(b('GPT-6 Luna', 'plan')).toBe('openai'); expect(b('DeepSeek V4.1 Flash')).toBe('deepseek')
     expect(b('Qwen3 0.6B', 'local')).toBe('qwen'); expect(b('GLM-5.3 Flash')).toBe('zai'); expect(b('Kimi K2.6', 'plan')).toBe('kimi')
-    expect(b('Llama 3.2 1B Instruct', 'local')).toBe('meta'); expect(b('NVIDIA Nemotron 3 Super')).toBe('nvidia'); expect(b('Laguna S 2.1')).toBe('poolside')
+    expect(b('Llama 3.2 1B Instruct', 'local')).toBe('meta'); expect(b('NVIDIA Nemotron 3 Super')).toBe('nvidia'); expect(b('Laguna S 2.1')).toBeNull()   // its mark needs SVG masks that do not draw reliably: the letter is shown instead
   })
   it('does not guess: unknown families get no mark, and Auto has none to read', () => {
     expect(b('Ling 3.0 Flash')).toBeNull(); expect(b('Agnes 3.0 Flash')).toBeNull(); expect(b('Auto', 'auto')).toBeNull()

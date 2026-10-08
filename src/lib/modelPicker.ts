@@ -37,7 +37,7 @@ export const defaultSize = (sizes: string[]): string | undefined => sizes.find(s
 const FAMILY: [RegExp, BrandId][] = [
   [/claude|anthropic|sonnet|opus|haiku/, 'claude'], [/gemma/, 'gemma'], [/gemini|google/, 'gemini'], [/gpt|openai|chatgpt|\bo[134]\b/, 'openai'], [/deepseek/, 'deepseek'], [/qwen|qwq/, 'qwen'],
   [/glm|chatglm|z-ai|zai/, 'zai'], [/kimi|moonshot/, 'kimi'], [/llama|meta-/, 'meta'], [/mistral|mixtral|ministral|codestral|devstral/, 'mistral'], [/nemotron|nvidia/, 'nvidia'], [/mimo|xiaomi/, 'mimo'],
-  [/minimax/, 'minimax'], [/grok|\bxai\b/, 'grok'], [/command-|cohere/, 'cohere'], [/flux/, 'flux'], [/stable-?diffusion|sdxl|stability/, 'stability'], [/laguna|poolside/, 'poolside'], [/solar|upstage/, 'upstage'], [/\bphi-|\bmai-|microsoft/, 'microsoft'],
+  [/minimax/, 'minimax'], [/grok|\bxai\b/, 'grok'], [/command-|cohere/, 'cohere'], [/flux/, 'flux'], [/stable-?diffusion|sdxl|stability/, 'stability'], [/solar|upstage/, 'upstage'], [/\bphi-|\bmai-|microsoft/, 'microsoft'],
 ]
 const SERVICE: [RegExp, BrandId][] = [[/openrouter/, 'openrouter'], [/ollama/, 'ollama'], [/lm ?studio/, 'lmstudio'], [/hugging ?face/, 'huggingface']]
 /** The brand mark for a model, or null (the picker then shows the first letter). Your own providers fall back to the service's mark. */
