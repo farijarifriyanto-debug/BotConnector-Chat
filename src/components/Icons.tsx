@@ -39,6 +39,7 @@ const PATHS = {
   Sliders: '<path d="M5 8h9"/><path d="M18 8h1"/><circle cx="16" cy="8" r="2"/><path d="M5 16h1"/><path d="M10 16h9"/><circle cx="8" cy="16" r="2"/>',
   Share: '<circle cx="6" cy="12" r="2.4"/><circle cx="17" cy="6" r="2.4"/><circle cx="17" cy="18" r="2.4"/><path d="M8.2 11l6.6-3.8M8.2 13l6.6 3.8"/>',
   Left: '<path d="M15 6l-6 6 6 6"/>',
+  ThumbDown: '<path d="M17 14V2"/><path d="M9 18.12L10 14H4.17a2 2 0 01-1.92-2.56l2.33-8A2 2 0 016.5 2H20a2 2 0 012 2v8a2 2 0 01-2 2h-2.76a2 2 0 00-1.79 1.11L12 22a3.13 3.13 0 01-3-3.88z"/>',
   Flag: '<path d="M5 21V4"/><path d="M5 4h12l-2.5 4L17 12H5"/>',
 } as const
 export type IconName = keyof typeof PATHS | 'Stop'
