@@ -10,12 +10,16 @@
     "ios": {
       "bundleIdentifier": "id.botconnector.app",
       "supportsTablet": true,
-      "buildNumber": "100",
+      "buildNumber": "101",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSCameraUsageDescription": "BotConnector uses the camera to take photos you attach to a chat.",
         "NSPhotoLibraryUsageDescription": "BotConnector reads photos you choose to attach to a chat.",
-        "NSMicrophoneUsageDescription": "BotConnector uses the microphone for voice input."
+        "NSMicrophoneUsageDescription": "BotConnector uses the microphone for voice input.",
+        "NSAppTransportSecurity": {
+          "NSAllowsLocalNetworking": true
+        },
+        "NSLocalNetworkUsageDescription": "BotConnector connects to AI servers on your own network (for example Ollama or LM Studio) when you add them as a provider."
       }
     },
     "android": {

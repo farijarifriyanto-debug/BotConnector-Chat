@@ -1,4 +1,4 @@
-export type Access = 'free' | 'plan' | 'payg' | 'family' | 'auto'
+export type Access = 'free' | 'plan' | 'payg' | 'family' | 'auto' | 'custom' | 'local'
 
 export interface ChatModel {
   id: string
@@ -11,6 +11,8 @@ export interface ChatModel {
   /** false when the account cannot use it right now (e.g. PAYG model without balance); shown but not selectable */
   available: boolean
   reason?: string
+  /** custom providers: the name shown as the group header */
+  provider?: string
 }
 
 export interface Attachment {
@@ -86,7 +88,7 @@ export interface Conv {
   messages: Msg[]
 }
 
-export type ChatErrorKind = 'auth' | 'privacy' | 'balance' | 'plan' | 'capacity' | 'too_large' | 'unavailable' | 'rejected' | 'network' | 'aborted' | 'files' | 'quota'
+export type ChatErrorKind = 'auth' | 'privacy' | 'balance' | 'plan' | 'capacity' | 'too_large' | 'unavailable' | 'rejected' | 'network' | 'aborted' | 'files' | 'quota' | 'badkey'
 
 export class ChatError extends Error {
   kind: ChatErrorKind

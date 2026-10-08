@@ -5,6 +5,7 @@ import { runAssistant } from '../lib/agent'
 import { composedSystem, newConv, newId, titleFrom, toApiMessages } from '../lib/conv'
 import { research, ResearchError, type Progress } from '../lib/research'
 import { ChatError, type ChatModel, type Conv, type Msg } from '../lib/types'
+import { customModels } from './providers'
 import { useSettings } from './settings'
 
 const TITLE_PROMPT = 'Write a short title (at most 6 words) for this conversation, in the same language as the user. No quotes, no trailing punctuation. Reply with the title only.'
@@ -16,7 +17,7 @@ interface ChatState {
   convs: Conv[]; activeId: string | null; draft: Conv | null
   models: ChatModel[]; modelId: string; modelsState: ModelsState; caps: Capabilities | null
   busy: boolean; status: RunStatus | null
-  init(): Promise<void>; loadModels(): Promise<void>
+  init(): Promise<void>; loadModels(): Promise<void>; syncCustom(): void
   selectModel(id: string): void; newChat(): void; open(id: string): void; remove(id: string): Promise<void>; reset(): void
   send(text: string, opts: SendOptions): Promise<void>; regenerate(opts: SendOptions): Promise<void>; stop(): void
 }
@@ -91,13 +92,21 @@ export const useChat = create<ChatState>((set, get) => {
     async loadModels() {
       set({ modelsState: 'loading' })
       try {
-        const list = await fetchModels()
+        const list = [...await fetchModels(), ...customModels()]
         const saved = useSettings.getState().model
         const pick = (cur: string) => (list.some(m => m.id === cur && m.available) ? cur : saved && list.some(m => m.id === saved && m.available) ? saved : (list.find(m => m.access === 'free' && m.available)?.id ?? list.find(m => m.available)?.id ?? ''))
         const modelId = pick(get().modelId)
         set(s => ({ models: list, modelId, modelsState: list.length ? 'ready' : 'error', draft: s.draft ?? (s.activeId ? null : newConv(modelId)) }))
       } catch (e) { set({ modelsState: e instanceof ChatError && e.kind === 'auth' ? 'auth' : 'error' }) }
       fetchCapabilities().then(caps => set({ caps })).catch(() => set({ caps: { files: false, web: true } }))
+    },
+    /** Providers were added, refreshed or removed: swap their models in the picker without asking the cloud again. */
+    syncCustom() {
+      set(s => {
+        const models = [...s.models.filter(m => m.access !== 'custom'), ...customModels()]
+        const modelId = models.some(m => m.id === s.modelId && m.available) ? s.modelId : (models.find(m => m.access === 'free' && m.available)?.id ?? models.find(m => m.available)?.id ?? '')
+        return { models, modelId, draft: s.draft && !s.activeId ? { ...s.draft, model: modelId } : s.draft }
+      })
     },
     selectModel(id) { useSettings.getState().setModel(id); set(s => ({ modelId: id, draft: s.draft && !s.activeId ? { ...s.draft, model: id } : s.draft })) },
     newChat() { if (get().busy) return; set(s => ({ activeId: null, draft: newConv(s.modelId) })) },

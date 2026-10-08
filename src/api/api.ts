@@ -64,7 +64,7 @@ export async function fetchModels(): Promise<ChatModel[]> {
     getJson<{ data?: any[] }>('/v1/catalog').catch(() => ({ data: [] as any[] })),
   ])
   const byId = new Map<string, any>((catalog.data ?? []).map(c => [String(c.id), c]))
-  const rank: Record<Access, number> = { auto: 0, free: 1, plan: 2, family: 3, payg: 4 }
+  const rank: Record<Access, number> = { auto: 0, free: 1, plan: 2, family: 3, payg: 4, custom: 5, local: 6 }
   return (models.data ?? [])
     .filter(m => m && typeof m.id === 'string' && !/image|embed|rerank|speech|audio/i.test(String(m.botconnector_modality ?? '')))
     .map((m): ChatModel => {
@@ -130,7 +130,14 @@ export function drainSse(buf: string): { payloads: string[]; rest: string } {
   return { payloads, rest: buf }
 }
 
+/** Other transports (custom providers, on-device models) claim a model-id prefix; everything else goes to BotConnector Cloud. */
+type Streamer = (body: Record<string, unknown>, signal?: AbortSignal) => AsyncGenerator<Delta>
+const streamers: { prefix: string; run: Streamer }[] = []
+export const registerStreamer = (prefix: string, run: Streamer) => { if (!streamers.some(s => s.prefix === prefix)) streamers.push({ prefix, run }) }
+
 export async function* streamCompletion(body: Record<string, unknown>, signal?: AbortSignal): AsyncGenerator<Delta> {
+  const other = streamers.find(s => String(body.model ?? '').startsWith(s.prefix))
+  if (other) { yield* other.run(body, signal); return }
   let r: Response
   try { r = await fetch(`${API_BASE}/v1/chat/completions`, { method: 'POST', headers: headers({ ...JSON_POST, accept: 'text/event-stream, application/json' }), body: JSON.stringify({ ...body, stream: true }), signal }) }
   catch (e) { throw (e as Error)?.name === 'AbortError' ? new ChatError('aborted') : new ChatError('network') }
