@@ -11,6 +11,7 @@ import '../local/engine'
 import '../laptop/api'
 import { laptopModels, useLaptop } from '../laptop/store'
 import { localModels, useLocal } from '../local/store'
+import { useAuth } from './auth'
 import { customModels } from './providers'
 import { useSearch } from './search'
 import { useSettings } from './settings'
@@ -106,8 +107,13 @@ export const useChat = create<ChatState>((set, get) => {
 
   return {
     convs: [], activeId: null, draft: null, models: [], modelId: '', imageModels: [], imageModelId: '', modelsState: 'idle', caps: null, busy: false, status: null,
-    async init() { void useSearch.getState().load(); registerReload(async () => { if (!get().busy) set({ convs: sortConvs(await listConvs()) }) }); scheduleSync(800); void get().loadModels(); void useLaptop.getState().refresh(); try { set({ convs: await listConvs() }) } catch { /* an unreadable database starts empty */ } },
+    async init() { void useSearch.getState().load(); registerReload(async () => { if (!get().busy) set({ convs: sortConvs(await listConvs()) }) }); scheduleSync(800); void get().loadModels(); if (useAuth.getState().session) void useLaptop.getState().refresh(); try { set({ convs: await listConvs() }) } catch { /* an unreadable database starts empty */ } },
     async loadModels() {
+      if (!useAuth.getState().session) {   // no BotConnector account: only the user's own providers and on-device models; nothing is asked from BotConnector
+        const list = [...customModels(), ...localModels()]
+        set(st => { const modelId = list.some(m => m.id === st.modelId) ? st.modelId : (list.find(m => m.id === useSettings.getState().model)?.id ?? list[0]?.id ?? ''); return { models: list, imageModels: [], imageModelId: '', modelId, modelsState: 'ready', caps: { files: false, web: true }, draft: st.draft ?? (st.activeId ? null : newConv(modelId)) } })
+        return
+      }
       set({ modelsState: 'loading' })
       try {
         const list = [...await fetchModels(), ...customModels(), ...localModels(), ...laptopModels()]
@@ -168,3 +174,5 @@ export const useChat = create<ChatState>((set, get) => {
 // A model finished downloading (or was deleted): show it in the picker at once.
 useLocal.subscribe((s, prev) => { if (s.models !== prev.models) useChat.getState().syncCustom() })
 useLaptop.subscribe((s, prev) => { if (s.entries !== prev.entries) useChat.getState().syncCustom() })
+// Signing in or out changes which models exist.
+useAuth.subscribe((s, prev) => { if (s.status !== prev.status && (s.status === 'signedIn' || s.status === 'guest')) { useChat.getState().loadModels(); if (s.session) void useLaptop.getState().refresh() } })

@@ -20,7 +20,7 @@ export default function App() {
     <SafeAreaProvider>
       <StatusBar style={th.dark ? 'light' : 'dark'} />
       {status === 'loading' ? <View style={{ flex: 1, backgroundColor: th.bg, alignItems: 'center', justifyContent: 'center' }}><ActivityIndicator color={th.accent} /></View>
-        : status === 'signedIn' ? (intro ? <OnboardingScreen onDone={() => setIntro(false)} /> : <ChatScreen />) : <LoginScreen />}
+        : (status === 'signedIn' || status === 'guest') ? (intro ? <OnboardingScreen onDone={() => setIntro(false)} /> : <ChatScreen />) : <LoginScreen />}
     </SafeAreaProvider>
   )
 }

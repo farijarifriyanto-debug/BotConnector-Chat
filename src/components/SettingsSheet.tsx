@@ -18,7 +18,7 @@ export const DELETE_PHRASE = 'HAPUS AKUN'   // the server accepts only this exac
 const REASON = { wrong_password: 'dAcctWrong', confirmation: 'dAcctBadPhrase', rate_limited: 'dAcctRate', session: 'dAcctSession', unavailable: 'dAcctDown', network: 'dAcctNet' } as const
 
 export function SettingsSheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {
-  const th = useTheme(), t = useT(), s = useSettings(), account = useAuth(a => a.account)
+  const th = useTheme(), t = useT(), s = useSettings(), account = useAuth(a => a.account), guest = useAuth(a => a.status === 'guest')
   const [providers, setProviders] = useState(false), [local, setLocal] = useState(false), [personal, setPersonal] = useState(false), [laptop, setLaptop] = useState(false), [search, setSearch] = useState(false), [deleting, setDeleting] = useState(false), [pw, setPw] = useState(''), [phrase, setPhrase] = useState(''), [busy, setBusy] = useState(false), [err, setErr] = useState<DeleteFailure | null>(null)
   const done = () => { setDeleting(false); setPw(''); setPhrase(''); setErr(null); setBusy(false) }
   const close = () => { if (!busy) { done(); onClose() } }
@@ -60,9 +60,14 @@ export function SettingsSheet({ visible, onClose }: { visible: boolean; onClose:
             <View>
               {label(t('account'))}
               <View style={{ backgroundColor: th.surface, borderRadius: 14, borderWidth: 1, borderColor: th.line, padding: 14 }}>
-                <Text style={{ color: th.ink, fontSize: 16, fontWeight: '600' }}>{account?.display_name || account?.email || '—'}</Text>
-                {!!account?.email && !!account?.display_name && <Text style={{ color: th.muted, fontSize: 13, marginTop: 2 }}>{account.email}</Text>}
-                {!!account?.plan && <Text style={{ color: th.muted, fontSize: 13, marginTop: 6 }}>{t('planLabel')}: {account.plan}</Text>}
+                {guest ? (<>
+                  <Text style={{ color: th.ink, fontSize: 15, lineHeight: 21 }}>{t('guestMode')}</Text>
+                  <Pressable testID="guest-signin" onPress={() => { onClose(); void useAuth.getState().login() }} accessibilityRole="button" style={{ marginTop: 12, padding: 12, borderRadius: 10, backgroundColor: th.accent, alignItems: 'center' }}><Text style={{ color: th.accentInk, fontWeight: '700' }}>{t('guestSignIn')}</Text></Pressable>
+                </>) : (<>
+                  <Text style={{ color: th.ink, fontSize: 16, fontWeight: '600' }}>{account?.display_name || account?.email || '—'}</Text>
+                  {!!account?.email && !!account?.display_name && <Text style={{ color: th.muted, fontSize: 13, marginTop: 2 }}>{account.email}</Text>}
+                  {!!account?.plan && <Text style={{ color: th.muted, fontSize: 13, marginTop: 6 }}>{t('planLabel')}: {account.plan}</Text>}
+                </>)}
               </View>
               {label(t('language'))}
               {seg(s.lang, [{ v: 'id', label: 'Indonesia' }, { v: 'en', label: 'English' }], s.setLang)}
@@ -71,12 +76,12 @@ export function SettingsSheet({ visible, onClose }: { visible: boolean; onClose:
               <Pressable testID="open-personal" onPress={() => setPersonal(true)} accessibilityRole="button" style={{ marginTop: 18, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: th.lineStrong, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}><Text style={{ color: th.ink, fontWeight: '600' }}>{t('personalization')}</Text><Icon name="Chevron" size={16} color={th.muted} /></Pressable>
               <Pressable testID="open-search" onPress={() => setSearch(true)} accessibilityRole="button" style={{ marginTop: 10, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: th.lineStrong, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}><Text style={{ color: th.ink, fontWeight: '600' }}>{t('srchTitle')}</Text><Icon name="Chevron" size={16} color={th.muted} /></Pressable>
               <Pressable testID="open-providers" onPress={() => setProviders(true)} accessibilityRole="button" style={{ marginTop: 10, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: th.lineStrong, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}><Text style={{ color: th.ink, fontWeight: '600' }}>{t('provTitle')}</Text><Icon name="Chevron" size={16} color={th.muted} /></Pressable>
-              <Pressable testID="open-laptop" onPress={() => setLaptop(true)} accessibilityRole="button" style={{ marginTop: 10, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: th.lineStrong, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}><Text style={{ color: th.ink, fontWeight: '600' }}>{t('laptop')}</Text><Icon name="Chevron" size={16} color={th.muted} /></Pressable>
+              {!guest && <Pressable testID="open-laptop" onPress={() => setLaptop(true)} accessibilityRole="button" style={{ marginTop: 10, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: th.lineStrong, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}><Text style={{ color: th.ink, fontWeight: '600' }}>{t('laptop')}</Text><Icon name="Chevron" size={16} color={th.muted} /></Pressable>}
               <Pressable testID="open-local" onPress={() => setLocal(true)} accessibilityRole="button" style={{ marginTop: 10, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: th.lineStrong, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}><Text style={{ color: th.ink, fontWeight: '600' }}>{t('locManage')}</Text><Icon name="Chevron" size={16} color={th.muted} /></Pressable>
-              <SyncSection />
+              {!guest && <SyncSection />}
               <Text style={{ color: th.muted, fontSize: 12.5, marginTop: 18 }}>{t('chatsOnDevice')}</Text>
-              <Pressable testID="logout" onPress={confirmLogout} accessibilityRole="button" style={{ marginTop: 18, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: th.lineStrong, alignItems: 'center' }}><Text style={{ color: th.ink, fontWeight: '700' }}>{t('logout')}</Text></Pressable>
-              <Pressable testID="delete-account" onPress={() => setDeleting(true)} accessibilityRole="button" style={{ marginTop: 10, padding: 14, alignItems: 'center' }}><Text style={{ color: th.danger, fontWeight: '600' }}>{t('dAcctBtn')}</Text></Pressable>
+              {!guest && <Pressable testID="logout" onPress={confirmLogout} accessibilityRole="button" style={{ marginTop: 18, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: th.lineStrong, alignItems: 'center' }}><Text style={{ color: th.ink, fontWeight: '700' }}>{t('logout')}</Text></Pressable>}
+              {!guest && <Pressable testID="delete-account" onPress={() => setDeleting(true)} accessibilityRole="button" style={{ marginTop: 10, padding: 14, alignItems: 'center' }}><Text style={{ color: th.danger, fontWeight: '600' }}>{t('dAcctBtn')}</Text></Pressable>}
             </View>
           )}
         </ScrollView>

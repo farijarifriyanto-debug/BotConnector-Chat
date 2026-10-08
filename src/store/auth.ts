@@ -1,3 +1,4 @@
+import Storage from 'expo-sqlite/kv-store'
 import { create } from 'zustand'
 import { configureApi } from '../api/api'
 import { configureFiles } from '../api/files'
@@ -6,10 +7,13 @@ import { configureSync } from '../sync/chatSync'
 import { AuthError, clearSession, deleteAccount as apiDelete, fetchAccount, loadSession, login as apiLogin, logout as apiLogout, type Account, type DeleteFailure, type Session } from '../auth/session'
 import { clearConvs } from '../db/convs'
 
-type Status = 'loading' | 'signedOut' | 'signedIn'
+type Status = 'loading' | 'signedOut' | 'signedIn' | 'guest'
+const GUEST = 'bc.guest'
+const guestFlag = () => { try { return Storage.getItemSync(GUEST) === '1' } catch { return false } }
+const setGuestFlag = (on: boolean) => { try { if (on) Storage.setItemSync(GUEST, '1'); else Storage.removeItemSync(GUEST) } catch { /* not persisted */ } }
 interface AuthState {
   status: Status; session: Session | null; account: Account | null; busy: boolean; error: string | null
-  init(): Promise<void>; login(): Promise<void>; logout(): Promise<void>; refreshAccount(): Promise<void>
+  init(): Promise<void>; continueAsGuest(): void; login(): Promise<void>; logout(): Promise<void>; refreshAccount(): Promise<void>
   deleteAccount(password: string, phrase: string): Promise<{ ok: true } | { ok: false; reason: DeleteFailure }>
 }
 
@@ -17,7 +21,7 @@ export const useAuth = create<AuthState>((set, get) => ({
   status: 'loading', session: null, account: null, busy: false, error: null,
   async init() {
     const session = await loadSession()
-    if (!session) { set({ status: 'signedOut' }); return }
+    if (!session) { set({ status: guestFlag() ? 'guest' : 'signedOut' }); return }
     set({ session, status: 'signedIn' })   // show the app at once; the account is verified in the background
     try {
       const account = await fetchAccount(session)
@@ -25,12 +29,14 @@ export const useAuth = create<AuthState>((set, get) => ({
       set({ account })
     } catch { /* offline: keep the session, retry on the next foreground */ }
   },
+  /** Own providers and on-device models need no BotConnector account. */
+  continueAsGuest() { setGuestFlag(true); set({ status: 'guest' }) },
   async login() {
     if (get().busy) return
     set({ busy: true, error: null })
     try {
       const session = await apiLogin()
-      set({ session, status: 'signedIn' })
+      setGuestFlag(false); set({ session, status: 'signedIn' })
       await get().refreshAccount()
     } catch (e) { set({ error: e instanceof AuthError && e.reason === 'cancelled' ? null : e instanceof AuthError ? e.reason : 'invalid' }) }
     finally { set({ busy: false }) }
@@ -43,7 +49,7 @@ export const useAuth = create<AuthState>((set, get) => ({
     const s = get().session
     if (s) await apiLogout(s)
     await clearConvs().catch(() => {})   // chats on this device belong to the signed-in account
-    set({ status: 'signedOut', session: null, account: null })
+    setGuestFlag(false); set({ status: 'signedOut', session: null, account: null })
   },
   async deleteAccount(password, phrase) {
     const s = get().session; if (!s) return { ok: false, reason: 'session' }

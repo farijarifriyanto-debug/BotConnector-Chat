@@ -14,10 +14,12 @@ interface Props {
   image?: { available: boolean; modelName: string; onPick: () => void }
   /** photos and documents (documents need a plan or balance: the server says so) */
   files?: { available: boolean }
+  /** Deep research reads pages through BotConnector, so it needs an account */
+  researchAvailable?: boolean
 }
 
 /** Message box: attach, Web search, Deep research (one answer), Image (one picture). Inactive pills are icons only so the row always fits. */
-export function Composer({ busy, model, webAvailable, onSend, onStop, image, files }: Props) {
+export function Composer({ busy, model, webAvailable, onSend, onStop, image, files, researchAvailable = true }: Props) {
   const th = useTheme(), t = useT(), att = useAttachments()
   const [text, setText] = useState(''), [web, setWeb] = useState(false), [research, setResearch] = useState(false), [img, setImg] = useState(false), [note, setNote] = useState<string | null>(null)
   const hasPhotos = att.photoCount > 0
@@ -59,7 +61,7 @@ export function Composer({ busy, model, webAvailable, onSend, onStop, image, fil
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
           {!img && <Pressable testID="pill-attach" accessibilityRole="button" accessibilityLabel={t('attach')} onPress={openAttach} style={pill(false)}><Icon name="Plus" size={18} color={th.muted} /></Pressable>}
           {webAvailable && <Pressable testID="pill-web" accessibilityRole="button" accessibilityLabel={t('web')} accessibilityState={{ selected: web }} onPress={() => setWeb(v => !v)} style={pill(web)}><Icon name="Globe" size={16} color={web ? th.accentStrong : th.muted} />{web && <Text style={{ color: th.accentStrong, fontSize: 13, fontWeight: '600' }}>{t('web')}</Text>}</Pressable>}
-          {webAvailable && <Pressable testID="pill-research" accessibilityRole="button" accessibilityLabel={t('researchPill')} accessibilityState={{ selected: research }} onPress={() => { setResearch(v => !v); setImg(false) }} style={pill(research)}><Icon name="Research" size={16} color={research ? th.accentStrong : th.muted} />{research && <Text style={{ color: th.accentStrong, fontSize: 13, fontWeight: '600' }}>{t('researchPill')}</Text>}</Pressable>}
+          {webAvailable && researchAvailable && <Pressable testID="pill-research" accessibilityRole="button" accessibilityLabel={t('researchPill')} accessibilityState={{ selected: research }} onPress={() => { setResearch(v => !v); setImg(false) }} style={pill(research)}><Icon name="Research" size={16} color={research ? th.accentStrong : th.muted} />{research && <Text style={{ color: th.accentStrong, fontSize: 13, fontWeight: '600' }}>{t('researchPill')}</Text>}</Pressable>}
           {image?.available && <Pressable testID="pill-image" accessibilityRole="button" accessibilityLabel={t('imgPill')} accessibilityState={{ selected: img }} onPress={() => { setImg(v => !v); setResearch(false) }} style={pill(img)}><Icon name="Image" size={16} color={img ? th.accentStrong : th.muted} />{img && <Text style={{ color: th.accentStrong, fontSize: 13, fontWeight: '600' }}>{t('imgPill')}</Text>}</Pressable>}
           <View style={{ flex: 1 }} />
           {busy

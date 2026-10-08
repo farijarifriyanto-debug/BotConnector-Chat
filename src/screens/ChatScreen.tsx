@@ -10,7 +10,11 @@ import { PalsSheet } from '../components/PalsSheet'
 import { SettingsSheet } from '../components/SettingsSheet'
 import { Sidebar } from '../components/Sidebar'
 import { useT } from '../hooks/useT'
+import { LocalModelsSheet } from '../components/LocalModelsSheet'
+import { ProvidersSheet } from '../components/ProvidersSheet'
+import { useAuth } from '../store/auth'
 import { currentConv, useChat } from '../store/chat'
+import { useSearch } from '../store/search'
 import type { ChatModel } from '../lib/types'
 import { useTheme } from '../theme/theme'
 
@@ -19,11 +23,11 @@ const STARTERS = ['s1', 's2', 's3', 's4'] as const
 export function ChatScreen() {
   const th = useTheme(), t = useT()
   const chat = useChat(), conv = useChat(currentConv)
-  const [pals, setPals] = useState(false), [optSheet, setOptSheet] = useState(false), [imgSheet, setImgSheet] = useState(false), [menu, setMenu] = useState(false), [models, setModels] = useState(false), [settings, setSettings] = useState(false)
+  const guest = useAuth(a => a.status === 'guest'), ownSearch = useSearch(x => x.provider !== 'botconnector' && !!x.hasKey[x.provider]), [provSheet, setProvSheet] = useState(false), [localSheet, setLocalSheet] = useState(false), [pals, setPals] = useState(false), [optSheet, setOptSheet] = useState(false), [imgSheet, setImgSheet] = useState(false), [menu, setMenu] = useState(false), [models, setModels] = useState(false), [settings, setSettings] = useState(false)
   const list = useRef<FlatList>(null)
   const msgs = conv?.messages ?? []
   const model = chat.models.find(m => m.id === chat.modelId)
-  const web = chat.caps?.web !== false
+  const web = guest ? ownSearch : chat.caps?.web !== false
   const lastAssistant = useMemo(() => { for (let i = msgs.length - 1; i >= 0; i--) if (msgs[i].role === 'assistant') return msgs[i].id; return null }, [msgs])
   useEffect(() => { void chat.init() }, [])   // eslint-disable-line react-hooks/exhaustive-deps
   const opts = { web, research: false }
@@ -44,23 +48,30 @@ export function ChatScreen() {
         {msgs.length === 0 ? (
           <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 }}>
             <Image source={require('../../assets/bico/bico-mark.png')} style={{ width: 64, height: 64 }} accessibilityIgnoresInvertColors />
-            <Text style={{ color: th.ink, fontSize: 22, fontWeight: '800', marginTop: 12, textAlign: 'center' }}>{t('emptyTitle')}</Text>
-            <Text style={{ color: th.muted, fontSize: 14.5, marginTop: 6, textAlign: 'center' }}>{t('emptySub')}</Text>
+            <Text style={{ color: th.ink, fontSize: 22, fontWeight: '800', marginTop: 12, textAlign: 'center' }}>{t(guest && !model ? 'guestEmpty' : 'emptyTitle')}</Text>
+            <Text style={{ color: th.muted, fontSize: 14.5, marginTop: 6, textAlign: 'center' }}>{t(guest && !model ? 'guestEmptySub' : 'emptySub')}</Text>
+            {guest && !model && (
+              <View style={{ alignSelf: 'stretch', maxWidth: 420, gap: 10, marginTop: 20 }}>
+                <Pressable testID="empty-add-provider" onPress={() => setProvSheet(true)} accessibilityRole="button" style={{ padding: 14, borderRadius: 12, backgroundColor: th.accent, alignItems: 'center' }}><Text style={{ color: th.accentInk, fontWeight: '700' }}>{t('provAdd')}</Text></Pressable>
+                <Pressable testID="empty-add-local" onPress={() => setLocalSheet(true)} accessibilityRole="button" style={{ padding: 14, borderRadius: 12, borderWidth: 1, borderColor: th.lineStrong, alignItems: 'center' }}><Text style={{ color: th.ink, fontWeight: '600' }}>{t('locTitle')}</Text></Pressable>
+              </View>)}
             {chat.modelsState === 'error' && <Pressable testID="models-retry" onPress={() => void chat.loadModels()} accessibilityRole="button" style={{ marginTop: 14 }}><Text style={{ color: th.danger, textAlign: 'center' }}>{t('modelsError')} {t('retry')}</Text></Pressable>}
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 10, marginTop: 22, alignSelf: 'stretch', maxWidth: 420 }}>
-              {STARTERS.map(k => <Pressable key={k} testID={`starter-${k}`} onPress={() => void chat.send(t(k), opts)} disabled={!model} accessibilityRole="button" style={{ width: '48.5%', minHeight: 52, justifyContent: 'center', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 14, borderWidth: 1, borderColor: th.lineStrong, backgroundColor: th.surface, opacity: model ? 1 : 0.5 }}><Text style={{ color: th.ink, fontSize: 14, textAlign: 'center' }}>{t(k)}</Text></Pressable>)}
+              {(model || !guest) && STARTERS.map(k => <Pressable key={k} testID={`starter-${k}`} onPress={() => void chat.send(t(k), opts)} disabled={!model} accessibilityRole="button" style={{ width: '48.5%', minHeight: 52, justifyContent: 'center', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 14, borderWidth: 1, borderColor: th.lineStrong, backgroundColor: th.surface, opacity: model ? 1 : 0.5 }}><Text style={{ color: th.ink, fontSize: 14, textAlign: 'center' }}>{t(k)}</Text></Pressable>)}
             </View>
           </View>
         ) : (
           <FlatList ref={list} data={msgs} keyExtractor={m => m.id} contentContainerStyle={{ padding: 12, gap: 12 }} keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive"
             renderItem={({ item }) => <MessageView msg={item} streaming={chat.busy && item.id === last?.id && item.role === 'assistant'} status={chat.busy && item.id === last?.id ? chat.status : null} isLastAssistant={item.id === lastAssistant} canAct={!chat.busy} onRegenerate={() => void chat.regenerate(opts)} />} />
         )}
-        <Composer busy={chat.busy} model={model} webAvailable={web} onSend={(text, o, atts) => void chat.send(text, o, atts)} onStop={chat.stop} files={{ available: chat.caps?.files === true && model?.access !== 'local' && model?.access !== 'custom' }} image={{ available: chat.imageModels.length > 0, modelName: chat.imageModels.find(m => m.id === chat.imageModelId)?.name ?? '', onPick: () => setImgSheet(true) }} />
+        <Composer busy={chat.busy} model={model} webAvailable={web} researchAvailable={!guest} onSend={(text, o, atts) => void chat.send(text, o, atts)} onStop={chat.stop} files={{ available: chat.caps?.files === true && model?.access !== 'local' && model?.access !== 'custom' }} image={{ available: chat.imageModels.length > 0, modelName: chat.imageModels.find(m => m.id === chat.imageModelId)?.name ?? '', onPick: () => setImgSheet(true) }} />
       </KeyboardAvoidingView>
       <Sidebar open={menu} convs={chat.convs} activeId={chat.activeId} onClose={() => setMenu(false)} onNew={chat.newChat} onOpen={chat.open} onDelete={id => void chat.remove(id)} onSettings={() => setSettings(true)} onPals={() => setPals(true)} />
       <ModelSheet visible={models} models={chat.models} selected={chat.modelId} onSelect={id => { chat.selectModel(id); setModels(false) }} onClose={() => setModels(false)} />
       <ModelSheet visible={imgSheet} models={chat.imageModels.map((m): ChatModel => ({ id: m.id, name: m.name, access: m.access, vision: false, tools: false, reasoning: false, available: true }))} selected={chat.imageModelId} onSelect={chat.selectImageModel} onClose={() => setImgSheet(false)} />
       <ChatOptionsSheet visible={optSheet} conv={conv} onClose={() => setOptSheet(false)} />
+      <ProvidersSheet visible={provSheet} onClose={() => setProvSheet(false)} />
+      <LocalModelsSheet visible={localSheet} onClose={() => setLocalSheet(false)} />
       <PalsSheet visible={pals} onClose={() => setPals(false)} />
       <SettingsSheet visible={settings} onClose={() => setSettings(false)} />
     </SafeAreaView>

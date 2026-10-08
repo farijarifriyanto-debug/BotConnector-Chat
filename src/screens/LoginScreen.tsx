@@ -18,6 +18,8 @@ export function LoginScreen() {
         <Pressable testID="login-button" onPress={() => void useAuth.getState().login()} disabled={busy} accessibilityRole="button" style={{ marginTop: 24, alignSelf: 'stretch', padding: 15, borderRadius: 14, backgroundColor: th.accent, alignItems: 'center', opacity: busy ? 0.6 : 1 }}>
           {busy ? <ActivityIndicator color={th.accentInk} /> : <Text style={{ color: th.accentInk, fontSize: 16, fontWeight: '700' }}>{t('loginButton')}</Text>}
         </Pressable>
+        <Pressable testID="guest-button" onPress={() => useAuth.getState().continueAsGuest()} accessibilityRole="button" style={{ marginTop: 10, alignSelf: 'stretch', padding: 14, borderRadius: 14, borderWidth: 1, borderColor: th.lineStrong, alignItems: 'center' }}><Text style={{ color: th.ink, fontSize: 15, fontWeight: '600' }}>{t('guestBtn')}</Text></Pressable>
+        <Text style={{ color: th.muted, fontSize: 12.5, lineHeight: 18, textAlign: 'center', marginTop: 10 }}>{t('guestNote')}</Text>
       </View>
     </SafeAreaView>
   )
