@@ -20,7 +20,7 @@ export function LocalModelsSheet({ visible, onClose, onUsed }: { visible: boolea
   const th = useTheme(), t = useT()
   const { models, downloads, hfToken } = useLocal(), params = useLocalParams(s => s.params), setParams = useLocalParams(s => s.set)
   const [query, setQuery] = useState(''), [repos, setRepos] = useState<HfRepo[] | null>(null), [files, setFiles] = useState<{ repo: string; list: HfFile[] } | null>(null)
-  const [busy, setBusy] = useState(false), [err, setErr] = useState<string | null>(null), [tok, setTok] = useState('')
+  const [busy, setBusy] = useState(false), [err, setErr] = useState<string | null>(null), [tok, setTok] = useState(''), [tab, setTab] = useState<'rec' | 'inst' | 'all'>('rec'), [fq, setFq] = useState('')
   const ram = Device.totalMemory ?? null
   useEffect(() => { if (visible) void useLocal.getState().loadToken() }, [visible])
   useEffect(() => { setTok(hfToken) }, [hfToken])
@@ -50,12 +50,18 @@ export function LocalModelsSheet({ visible, onClose, onUsed }: { visible: boolea
       {d.error ? <Text style={{ color: th.danger, fontSize: 13, marginTop: 4 }}>{t(DL_ERR[d.error])}</Text> : (
         <View style={{ marginTop: 8 }}><View style={{ height: 6, borderRadius: 3, backgroundColor: th.surface3 }}><View style={{ height: 6, borderRadius: 3, width: `${d.total ? Math.min(100, (d.received / d.total) * 100) : 0}%`, backgroundColor: th.accent }} /></View>
           <Text style={{ color: th.muted, fontSize: 12, marginTop: 4 }}>{fmtBytes(d.received)} / {fmtBytes(d.total)}</Text></View>)}
-      <Pressable testID={`dl-cancel-${id}`} onPress={() => void useLocal.getState().cancel(id)} accessibilityRole="button" style={{ alignSelf: 'flex-end', marginTop: 6 }}><Text style={{ color: th.muted, fontWeight: '600' }}>{t('locCancel')}</Text></Pressable>
+      <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 18, marginTop: 6 }}>
+        {!!d.error && <Pressable testID={`dl-retry-${id}`} onPress={() => void useLocal.getState().retry(id)} accessibilityRole="button" hitSlop={8}><Text style={{ color: th.accentStrong, fontWeight: '700' }}>{t('locRetry')}</Text></Pressable>}
+        <Pressable testID={`dl-cancel-${id}`} onPress={() => void useLocal.getState().cancel(id)} accessibilityRole="button" hitSlop={8}><Text style={{ color: th.muted, fontWeight: '600' }}>{t('locCancel')}</Text></Pressable>
+      </View>
     </View>)
   const getBtn = (repo: string, file: string, bytes: number, name?: string) => {
     const id = localId(file.split('/').pop() ?? file); const have = models.some(m => m.id === id), busyDl = !!downloads[id] && !downloads[id].error
     return have ? <Icon name="Check" size={20} color={th.accentStrong} /> : <Pressable testID={`get-${id}`} disabled={busyDl} onPress={() => void useLocal.getState().download({ repo, file, bytes, name })} accessibilityRole="button" style={[btn(true), { opacity: busyDl ? 0.5 : 1 }]}><Text style={{ color: th.accentInk, fontWeight: '700' }}>{t('locDownload')}</Text></Pressable>
   }
+  const perf = (bytes: number) => t(bytes <= 1.0e9 ? 'locFast' : bytes <= 2.2e9 ? 'locBalanced' : 'locQuality')
+  const ramNote = (bytes: number) => t('locRamEst', { gb: ((bytes * 1.25) / 1e9).toFixed(1) })   // a rough estimate: file size plus working memory
+  const match = (name: string) => !fq.trim() || name.toLowerCase().includes(fq.trim().toLowerCase())
   const warn = (bytes: number) => fit(bytes, ram) === 'tight' && <Text style={{ color: th.danger, fontSize: 12, marginTop: 3 }}>{t('locMemWarn')}</Text>
 
   return (
@@ -70,22 +76,33 @@ export function LocalModelsSheet({ visible, onClose, onUsed }: { visible: boolea
 
           {Object.keys(downloads).length > 0 && <>{label(t('locDownloads'))}{Object.entries(downloads).map(([id, d]) => dlRow(id, d, id.replace(/^local:/, '').replace(/\.gguf$/i, '')))}</>}
 
-          {label(t('locInstalled'))}
-          {models.length === 0 && <Text style={{ color: th.muted }}>{t('locNone')}</Text>}
-          {models.map(m => (
-            <View key={m.id} testID={`installed-${m.id}`} style={[card, { flexDirection: 'row', alignItems: 'center', gap: 10 }]}>
-              <View style={{ flex: 1 }}><Text style={{ color: th.ink, fontWeight: '600' }}>{m.name}</Text><Text style={{ color: th.muted, fontSize: 12, marginTop: 2 }}>{fmtBytes(m.bytes)}</Text></View>
-              <Pressable testID={`use-${m.id}`} onPress={() => use(m.id)} accessibilityRole="button" style={btn(true)}><Text style={{ color: th.accentInk, fontWeight: '700' }}>{t('locUse')}</Text></Pressable>
-              <Pressable onPress={() => remove(m.id, m.name)} hitSlop={10} accessibilityRole="button" accessibilityLabel={t('locDelete')} testID={`del-${m.id}`}><Icon name="Trash" size={20} color={th.danger} /></Pressable>
-            </View>))}
+          <View style={{ flexDirection: 'row', gap: 8, marginTop: 16 }}>
+            {([['rec', 'lfRec'], ['inst', 'lfInst'], ['all', 'lfAll']] as const).map(([id, k]) => { const on = tab === id; return (
+              <Pressable key={id} testID={`loc-tab-${id}`} onPress={() => setTab(id)} accessibilityRole="button" accessibilityState={{ selected: on }} style={{ height: 32, paddingHorizontal: 14, justifyContent: 'center', borderRadius: 16, borderWidth: 1, borderColor: on ? th.accent : th.lineStrong, backgroundColor: on ? th.accentSoft : th.surface }}><Text style={{ color: on ? th.accentStrong : th.ink, fontSize: 13, fontWeight: '600' }}>{t(k)}{id === 'inst' && models.length ? ` (${models.length})` : ''}</Text></Pressable>) })}
+          </View>
+          <TextInput testID="loc-filter" value={fq} onChangeText={setFq} placeholder={t('modelSearch')} placeholderTextColor={th.muted2} autoCapitalize="none" autoCorrect={false} style={{ marginTop: 10, borderWidth: 1, borderColor: th.lineStrong, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9, color: th.ink, backgroundColor: th.surface, fontSize: 15 }} />
 
-          {label(t('locRecommended'))}
-          {RECOMMENDED.map(r => (
-            <View key={r.file} style={[card, { flexDirection: 'row', alignItems: 'center', gap: 10 }]}>
-              <View style={{ flex: 1 }}><Text style={{ color: th.ink, fontWeight: '600' }}>{r.name}</Text><Text style={{ color: th.muted, fontSize: 12, marginTop: 2 }}>{fmtBytes(r.bytes)} · {t(r.note === 'tiny' ? 'locTiny' : r.note === 'small' ? 'locSmall' : 'locMedium')}</Text>{warn(r.bytes)}</View>
-              {getBtn(r.repo, r.file, r.bytes, r.name)}
-            </View>))}
+          {(tab === 'inst' || tab === 'all') && <>
+            {tab === 'all' && label(t('locInstalled'))}
+            {models.length === 0 && <Text testID="loc-none" style={{ color: th.muted, marginTop: 12 }}>{t('locNone')}</Text>}
+            {models.filter(m => match(m.name)).map(m => (
+              <View key={m.id} testID={`installed-${m.id}`} style={[card, { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 8 }]}>
+                <View style={{ flex: 1 }}><Text style={{ color: th.ink, fontWeight: '600' }}>{m.name}</Text><Text style={{ color: th.muted, fontSize: 12, marginTop: 2 }}>{fmtBytes(m.bytes)} · {perf(m.bytes)}</Text></View>
+                <Pressable testID={`use-${m.id}`} onPress={() => use(m.id)} accessibilityRole="button" style={btn(true)}><Text style={{ color: th.accentInk, fontWeight: '700' }}>{t('locUse')}</Text></Pressable>
+                <Pressable onPress={() => remove(m.id, m.name)} hitSlop={10} accessibilityRole="button" accessibilityLabel={t('locDelete')} testID={`del-${m.id}`}><Icon name="Trash" size={20} color={th.danger} /></Pressable>
+              </View>))}
+          </>}
 
+          {(tab === 'rec' || tab === 'all') && <>
+            {tab === 'all' && label(t('locRecommended'))}
+            {RECOMMENDED.filter(r => match(r.name)).map(r => (
+              <View key={r.file} style={[card, { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 8 }]}>
+                <View style={{ flex: 1 }}><Text style={{ color: th.ink, fontWeight: '600' }}>{r.name}</Text><Text style={{ color: th.muted, fontSize: 12, marginTop: 2 }}>{fmtBytes(r.bytes)} · {perf(r.bytes)}</Text><Text style={{ color: th.muted2, fontSize: 11.5, marginTop: 1 }}>{ramNote(r.bytes)}</Text>{warn(r.bytes)}</View>
+                {getBtn(r.repo, r.file, r.bytes, r.name)}
+              </View>))}
+          </>}
+
+          {tab === 'all' && <>
           {label(t('locSearch'))}
           <View style={{ flexDirection: 'row', gap: 8 }}>
             <TextInput testID="hf-query" value={query} onChangeText={setQuery} onSubmitEditing={search} returnKeyType="search" placeholder={t('locSearchHint')} placeholderTextColor={th.muted2} autoCapitalize="none" autoCorrect={false} style={{ flex: 1, borderWidth: 1, borderColor: th.lineStrong, borderRadius: 10, padding: 12, color: th.ink, backgroundColor: th.surface, fontSize: 16 }} />
@@ -103,6 +120,8 @@ export function LocalModelsSheet({ visible, onClose, onUsed }: { visible: boolea
               {repos.map(r => <Pressable key={r.id} testID={`repo-${r.id}`} onPress={() => void openRepo(r.id)} accessibilityRole="button" style={card}><Text style={{ color: th.ink, fontWeight: '600' }}>{r.id}</Text><Text style={{ color: th.muted, fontSize: 12, marginTop: 2 }}>{t('locResultCount', { n: r.downloads.toLocaleString() })}</Text></Pressable>)}
             </View>
           ) : null}
+
+          </>}
 
           {label(t('locToken'))}
           <View style={{ flexDirection: 'row', gap: 8 }}>

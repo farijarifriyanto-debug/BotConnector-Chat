@@ -19,6 +19,13 @@ describe('image generation', () => {
     expect(await generateImage({ model: 'img-a', prompt: 'kucing' })).toEqual({ b64: 'QUJD', mime: 'image/webp', left: 7 })
     expect(JSON.parse(mockFetch.mock.calls[0][1].body)).toMatchObject({ model: 'img-a', prompt: 'kucing', n: 1, size: '1024x1024' })
   })
+  it('sends reference photos only when asked to, in the field the server reads', async () => {
+    mockFetch.mockResolvedValue(reply(200, { data: [{ b64_json: 'QUJD' }] }))
+    await generateImage({ model: 'img-a', prompt: 'p', size: '1536x1024', refs: ['data:image/png;base64,AAAA'] })
+    expect(JSON.parse(mockFetch.mock.calls[0][1].body)).toMatchObject({ n: 1, size: '1536x1024', inputs: { referenceImages: ['data:image/png;base64,AAAA'] } })
+    await generateImage({ model: 'img-a', prompt: 'p', refs: [] })
+    expect(JSON.parse(mockFetch.mock.calls[1][1].body)).not.toHaveProperty('inputs')
+  })
   it('surfaces a used-up quota and an empty answer', async () => {
     mockFetch.mockResolvedValueOnce(reply(429, { error: { code: 'image_quota_reached' } }))
     await expect(generateImage({ model: 'm', prompt: 'p' })).rejects.toMatchObject({ kind: 'quota' })

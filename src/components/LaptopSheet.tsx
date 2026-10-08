@@ -27,6 +27,14 @@ export function LaptopSheet({ visible, onClose, onUsed }: { visible: boolean; on
         </View>
         <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 40 }}>
           <Text style={{ color: th.muted, fontSize: 13, lineHeight: 19 }}>{t('laptopNote')}</Text>
+          <View testID="laptop-steps" style={{ marginTop: 14, padding: 12, borderRadius: 14, borderWidth: 1, borderColor: th.line, backgroundColor: th.surface, gap: 10 }}>
+            <Text style={{ color: th.ink, fontWeight: '700', fontSize: 14 }}>{t('lapHow')}</Text>
+            {(['lapH1', 'lapH2', 'lapH3'] as const).map((k, i) => (
+              <View key={k} style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                <View style={{ width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: th.accentSoft }}><Text style={{ color: th.accentStrong, fontWeight: '700', fontSize: 13 }}>{i + 1}</Text></View>
+                <Text style={{ color: th.ink, fontSize: 14, flex: 1, lineHeight: 20 }}>{t(k)}</Text>
+              </View>))}
+          </View>
           <Pressable testID="laptop-pair" onPress={pair} disabled={pairing} accessibilityRole="button" style={{ marginTop: 14, padding: 14, borderRadius: 12, backgroundColor: th.accent, alignItems: 'center' }}>{pairing ? <ActivityIndicator color={th.accentInk} /> : <Text style={{ color: th.accentInk, fontWeight: '700' }}>{t('lapPair')}</Text>}</Pressable>
           {pairErr && <Text accessibilityRole="alert" style={{ color: th.danger, marginTop: 8 }}>{t('errUnavailable')}</Text>}
           {!!code && (
@@ -37,13 +45,18 @@ export function LaptopSheet({ visible, onClose, onUsed }: { visible: boolean; on
             </View>)}
           {label(t('lapDevices'))}
           {loading && entries.length === 0 && <ActivityIndicator color={th.muted} />}
-          {!loading && entries.length === 0 && <Text style={{ color: th.muted }}>{error ? t('errUnavailable') : t('lapNone')}</Text>}
+          {!loading && entries.length === 0 && (
+            <View testID="laptop-empty" style={{ alignItems: 'center', gap: 8, padding: 18, borderRadius: 14, borderWidth: 1, borderStyle: 'dashed', borderColor: th.lineStrong }}>
+              <Icon name="Laptop" size={28} color={th.muted2} />
+              <Text style={{ color: th.muted, textAlign: 'center' }}>{error ? t('errUnavailable') : t('lapNone')}</Text>
+              {!!error && <Pressable testID="laptop-retry" onPress={() => void useLaptop.getState().refresh()} accessibilityRole="button"><Text style={{ color: th.accentStrong, fontWeight: '700' }}>{t('retry')}</Text></Pressable>}
+            </View>)}
           {entries.map(({ device, models }) => (
             <View key={device.id} testID={`device-${device.name}`} style={{ padding: 12, marginBottom: 10, borderRadius: 14, borderWidth: 1, borderColor: th.line, backgroundColor: th.surface }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                 <View style={{ width: 9, height: 9, borderRadius: 5, backgroundColor: device.online ? '#22c55e' : th.muted2 }} />
                 <Text style={{ color: th.ink, fontWeight: '700', fontSize: 15, flex: 1 }}>{device.name}</Text>
-                <Text style={{ color: th.muted, fontSize: 12 }}>{device.online ? t('lapOnline') : t('lapOffline')}</Text>
+                <Text style={{ color: device.online ? th.accentStrong : th.muted, fontSize: 12, fontWeight: '600' }}>{device.online ? t('lapStateOnline') : t('lapStateOffline')}</Text>
                 <Pressable onPress={() => remove(device.id, device.name)} hitSlop={10} accessibilityRole="button" accessibilityLabel={t('lapRemove')}><Icon name="Trash" size={18} color={th.danger} /></Pressable>
               </View>
               {!device.online && <Text style={{ color: th.muted, fontSize: 12.5, marginTop: 6 }}>{t('lapOfflineHint')}</Text>}

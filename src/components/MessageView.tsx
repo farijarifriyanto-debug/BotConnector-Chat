@@ -37,7 +37,7 @@ export function ResearchCard({ p }: { p: Progress }) {
   )
 }
 
-function errorLine(code: string, lang: Lang, t: ReturnType<typeof useT>): string {
+export function errorLine(code: string, lang: Lang, t: ReturnType<typeof useT>): string {
   if (code.startsWith('research:')) return t(({ limit: 'researchErrLimit', search: 'researchErrSearch', nosources: 'researchErrNone' } as const)[code.slice(9) as 'limit'] ?? 'researchErrSearch')
   const [k, s] = code.split(':')
   return errorText(lang, new ChatError(k as ChatError['kind'], { retryAfterSeconds: s ? Number(s) : undefined }))

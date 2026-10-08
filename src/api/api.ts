@@ -92,11 +92,11 @@ export async function fetchImageModels(): Promise<ImageModel[]> {
 }
 export interface GeneratedImage { b64: string; mime: string; left?: number }
 /** One picture; the server decides free/plan/PAYG and enforces the quota. */
-export async function generateImage(req: { model: string; prompt: string; size?: string }, signal?: AbortSignal): Promise<GeneratedImage> {
+export async function generateImage(req: { model: string; prompt: string; size?: string; /** data URLs of reference photos (only for models that accept them) */ refs?: string[] }, signal?: AbortSignal): Promise<GeneratedImage> {
   const timeout = new AbortController(); const timer = setTimeout(() => timeout.abort(), 240_000)
   const onAbort = () => timeout.abort(); signal?.addEventListener('abort', onAbort)
   try {
-    const j = await postJson<any>('/v1/images/generations', { model: req.model, prompt: req.prompt, n: 1, size: req.size || '1024x1024' }, timeout.signal)
+    const j = await postJson<any>('/v1/images/generations', { model: req.model, prompt: req.prompt, n: 1, size: req.size || '1024x1024', ...(req.refs?.length ? { inputs: { referenceImages: req.refs } } : {}) }, timeout.signal)
     const b64 = j?.data?.[0]?.b64_json
     if (typeof b64 !== 'string' || !b64) throw new ChatError('unavailable')
     const q = j?.botconnector?.image_quota

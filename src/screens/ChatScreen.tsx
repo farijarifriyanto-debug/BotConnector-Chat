@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { FlatList, Image, ScrollView, KeyboardAvoidingView, Platform, Pressable, View } from 'react-native'
+import { FlatList, Image, ScrollView, KeyboardAvoidingView, Platform, Pressable, View, useWindowDimensions } from 'react-native'
 import { Text } from '../components/Text'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { ChatOptionsSheet } from '../components/ChatOptionsSheet'
 import { Composer } from '../components/Composer'
 import { FeatureGuide, type Feature } from '../components/FeatureGuide'
 import { Icon } from '../components/Icons'
+import { ImageStudio } from '../components/ImageStudio'
 import { MessageView } from '../components/MessageView'
 import { ModelSheet } from '../components/ModelSheet'
 import { PalsSheet } from '../components/PalsSheet'
@@ -17,7 +18,7 @@ import { ProvidersSheet } from '../components/ProvidersSheet'
 import { useAuth } from '../store/auth'
 import { currentConv, useChat } from '../store/chat'
 import { useSearch } from '../store/search'
-import type { ChatModel } from '../lib/types'
+import { imageAsModel, shortModelName } from '../lib/modelPicker'
 import { useTheme } from '../theme/theme'
 
 const STARTERS = ['s1', 's2', 's3', 's4'] as const
@@ -33,8 +34,9 @@ const guideFor = (on: { attach: boolean; web: boolean; research: boolean; image:
 export function ChatScreen() {
   const th = useTheme(), t = useT()
   const chat = useChat(), conv = useChat(currentConv)
-  const guest = useAuth(a => a.status === 'guest'), ownSearch = useSearch(x => x.provider !== 'botconnector' && !!x.hasKey[x.provider]), [provSheet, setProvSheet] = useState(false), [localSheet, setLocalSheet] = useState(false), [pals, setPals] = useState(false), [optSheet, setOptSheet] = useState(false), [imgSheet, setImgSheet] = useState(false), [menu, setMenu] = useState(false), [models, setModels] = useState(false), [settings, setSettings] = useState(false)
+  const guest = useAuth(a => a.status === 'guest'), ownSearch = useSearch(x => x.provider !== 'botconnector' && !!x.hasKey[x.provider]), [provSheet, setProvSheet] = useState(false), [localSheet, setLocalSheet] = useState(false), [pals, setPals] = useState(false), [optSheet, setOptSheet] = useState(false), [imgSheet, setImgSheet] = useState(false), [studio, setStudio] = useState(false), [menu, setMenu] = useState(false), [models, setModels] = useState(false), [settings, setSettings] = useState(false)
   const list = useRef<FlatList>(null)
+  const { width, fontScale } = useWindowDimensions(), narrow = width / Math.max(1, fontScale) < 340   // very small phone or very large system text: the model keeps the room, the title steps aside
   const msgs = conv?.messages ?? []
   const model = chat.models.find(m => m.id === chat.modelId)
   const web = guest ? ownSearch : chat.caps?.web !== false
@@ -51,9 +53,9 @@ export function ChatScreen() {
     <SafeAreaView style={{ flex: 1, backgroundColor: th.bg }} edges={['top', 'bottom', 'left', 'right']}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, height: 48 }}>
         <Pressable testID="open-menu" onPress={() => setMenu(true)} hitSlop={10} accessibilityRole="button" accessibilityLabel={t('menu')}><Icon name="MenuIcon" size={22} color={th.ink} /></Pressable>
-        <Pressable testID="header-title" onPress={() => conv && setOptSheet(true)} accessibilityRole="button" accessibilityLabel={t('instructions')} style={{ flex: 1 }}><Text numberOfLines={1} style={{ color: th.ink, fontSize: 16, fontWeight: '700' }}>{conv?.title || t('newChat')}</Text></Pressable>
-        <Pressable testID="header-model" onPress={() => setModels(true)} accessibilityRole="button" accessibilityLabel={t('menuModel')} style={{ flexDirection: 'row', alignItems: 'center', gap: 4, maxWidth: 150, height: 34, paddingHorizontal: 11, borderRadius: 17, borderWidth: 1, borderColor: th.lineStrong, backgroundColor: th.surface }}>
-          <Text numberOfLines={1} style={{ color: th.ink, fontSize: 13, fontWeight: '600', flexShrink: 1 }}>{model?.name ?? t('model')}</Text><Icon name="Chevron" size={14} color={th.muted} />
+        {!narrow ? <Pressable testID="header-title" onPress={() => conv && setOptSheet(true)} accessibilityRole="button" accessibilityLabel={t('instructions')} style={{ flex: 1, minWidth: 0 }}><Text numberOfLines={1} ellipsizeMode="tail" style={{ color: th.ink, fontSize: 16, fontWeight: '700' }}>{conv?.title || t('newChat')}</Text></Pressable> : <View style={{ flex: 1 }} />}
+        <Pressable testID="header-model" onPress={() => setModels(true)} accessibilityRole="button" accessibilityLabel={model ? `${t('menuModel')}: ${model.name}` : t('menuModel')} style={{ flexShrink: 1, flexDirection: 'row', alignItems: 'center', gap: 4, maxWidth: Math.round(width * (narrow ? 0.62 : 0.5)), minHeight: 34, paddingHorizontal: 11, borderRadius: 17, borderWidth: 1, borderColor: th.lineStrong, backgroundColor: th.surface }}>
+          <Text numberOfLines={1} ellipsizeMode="tail" style={{ color: th.ink, fontSize: 13, fontWeight: '600', flexShrink: 1 }}>{model ? shortModelName(model.name) : t('model')}</Text><Icon name="Chevron" size={14} color={th.muted} />
         </Pressable>
         <Pressable testID="header-new" onPress={() => chat.newChat()} hitSlop={10} accessibilityRole="button" accessibilityLabel={t('newChat')}><Icon name="Plus" size={22} color={th.ink} /></Pressable>
       </View>
@@ -80,9 +82,10 @@ export function ChatScreen() {
         )}
         <Composer busy={chat.busy} model={model} webAvailable={web} researchAvailable={!guest} onSend={(text, o, atts) => void chat.send(text, o, atts)} onStop={chat.stop} files={{ available: chat.caps?.files === true && model?.access !== 'local' && model?.access !== 'custom' }} image={{ available: chat.imageModels.length > 0, modelName: chat.imageModels.find(m => m.id === chat.imageModelId)?.name ?? '', onPick: () => setImgSheet(true) }} />
       </KeyboardAvoidingView>
-      <Sidebar open={menu} convs={chat.convs} activeId={chat.activeId} onClose={() => setMenu(false)} onNew={chat.newChat} onOpen={chat.open} onDelete={id => void chat.remove(id)} onSettings={() => setSettings(true)} onPals={() => setPals(true)} />
-      <ModelSheet visible={models} models={chat.models} selected={chat.modelId} onSelect={id => { chat.selectModel(id); setModels(false) }} onClose={() => setModels(false)} />
-      <ModelSheet visible={imgSheet} models={chat.imageModels.map((m): ChatModel => ({ id: m.id, name: m.name, access: m.access, vision: false, tools: false, reasoning: false, available: true }))} selected={chat.imageModelId} onSelect={chat.selectImageModel} onClose={() => setImgSheet(false)} />
+      <Sidebar open={menu} convs={chat.convs} activeId={chat.activeId} onClose={() => setMenu(false)} onNew={chat.newChat} onOpen={chat.open} onDelete={id => void chat.remove(id)} onSettings={() => setSettings(true)} onPals={() => setPals(true)} onStudio={chat.imageModels.length ? () => setStudio(true) : undefined} />
+      <ModelSheet visible={models} models={chat.models} selected={chat.modelId} onSelect={id => { chat.selectModel(id); setModels(false) }} onClose={() => setModels(false)} imageModels={chat.imageModels} selectedImage={chat.imageModelId} onSelectImage={id => { chat.selectImageModel(id); setStudio(true) }} state={chat.modelsState} onRetry={() => void chat.loadModels()} />
+      <ModelSheet visible={imgSheet} models={chat.imageModels.map(imageAsModel)} selected={chat.imageModelId} onSelect={chat.selectImageModel} onClose={() => setImgSheet(false)} />
+      <ImageStudio visible={studio} onClose={() => setStudio(false)} />
       <ChatOptionsSheet visible={optSheet} conv={conv} onClose={() => setOptSheet(false)} />
       <ProvidersSheet visible={provSheet} onClose={() => setProvSheet(false)} />
       <LocalModelsSheet visible={localSheet} onClose={() => setLocalSheet(false)} />

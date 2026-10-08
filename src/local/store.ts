@@ -25,9 +25,12 @@ interface State {
   loadToken(): Promise<void>; setToken(t: string): Promise<void>
   download(src: { repo: string; file: string; bytes: number; name?: string }): Promise<void>
   cancel(id: string): Promise<void>
+  /** a failed download starts again (same file, same place) */
+  retry(id: string): Promise<void>
   remove(id: string): Promise<void>
 }
 const tasks = new Map<string, FileSystem.DownloadResumable>()
+const sources = new Map<string, { repo: string; file: string; bytes: number; name?: string }>()
 
 export const useLocal = create<State>((set, get) => ({
   models: readModels(), downloads: {}, hfToken: '',
@@ -38,6 +41,7 @@ export const useLocal = create<State>((set, get) => ({
   },
   async download({ repo, file, bytes, name }) {
     const fname = safeName(file.split('/').pop() ?? file), id = localId(fname)
+    sources.set(id, { repo, file, bytes, name })
     if (get().models.some(m => m.id === id) || get().downloads[id] && !get().downloads[id].error) return
     const setDl = (d: Download | null) => set(s => { const downloads = { ...s.downloads }; if (d) downloads[id] = d; else delete downloads[id]; return { downloads } })
     setDl({ received: 0, total: bytes })
@@ -63,6 +67,7 @@ export const useLocal = create<State>((set, get) => ({
       const models = [...get().models.filter(x => x.id !== id), m]; writeModels(models); set({ models }); setDl(null)
     } catch { tasks.delete(id); setDl({ received: 0, total: bytes, error: 'network' }) }
   },
+  async retry(id) { const src = sources.get(id); if (src && get().downloads[id]?.error) await get().download(src) },
   async cancel(id) { const t = tasks.get(id); tasks.delete(id); try { await t?.cancelAsync() } catch { /* already finished */ } set(s => { const downloads = { ...s.downloads }; delete downloads[id]; return { downloads } }) },
   async remove(id) {
     const m = get().models.find(x => x.id === id); if (!m) return

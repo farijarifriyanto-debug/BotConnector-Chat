@@ -4,6 +4,7 @@ import { deleteConv, listConvs, putConv } from '../db/convs'
 import { noteDeleted, registerReload, scheduleSync, useSync } from '../sync/store'
 import { runAssistant } from '../lib/agent'
 import { deleteImagesOf, saveImage } from '../lib/images'
+import { defaultSize } from '../lib/modelPicker'
 import { MEMORY_ID, composedSystem, fileIdsOf, newConv, newId, titleFrom, toApiMessages } from '../lib/conv'
 import { research, ResearchError, type Progress } from '../lib/research'
 import { ChatError, type Attachment, type ChatModel, type Conv, type Msg } from '../lib/types'
@@ -18,7 +19,7 @@ import { useSettings } from './settings'
 
 const TITLE_PROMPT = 'Write a short title (at most 6 words) for this conversation, in the same language as the user. No quotes, no trailing punctuation. Reply with the title only.'
 export interface RunStatus { searching?: string; reading?: string; research?: Progress }
-export interface SendOptions { web: boolean; research: boolean; image?: boolean }
+export interface SendOptions { web: boolean; research: boolean; image?: boolean; /** picture size the user chose in the Image Studio (must be one the model offers) */ size?: string }
 type ModelsState = 'idle' | 'loading' | 'ready' | 'error' | 'auth'
 
 interface ChatState {
@@ -79,9 +80,11 @@ export const useChat = create<ChatState>((set, get) => {
       const question = [...history].reverse().find(x => x.role === 'user')?.content.trim() ?? ''
       if (opts.image) {
         const im = get().imageModels.find(x => x.id === get().imageModelId); if (!im) throw new ChatError('unavailable')
-        const g = await generateImage({ model: im.id, prompt: question, size: im.sizes.find(x => x === '1024x1024') ?? undefined }, signal)
+        const size = (opts.size && im.sizes.includes(opts.size) ? opts.size : defaultSize(im.sizes)) ?? '1024x1024'
+        const refs = im.refs ? [...history].reverse().find(x => x.role === 'user')?.attachments?.filter(a => a.kind === 'image' && a.dataUrl).map(a => a.dataUrl!) : undefined   // photos the user attached in the Studio: "edit" starts from them
+        const g = await generateImage({ model: im.id, prompt: question, size, refs }, signal)
         const file = await saveImage(g.b64, g.mime)
-        update({ content: '', attachments: [{ kind: 'image', name: 'image', mime: g.mime, size: file.size, uri: file.uri }], image: { prompt: question, modelId: im.id, model: im.name, size: '1024x1024', ...(g.left !== undefined ? { left: String(g.left) } : {}) }, model: im.name, ms: Date.now() - t0 }, true)
+        update({ content: '', attachments: [{ kind: 'image', name: 'image', mime: g.mime, size: file.size, uri: file.uri }], image: { prompt: question, modelId: im.id, model: im.name, size, ...(g.left !== undefined ? { left: String(g.left) } : {}) }, model: im.name, ms: Date.now() - t0 }, true)
       } else if (opts.research && caps?.web !== false) {
         const planner = isPrivate(m) ? m : models.find(x => x.access === 'free' && x.available && !x.reasoning) ?? m   // a local or custom model plans its own research; its questions never go to a cloud model
         const res = await research({ question, history: toApiMessages('', history.slice(0, -1), false), system: composedSystem(base, convs), writer: m, planner, signal,
@@ -164,8 +167,8 @@ export const useChat = create<ChatState>((set, get) => {
     },
     async regenerate(opts) {
       const s = get(), conv = currentConv(s); if (s.busy || !conv) return
-      const msgs = [...conv.messages]; const wasImage = !!msgs.at(-1)?.image; while (msgs.length && msgs[msgs.length - 1].role === 'assistant') msgs.pop()
-      if (msgs.length) await run(conv, msgs, wasImage ? { ...opts, image: true } : opts)
+      const msgs = [...conv.messages]; const prev = msgs.at(-1)?.image; while (msgs.length && msgs[msgs.length - 1].role === 'assistant') msgs.pop()
+      if (msgs.length) await run(conv, msgs, prev ? { ...opts, image: true, size: prev.size || opts.size } : opts)   // same kind of picture and size as the one being redone
     },
     stop() { controller?.abort() },
   }

@@ -13,6 +13,10 @@ export interface ChatModel {
   reason?: string
   /** custom providers: the name shown as the group header */
   provider?: string
+  /** a picture model (shown under the Image filter; picking one opens the Image Studio) */
+  image?: boolean
+  /** picture model that can start from reference photos */
+  refs?: boolean
 }
 
 export interface Attachment {
