@@ -12,6 +12,7 @@ import '../laptop/api'
 import { laptopModels, useLaptop } from '../laptop/store'
 import { localModels, useLocal } from '../local/store'
 import { customModels } from './providers'
+import { useSearch } from './search'
 import { useSettings } from './settings'
 
 const TITLE_PROMPT = 'Write a short title (at most 6 words) for this conversation, in the same language as the user. No quotes, no trailing punctuation. Reply with the title only.'
@@ -105,7 +106,7 @@ export const useChat = create<ChatState>((set, get) => {
 
   return {
     convs: [], activeId: null, draft: null, models: [], modelId: '', imageModels: [], imageModelId: '', modelsState: 'idle', caps: null, busy: false, status: null,
-    async init() { registerReload(async () => { if (!get().busy) set({ convs: sortConvs(await listConvs()) }) }); scheduleSync(800); void get().loadModels(); void useLaptop.getState().refresh(); try { set({ convs: await listConvs() }) } catch { /* an unreadable database starts empty */ } },
+    async init() { void useSearch.getState().load(); registerReload(async () => { if (!get().busy) set({ convs: sortConvs(await listConvs()) }) }); scheduleSync(800); void get().loadModels(); void useLaptop.getState().refresh(); try { set({ convs: await listConvs() }) } catch { /* an unreadable database starts empty */ } },
     async loadModels() {
       set({ modelsState: 'loading' })
       try {

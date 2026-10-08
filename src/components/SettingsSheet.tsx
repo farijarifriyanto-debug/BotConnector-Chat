@@ -11,6 +11,7 @@ import { LaptopSheet } from './LaptopSheet'
 import { LocalModelsSheet } from './LocalModelsSheet'
 import { PersonalizationSheet } from './PersonalizationSheet'
 import { ProvidersSheet } from './ProvidersSheet'
+import { SearchSheet } from './SearchSheet'
 import { SyncSection } from './SyncSection'
 
 export const DELETE_PHRASE = 'HAPUS AKUN'   // the server accepts only this exact phrase, whatever the app language is
@@ -18,7 +19,7 @@ const REASON = { wrong_password: 'dAcctWrong', confirmation: 'dAcctBadPhrase', r
 
 export function SettingsSheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const th = useTheme(), t = useT(), s = useSettings(), account = useAuth(a => a.account)
-  const [providers, setProviders] = useState(false), [local, setLocal] = useState(false), [personal, setPersonal] = useState(false), [laptop, setLaptop] = useState(false), [deleting, setDeleting] = useState(false), [pw, setPw] = useState(''), [phrase, setPhrase] = useState(''), [busy, setBusy] = useState(false), [err, setErr] = useState<DeleteFailure | null>(null)
+  const [providers, setProviders] = useState(false), [local, setLocal] = useState(false), [personal, setPersonal] = useState(false), [laptop, setLaptop] = useState(false), [search, setSearch] = useState(false), [deleting, setDeleting] = useState(false), [pw, setPw] = useState(''), [phrase, setPhrase] = useState(''), [busy, setBusy] = useState(false), [err, setErr] = useState<DeleteFailure | null>(null)
   const done = () => { setDeleting(false); setPw(''); setPhrase(''); setErr(null); setBusy(false) }
   const close = () => { if (!busy) { done(); onClose() } }
   const confirmLogout = () => Alert.alert(t('logout'), t('logoutConfirm'), [{ text: t('cancel'), style: 'cancel' }, { text: t('logout'), style: 'destructive', onPress: () => { onClose(); useChat.getState().reset(); void useAuth.getState().logout() } }])
@@ -68,6 +69,7 @@ export function SettingsSheet({ visible, onClose }: { visible: boolean; onClose:
               {label('Theme')}
               {seg<ThemePref>(s.theme, [{ v: 'auto', label: t('themeAuto').replace(/^.*: /, '') }, { v: 'light', label: t('themeLight').replace(/^.*: /, '') }, { v: 'dark', label: t('themeDark').replace(/^.*: /, '') }], s.setTheme)}
               <Pressable testID="open-personal" onPress={() => setPersonal(true)} accessibilityRole="button" style={{ marginTop: 18, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: th.lineStrong, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}><Text style={{ color: th.ink, fontWeight: '600' }}>{t('personalization')}</Text><Icon name="Chevron" size={16} color={th.muted} /></Pressable>
+              <Pressable testID="open-search" onPress={() => setSearch(true)} accessibilityRole="button" style={{ marginTop: 10, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: th.lineStrong, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}><Text style={{ color: th.ink, fontWeight: '600' }}>{t('srchTitle')}</Text><Icon name="Chevron" size={16} color={th.muted} /></Pressable>
               <Pressable testID="open-providers" onPress={() => setProviders(true)} accessibilityRole="button" style={{ marginTop: 10, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: th.lineStrong, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}><Text style={{ color: th.ink, fontWeight: '600' }}>{t('provTitle')}</Text><Icon name="Chevron" size={16} color={th.muted} /></Pressable>
               <Pressable testID="open-laptop" onPress={() => setLaptop(true)} accessibilityRole="button" style={{ marginTop: 10, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: th.lineStrong, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}><Text style={{ color: th.ink, fontWeight: '600' }}>{t('laptop')}</Text><Icon name="Chevron" size={16} color={th.muted} /></Pressable>
               <Pressable testID="open-local" onPress={() => setLocal(true)} accessibilityRole="button" style={{ marginTop: 10, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: th.lineStrong, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}><Text style={{ color: th.ink, fontWeight: '600' }}>{t('locManage')}</Text><Icon name="Chevron" size={16} color={th.muted} /></Pressable>
@@ -79,6 +81,7 @@ export function SettingsSheet({ visible, onClose }: { visible: boolean; onClose:
           )}
         </ScrollView>
       </KeyboardAvoidingView>
+      <SearchSheet visible={search} onClose={() => setSearch(false)} />
       <LaptopSheet visible={laptop} onClose={() => setLaptop(false)} onUsed={onClose} />
       <PersonalizationSheet visible={personal} onClose={() => setPersonal(false)} />
       <ProvidersSheet visible={providers} onClose={() => setProviders(false)} />

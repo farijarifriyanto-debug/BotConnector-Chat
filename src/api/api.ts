@@ -114,7 +114,11 @@ export async function fetchCapabilities(): Promise<Capabilities> {
 }
 
 export interface SearchHit { title: string; url: string; snippet: string }
+/** Chosen by the app: the user's own search provider (BYOK), or null to use BotConnector Search. */
+let byokSearch: (q: string, signal?: AbortSignal) => Promise<SearchHit[] | null> = async () => null
+export const configureByokSearch = (fn: typeof byokSearch) => { byokSearch = fn }
 export async function webSearch(query: string, signal?: AbortSignal): Promise<SearchHit[]> {
+  const own = await byokSearch(query, signal); if (own) return own
   const j = await postJson<{ results?: any[] }>('/v1/web/search', { query, max_results: 5 }, signal)
   return (j.results ?? []).filter(x => x && typeof x.url === 'string').map(x => ({ title: String(x.title || x.url).slice(0, 200), url: String(x.url), snippet: String(x.snippet || '').slice(0, 700) }))
 }

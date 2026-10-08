@@ -26,7 +26,7 @@ export function ResearchCard({ p }: { p: Progress }) {
     <View testID="research-card" style={{ borderWidth: 1, borderColor: th.lineStrong, borderRadius: 12, backgroundColor: th.surface, padding: 12, gap: 6, alignSelf: 'flex-start', maxWidth: '100%' }}>
       {PHASES.map((ph, i) => (
         <View key={ph} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <View style={{ width: 16, alignItems: 'center' }}>{i < at ? <Text style={{ color: th.accentStrong, fontWeight: '700' }}>✓</Text> : i === at ? <ActivityIndicator size="small" color={th.accent} /> : <Text style={{ color: th.muted2 }}>·</Text>}</View>
+          <View style={{ width: 16, alignItems: 'center' }}>{i < at ? <Icon name="Check" size={14} color={th.accentStrong} /> : i === at ? <ActivityIndicator size="small" color={th.accent} /> : <Text style={{ color: th.muted2 }}>·</Text>}</View>
           <Text style={{ color: i === at ? th.ink : i < at ? th.muted : th.muted2, fontWeight: i === at ? '600' : '400', fontSize: 14 }}>{t(PHASE_KEY[ph])}</Text>
           {i === at && p.total > 1 && <Text style={{ color: th.muted, fontSize: 12 }}>{Math.min(p.done + (p.phase === 'search' || p.phase === 'read' ? 1 : 0), p.total)}/{p.total}</Text>}
           {i === at && !!detail && <Text numberOfLines={1} style={{ color: th.muted, fontSize: 12, flexShrink: 1 }}>{detail}</Text>}
@@ -81,7 +81,7 @@ function MessageViewBase({ msg, streaming, status, isLastAssistant, canAct, onRe
           <ActivityIndicator size="small" color={th.accent} />
           <Text numberOfLines={1} style={{ color: th.muted, fontSize: 13, flexShrink: 1 }}>{status.searching ? t('searching', { q: status.searching }) : t('reading', { u: domain(status.reading ?? '') })}</Text>
         </View>)}
-      {msg.research && !streaming && <Text style={{ color: th.muted, fontSize: 12, marginBottom: 6 }}>🔎 {t('researchLog', { s: msg.research.searches, p: msg.research.pages })}</Text>}
+      {msg.research && !streaming && <Text style={{ color: th.muted, fontSize: 12, marginBottom: 6 }}>{t('researchLog', { s: msg.research.searches, p: msg.research.pages })}</Text>}
       {showTyping ? <ActivityIndicator color={th.muted2} style={{ alignSelf: 'flex-start', marginVertical: 8 }} /> : !!msg.content && <Markdown text={msg.content} sources={msg.sources} />}
       {(msg.attachments ?? []).filter(a => a.kind === 'image' && a.uri && imageUri(a.uri)).map(a => (
         <Pressable key={a.uri} testID="generated-image" accessibilityRole="imagebutton" accessibilityLabel={msg.image?.prompt || t('imgAlt')} onPress={() => void Share.share({ url: imageUri(a.uri!) })} style={{ marginTop: 4, alignSelf: 'flex-start', width: '100%', maxWidth: 420, aspectRatio: 1, borderRadius: 14, overflow: 'hidden', backgroundColor: th.surface3 }}>
