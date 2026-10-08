@@ -47,13 +47,13 @@ export async function runAssistant(o: RunOptions): Promise<RunResult> {
   let content = '', reasoning = ''
   const useTools = o.web && o.model.tools
 
-  if (o.web && !o.model.tools) {   // model cannot call tools: search first with the user's question, then answer from the results
+  if (o.web) {   // the user switched web search on: always search first with their question (a model left to decide may just ask for details), then answer from the results; tool-capable models may search more
     const q = lastUserText(messages)
     if (q) {
       o.onStatus({ searching: q }); queries.push(q)
       try {
         const hits = await webSearch(clip(q, 200), o.signal)
-        if (hits.length) { addSources(sources, hits); messages.unshift({ role: 'system', content: 'Web search results for the user\'s latest question. Use them when relevant and cite as [1], [2]. If they do not answer it, say so.\n\n' + hitsToText(hits) }) }
+        if (hits.length) { addSources(sources, hits); messages.unshift({ role: 'system', content: 'The user turned web search on. Below are web search results for their latest question. Answer from them, cite as [1], [2], and do not ask for more details when the results already let you help. If they do not answer it, say so.\n\n' + hitsToText(hits) }) }
       } catch { /* answer without search */ }
       o.onStatus(null)
     }
