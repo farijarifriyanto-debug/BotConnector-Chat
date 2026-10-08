@@ -1,8 +1,8 @@
 import * as FileSystem from 'expo-file-system/legacy'
 import * as Sharing from 'expo-sharing'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { ActivityIndicator, Image, Keyboard, Modal, Pressable, ScrollView, Share, View } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
+import { ActivityIndicator, Image, Keyboard, Modal, Platform, Pressable, ScrollView, Share, View } from 'react-native'
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context'
 import { Text, TextInput } from './Text'
 import { Icon } from './Icons'
 import { ModelIcon } from './ModelIcon'
@@ -70,14 +70,16 @@ export function ImageStudio({ visible, onClose }: { visible: boolean; onClose: (
       <Icon name={icon} size={20} color={th.ink} /><Text numberOfLines={1} style={{ color: th.ink, fontSize: 12 }}>{text}</Text>
     </Pressable>)
   return (
-    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-      <SafeAreaView style={{ flex: 1, backgroundColor: th.bg }} edges={['top', 'bottom', 'left', 'right']}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingVertical: 10 }}>
+    // iOS draws a page sheet below the status bar itself (a full-screen modal put the title under the clock), so only Android needs the top inset
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+      <Root>
+      <SafeAreaView style={{ flex: 1, backgroundColor: th.bg }} edges={Platform.OS === 'ios' ? ['bottom', 'left', 'right'] : ['top', 'bottom', 'left', 'right']}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingLeft: 16, paddingRight: 6, paddingTop: 8, paddingBottom: 6 }}>
           <View style={{ flex: 1 }}>
             <Text accessibilityRole="header" style={{ color: th.ink, fontSize: 20, fontWeight: '800' }}>{t('stTitle')}</Text>
             <Text style={{ color: th.muted, fontSize: 13 }}>{t('stSub')}</Text>
           </View>
-          <Pressable onPress={onClose} hitSlop={12} accessibilityRole="button" accessibilityLabel={t('close')} testID="studio-close"><Icon name="Close" color={th.ink} /></Pressable>
+          <Pressable onPress={onClose} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('close')} testID="studio-close" style={{ width: 48, height: 48, alignItems: 'center', justifyContent: 'center' }}><Icon name="Close" size={24} color={th.ink} /></Pressable>
         </View>
         <ScrollView ref={scroll} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 40 }} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
           {!model ? <Text testID="studio-nomodel" style={{ color: th.muted, marginTop: 24, textAlign: 'center' }}>{t('stNoModel')}</Text> : <>
@@ -164,8 +166,10 @@ export function ImageStudio({ visible, onClose }: { visible: boolean; onClose: (
           </Pressable>
         </Modal>
       </SafeAreaView>
+      </Root>
     </Modal>
   )
 }
+const Root = Platform.OS === 'android' ? SafeAreaProvider : React.Fragment   // Android needs its own provider inside a Modal to know the insets
 /** A chat that is only pictures (made in the Studio) can take the next one; anything else gets a fresh chat. */
 const shownKeep = (msgs: Msg[]) => msgs.every(m => m.role === 'user' || !!m.image)
