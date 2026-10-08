@@ -1,4 +1,6 @@
-export type Lang = 'id' | 'en'
+import { detectLang, LANG_CODES, type Lang } from './langs'
+import { PACKS } from './lang'
+export { detectLang, type Lang }
 
 const en = {
   appTitle: 'Chat', back: 'Workspace', newChat: 'New chat', search: 'Search chats', today: 'Today', yesterday: 'Yesterday', week: 'Previous 7 days', older: 'Older', noChats: 'No chats yet.', noMatches: 'No chats match.',
@@ -118,14 +120,14 @@ const id: Record<Key, string> = {
   theme: 'Tema', themeAuto: 'Tema: otomatis', themeLight: 'Tema: terang', themeDark: 'Tema: gelap', language: 'Bahasa', you: 'Anda', assistant: 'Asisten', stopped: 'Dihentikan.', menu: 'Menu', close: 'Tutup', untitled: 'Chat baru',
   errAuth: 'Sesi Anda berakhir. Masuk lagi.', errPrivacy: 'Mode privasi memblokir ini. Buka pengaturan privasi Workspace untuk mengizinkan Cloud AI.', errBalance: 'Model ini butuh saldo PAYG. Isi saldo di Workspace atau pilih model Gratis atau yang termasuk paket.', errPlan: 'Model ini butuh paket berbayar. Pilih model lain.', errCapacity: 'Model sedang penuh. Coba lagi dalam {s} detik.', errCapacityNoWait: 'Model sedang penuh. Coba lagi sebentar atau pilih model lain.', errTooLarge: 'Percakapan atau lampiran terlalu besar untuk model ini.', errUnavailable: 'Model sementara tidak tersedia. Coba lagi atau pilih model lain.', errRejected: 'Permintaan tidak dapat diproses. Coba model lain.', errNetwork: 'Masalah koneksi. Periksa internet Anda dan coba lagi.', errFiles: 'File terlampir tidak bisa dipakai (apakah masih diproses, atau paket Anda mencakup file?).',
 }
-export const STRINGS = { en: en as Record<Key, string>, id }
+export const STRINGS: Record<Lang, Partial<Record<Key, string>>> & { en: Record<Key, string> } = { en: en as Record<Key, string>, id, ...PACKS } as never
+void LANG_CODES
 
 export function t(lang: Lang, key: Key, vars?: Record<string, string | number>): string {
-  let s = STRINGS[lang][key] ?? STRINGS.en[key]
+  let s = STRINGS[lang]?.[key] ?? STRINGS.en[key]
   if (vars) for (const [k, v] of Object.entries(vars)) s = s.replace(`{${k}}`, String(v))
   return s
 }
-export const detectLang = (stored: string | null, nav: string | undefined): Lang => (stored === 'id' || stored === 'en' ? stored : (nav || '').toLowerCase().startsWith('id') ? 'id' : 'en')
 
 import type { ChatError } from '../lib/types'
 export function errorText(lang: Lang, e: ChatError): string {

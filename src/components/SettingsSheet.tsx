@@ -2,12 +2,14 @@ import React, { useState } from 'react'
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, View } from 'react-native'
 import { Text, TextInput } from './Text'
 import { useT } from '../hooks/useT'
+import { langName } from '../i18n/langs'
 import { useAuth } from '../store/auth'
 import { useChat } from '../store/chat'
 import { useSettings, type ThemePref } from '../store/settings'
 import { useTheme } from '../theme/theme'
 import type { DeleteFailure } from '../auth/session'
 import { Icon } from './Icons'
+import { LanguageSheet } from './LanguageSheet'
 import { LaptopSheet } from './LaptopSheet'
 import { LocalModelsSheet } from './LocalModelsSheet'
 import { PersonalizationSheet } from './PersonalizationSheet'
@@ -21,7 +23,7 @@ const REASON = { wrong_password: 'dAcctWrong', confirmation: 'dAcctBadPhrase', r
 const cap = (x: string) => x.charAt(0).toUpperCase() + x.slice(1)
 export function SettingsSheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const th = useTheme(), t = useT(), s = useSettings(), account = useAuth(a => a.account), guest = useAuth(a => a.status === 'guest')
-  const [providers, setProviders] = useState(false), [local, setLocal] = useState(false), [personal, setPersonal] = useState(false), [laptop, setLaptop] = useState(false), [search, setSearch] = useState(false), [deleting, setDeleting] = useState(false), [pw, setPw] = useState(''), [phrase, setPhrase] = useState(''), [busy, setBusy] = useState(false), [err, setErr] = useState<DeleteFailure | null>(null)
+  const [providers, setProviders] = useState(false), [local, setLocal] = useState(false), [personal, setPersonal] = useState(false), [laptop, setLaptop] = useState(false), [langOpen, setLangOpen] = useState(false), [search, setSearch] = useState(false), [deleting, setDeleting] = useState(false), [pw, setPw] = useState(''), [phrase, setPhrase] = useState(''), [busy, setBusy] = useState(false), [err, setErr] = useState<DeleteFailure | null>(null)
   const done = () => { setDeleting(false); setPw(''); setPhrase(''); setErr(null); setBusy(false) }
   const close = () => { if (!busy) { done(); onClose() } }
   const confirmLogout = () => Alert.alert(t('logout'), t('logoutConfirm'), [{ text: t('cancel'), style: 'cancel' }, { text: t('logout'), style: 'destructive', onPress: () => { onClose(); useChat.getState().reset(); void useAuth.getState().logout() } }])
@@ -72,7 +74,7 @@ export function SettingsSheet({ visible, onClose }: { visible: boolean; onClose:
                 </>)}
               </View>
               {label(t('language'))}
-              {seg(s.lang, [{ v: 'id', label: 'Indonesia' }, { v: 'en', label: 'English' }], s.setLang)}
+              <Pressable testID="open-language" onPress={() => setLangOpen(true)} accessibilityRole="button" style={{ padding: 14, borderRadius: 12, borderWidth: 1, borderColor: th.lineStrong, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}><Text style={{ color: th.ink, fontWeight: '600' }}>{langName(s.lang)}</Text><Icon name="Chevron" size={16} color={th.muted} /></Pressable>
               {label(t('theme'))}
               {seg<ThemePref>(s.theme, [{ v: 'auto', label: cap(t('themeAuto').replace(/^.*: /, '')) }, { v: 'light', label: cap(t('themeLight').replace(/^.*: /, '')) }, { v: 'dark', label: cap(t('themeDark').replace(/^.*: /, '')) }], s.setTheme)}
               {label(t('fsTitle'))}
@@ -91,6 +93,7 @@ export function SettingsSheet({ visible, onClose }: { visible: boolean; onClose:
         </ScrollView>
       </KeyboardAvoidingView>
       <SearchSheet visible={search} onClose={() => setSearch(false)} />
+      <LanguageSheet visible={langOpen} onClose={() => setLangOpen(false)} />
       <LaptopSheet visible={laptop} onClose={() => setLaptop(false)} onUsed={onClose} />
       <PersonalizationSheet visible={personal} onClose={() => setPersonal(false)} />
       <ProvidersSheet visible={providers} onClose={() => setProviders(false)} />

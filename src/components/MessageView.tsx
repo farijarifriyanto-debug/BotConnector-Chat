@@ -3,7 +3,8 @@ import * as Speech from 'expo-speech'
 import React, { memo, useEffect, useState } from 'react'
 import { ActivityIndicator, Image, Linking, Pressable, Share, View } from 'react-native'
 import { Text } from './Text'
-import { errorText } from '../i18n/strings'
+import { errorText, type Lang } from '../i18n/strings'
+import { bcp47 } from '../i18n/langs'
 import { useT } from '../hooks/useT'
 import { imageUri } from '../lib/images'
 import { plainText } from '../lib/speech'
@@ -36,7 +37,7 @@ export function ResearchCard({ p }: { p: Progress }) {
   )
 }
 
-function errorLine(code: string, lang: 'id' | 'en', t: ReturnType<typeof useT>): string {
+function errorLine(code: string, lang: Lang, t: ReturnType<typeof useT>): string {
   if (code.startsWith('research:')) return t(({ limit: 'researchErrLimit', search: 'researchErrSearch', nosources: 'researchErrNone' } as const)[code.slice(9) as 'limit'] ?? 'researchErrSearch')
   const [k, s] = code.split(':')
   return errorText(lang, new ChatError(k as ChatError['kind'], { retryAfterSeconds: s ? Number(s) : undefined }))
@@ -64,7 +65,7 @@ function MessageViewBase({ msg, streaming, status, isLastAssistant, canAct, onRe
     if (speaking) { void Speech.stop(); setSpeaking(false); return }
     const text = plainText(msg.content); if (!text) return
     setSpeaking(true)
-    Speech.speak(text, { language: lang === 'id' ? 'id-ID' : 'en-US', onDone: () => setSpeaking(false), onStopped: () => setSpeaking(false), onError: () => setSpeaking(false) })
+    Speech.speak(text, { language: bcp47(lang), onDone: () => setSpeaking(false), onStopped: () => setSpeaking(false), onError: () => setSpeaking(false) })
   }
   useEffect(() => () => { if (speaking) void Speech.stop() }, [speaking])
   const copy = async () => { await Clipboard.setStringAsync(msg.content || msg.image?.prompt || ''); setCopied(true); setTimeout(() => setCopied(false), 1500) }

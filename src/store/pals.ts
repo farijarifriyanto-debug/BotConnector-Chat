@@ -12,7 +12,7 @@ const BUILTIN: { id: string; en: [string, string]; id_: [string, string] }[] = [
   { id: 'summarizer', en: ['Summarizer', 'You summarize what the user pastes or attaches: a one-sentence gist, then 3-6 bullet points, then any numbers, dates or decisions that matter.'], id_: ['Perangkum', 'Anda merangkum yang ditempel atau dilampirkan pengguna: inti dalam satu kalimat, lalu 3-6 poin, lalu angka, tanggal, atau keputusan penting.'] },
   { id: 'ideas', en: ['Brainstormer', 'You generate varied, concrete ideas (not generic ones), grouped by approach, and point out the most promising one with a reason.'], id_: ['Pencari ide', 'Anda menghasilkan ide yang beragam dan konkret (bukan yang umum), dikelompokkan per pendekatan, lalu tunjukkan yang paling menjanjikan beserta alasannya.'] },
 ]
-export const builtinPals = (lang: 'id' | 'en'): Pal[] => BUILTIN.map(b => ({ id: 'builtin:' + b.id, name: (lang === 'id' ? b.id_ : b.en)[0], system: (lang === 'id' ? b.id_ : b.en)[1] }))
+export const builtinPals = (lang: string): Pal[] => BUILTIN.map(b => ({ id: 'builtin:' + b.id, name: (lang === 'id' ? b.id_ : b.en)[0], system: (lang === 'id' ? b.id_ : b.en)[1] }))
 
 const read = (): Pal[] => { try { const j = JSON.parse(Storage.getItemSync(KEY) ?? '[]'); return Array.isArray(j) ? j.filter(p => p && typeof p.id === 'string' && typeof p.name === 'string' && typeof p.system === 'string') : [] } catch { return [] } }
 const write = (l: Pal[]) => { try { Storage.setItemSync(KEY, JSON.stringify(l)) } catch { /* not persisted */ } }

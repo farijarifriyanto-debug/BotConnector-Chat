@@ -6,9 +6,10 @@ import { canPie, chartSvg, PALETTE, type ChartData, type ChartType } from '../li
 import { t } from '../i18n/strings'
 import { useSettings } from '../store/settings'
 import { useTheme } from '../theme/theme'
+import { bcp47 } from '../i18n/langs'
 import { Icon } from './Icons'
 
-const nf = (lang: string, o: Intl.NumberFormatOptions) => new Intl.NumberFormat(lang === 'id' ? 'id-ID' : 'en-US', o).format
+const nf = (lang: string, o: Intl.NumberFormatOptions) => new Intl.NumberFormat(bcp47(lang), o).format
 
 /** Bar / line / pie view of a numeric table, with per-series toggles. */
 export function TableChart({ data, visible, onClose }: { data: ChartData; visible: boolean; onClose: () => void }) {

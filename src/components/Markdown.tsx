@@ -4,7 +4,8 @@ import React, { memo, useMemo, useState } from 'react'
 import { Linking, Platform, Pressable, ScrollView, View, type TextStyle } from 'react-native'
 import { Text } from './Text'
 import { chartDataFromRows } from '../lib/chart'
-import { t } from '../i18n/strings'
+import { numStyle } from '../i18n/langs'
+import { t, type Lang } from '../i18n/strings'
 import { useSettings } from '../store/settings'
 import { useTheme, type Theme } from '../theme/theme'
 import type { Source } from '../lib/types'
@@ -17,7 +18,7 @@ const plain = (tokens: Token[] | undefined): string => (tokens ?? []).map(k => (
 const safeUrl = (u: string) => /^(https?:|mailto:)/i.test(u)
 const open = (u: string) => { if (safeUrl(u)) void Linking.openURL(u).catch(() => {}) }
 
-interface Ctx { th: Theme; sources: Source[]; lang: 'id' | 'en' }
+interface Ctx { th: Theme; sources: Source[]; lang: Lang }
 
 /** "[3]" in the answer becomes a pill that opens source 3 (numbers with no source are left as text). */
 function withCitations(text: string, c: Ctx, key: string): React.ReactNode[] {
@@ -56,7 +57,7 @@ function CodeBlock({ code, lang, c }: { code: string; lang?: string; c: Ctx }) {
         <View style={{ flexDirection: 'row', gap: 16 }}>
           {isHtml && <Pressable accessibilityRole="button" testID="html-preview" onPress={() => setPreview(true)} hitSlop={8}><Text style={{ color: c.th.accentStrong, fontSize: 12, fontWeight: '700' }}>{t(c.lang, 'previewBtn')}</Text></Pressable>}
           <Pressable accessibilityRole="button" onPress={() => { void Clipboard.setStringAsync(code); setDone(true); setTimeout(() => setDone(false), 1500) }} hitSlop={8}>
-            <Text style={{ color: c.th.accentStrong, fontSize: 12, fontWeight: '700' }}>{done ? t(c.lang, 'copied') : 'Copy'}</Text>
+            <Text style={{ color: c.th.accentStrong, fontSize: 12, fontWeight: '700' }}>{done ? t(c.lang, 'copied') : t(c.lang, 'copy')}</Text>
           </Pressable>
         </View>
       </View>
@@ -68,7 +69,7 @@ function CodeBlock({ code, lang, c }: { code: string; lang?: string; c: Ctx }) {
 
 function TableBlock({ tok, c, key0 }: { tok: Tokens.Table; c: Ctx; key0: string }) {
   const [chart, setChart] = useState(false)
-  const data = useMemo(() => chartDataFromRows(tok.header.map(h => plain(h.tokens)), tok.rows.map(r => r.map(x => plain(x.tokens))), c.lang === 'id'), [tok, c.lang])
+  const data = useMemo(() => chartDataFromRows(tok.header.map(h => plain(h.tokens)), tok.rows.map(r => r.map(x => plain(x.tokens))), numStyle(c.lang) === 'id'), [tok, c.lang])
   const cell = (tokens: Token[], head: boolean, k: string, last: boolean) => (
     <View key={k} style={{ minWidth: 96, maxWidth: 240, padding: 8, borderRightWidth: last ? 0 : 1, borderColor: c.th.lineStrong, backgroundColor: head ? c.th.surface3 : undefined }}>
       <Text style={{ color: c.th.ink, fontSize: 14, lineHeight: 20, fontWeight: head ? '700' : '400' }}>{inline(tokens, c, k)}</Text>
