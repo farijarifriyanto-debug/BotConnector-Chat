@@ -22,6 +22,7 @@
     "expo-status-bar": "~57.0.1",
     "expo-system-ui": "~57.0.4",
     "expo-web-browser": "~57.0.3",
+    "js-sha256": "^1.0.0",
     "marked": "^18.1.0",
     "react": "19.2.3",
     "react-native": "0.86.3",
@@ -42,7 +43,9 @@
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "typecheck": "tsc --noEmit",
+    "test": "jest"
   },
   "private": true
 }
