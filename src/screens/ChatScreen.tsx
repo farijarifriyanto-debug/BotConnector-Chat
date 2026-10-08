@@ -22,6 +22,7 @@ import { useAuth } from '../store/auth'
 import { currentConv, useChat } from '../store/chat'
 import { useRatings } from '../store/ratings'
 import { useSearch } from '../store/search'
+import { Follow } from '../lib/follow'
 import { imageAsModel, shortModelName } from '../lib/modelPicker'
 import { useTheme } from '../theme/theme'
 
@@ -50,10 +51,11 @@ export function ChatScreen() {
   useEffect(() => { void chat.init() }, [])   // eslint-disable-line react-hooks/exhaustive-deps
   const opts = { web, research: false }
   const last = msgs[msgs.length - 1]
-  const stick = useRef(true)   // follow the answer while it is written, unless the reader scrolled up
-  useEffect(() => { stick.current = true }, [conv?.id])
-  useEffect(() => { if (chat.busy) { stick.current = true; list.current?.scrollToEnd({ animated: true }) } }, [chat.busy])
-  const follow = () => { if (stick.current) list.current?.scrollToEnd({ animated: false }) }
+  const fol = useRef(new Follow()), [away, setAway] = useState(false)   // follow the answer while it is written, until the reader's finger moves the list
+  const toEnd = (animated: boolean) => list.current?.scrollToEnd({ animated })
+  useEffect(() => { fol.current.jump(); setAway(false) }, [conv?.id])
+  useEffect(() => { if (chat.busy) { fol.current.jump(); setAway(false); toEnd(true) } }, [chat.busy])   // eslint-disable-line react-hooks/exhaustive-deps
+  const follow = () => { if (fol.current.stick) toEnd(false) }
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: th.bg }} edges={['top', 'bottom', 'left', 'right']}>
@@ -83,9 +85,10 @@ export function ChatScreen() {
             <FeatureGuide features={guideFor({ attach: !guest, web, research: web && !guest, image: chat.imageModels.length > 0 })} />
           </ScrollView>
         ) : (
-          <FlatList ref={list} data={msgs} onContentSizeChange={follow} onLayout={follow} scrollEventThrottle={64} onScroll={e => { const m = e.nativeEvent; stick.current = m.contentSize.height - m.layoutMeasurement.height - m.contentOffset.y < 140 }} keyExtractor={m => m.id} contentContainerStyle={{ padding: 12, gap: 12 }} keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive"
+          <FlatList ref={list} data={msgs} onContentSizeChange={follow} onLayout={follow} scrollEventThrottle={32} onScrollBeginDrag={() => fol.current.begin()} onScrollEndDrag={e => fol.current.end(e.nativeEvent.velocity?.y)} onMomentumScrollEnd={() => fol.current.momentumEnd()} onScroll={e => { const m = e.nativeEvent; const a = fol.current.scroll({ contentHeight: m.contentSize.height, viewHeight: m.layoutMeasurement.height, offset: m.contentOffset.y }); setAway(p => (p === a ? p : a)) }} keyExtractor={m => m.id} contentContainerStyle={{ padding: 12, gap: 14, width: '100%', maxWidth: 760, alignSelf: 'center' }} keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive"
             renderItem={({ item }) => <MessageView msg={item} streaming={chat.busy && item.id === last?.id && item.role === 'assistant'} status={chat.busy && item.id === last?.id ? chat.status : null} isLastAssistant={item.id === lastAssistant} canAct={!chat.busy} onRegenerate={() => void chat.regenerate(opts)} onReport={item.role === 'assistant' && !item.error && (item.content || item.attachments?.length) ? () => setReporting(item.id) : undefined} />} />
         )}
+        {msgs.length > 0 && away && <Pressable testID="jump-end" onPress={() => { fol.current.jump(); setAway(false); toEnd(true) }} accessibilityRole="button" accessibilityLabel={t('jumpEnd')} style={{ position: 'absolute', right: 16, bottom: 120, width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: th.surface, borderWidth: 1, borderColor: th.lineStrong, shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 4 }}><Icon name="ArrowDown" size={20} color={th.ink} /></Pressable>}
         <Composer busy={chat.busy} model={model} webAvailable={web} researchAvailable={!guest} onSend={(text, o, atts) => void chat.send(text, o, atts)} onStop={chat.stop} files={{ available: chat.caps?.files === true && model?.access !== 'local' && model?.access !== 'custom' }} image={{ available: chat.imageModels.length > 0, modelName: chat.imageModels.find(m => m.id === chat.imageModelId)?.name ?? '', onPick: () => setImgSheet(true) }} />
       </KeyboardAvoidingView>
       <Sidebar open={menu} convs={chat.convs} activeId={chat.activeId} onClose={() => setMenu(false)} onNew={chat.newChat} onOpen={chat.open} onDelete={id => void chat.remove(id)} onSettings={() => setSettings(true)} onPals={() => setPals(true)} onStudio={chat.imageModels.length ? () => setStudio(true) : undefined} />

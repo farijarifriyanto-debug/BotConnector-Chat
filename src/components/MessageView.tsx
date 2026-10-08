@@ -58,7 +58,7 @@ function MessageViewBase({ msg, streaming, status, isLastAssistant, canAct, onRe
               ? <Image key={i} source={{ uri: a.dataUrl }} style={{ width: 96, height: 96, borderRadius: 10 }} accessibilityIgnoresInvertColors accessibilityLabel={a.name} />
               : <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, backgroundColor: th.surface, borderWidth: 1, borderColor: th.line, maxWidth: 220 }}><Icon name="Check" size={14} color={th.accentStrong} /><Text numberOfLines={1} style={{ color: th.ink, fontSize: 13, flexShrink: 1 }}>{a.name}</Text></View>)}
           </View>)}
-        {!!(msg.shown ?? msg.content) && <Text selectable style={{ color: th.ink, fontSize: 16, lineHeight: 23 }}>{msg.shown ?? msg.content}</Text>}
+        {!!(msg.shown ?? msg.content) && <Text selectable style={{ color: th.ink, fontSize: 16.5, lineHeight: 24 }}>{msg.shown ?? msg.content}</Text>}
       </View>
     </View>
   )
@@ -73,7 +73,7 @@ function MessageViewBase({ msg, streaming, status, isLastAssistant, canAct, onRe
   const copy = async () => { await Clipboard.setStringAsync(msg.content || msg.image?.prompt || ''); setCopied(true); setTimeout(() => setCopied(false), 1500) }
   const showTyping = streaming && !msg.content && !status && !msg.reasoning
   return (
-    <View style={{ marginVertical: 8, paddingHorizontal: 16 }} accessibilityLabel={t('assistant')}>
+    <View style={{ marginVertical: 10, paddingHorizontal: 16 }} accessibilityLabel={t('assistant')}>
       {!!msg.reasoning && (
         <Pressable onPress={() => setThinking(v => !v)} style={{ borderWidth: 1, borderStyle: 'dashed', borderColor: th.lineStrong, borderRadius: 12, padding: 10, marginBottom: 8 }}>
           <Text style={{ color: th.muted, fontWeight: '600', fontSize: 13 }}>{streaming && !msg.content ? t('thinking') + '…' : t('thought')}</Text>

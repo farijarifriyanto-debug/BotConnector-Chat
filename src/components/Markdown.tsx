@@ -37,7 +37,7 @@ function inline(tokens: Token[] | undefined, c: Ctx, key: string): React.ReactNo
       case 'strong': return <Text key={kk} style={{ fontWeight: '700' }}>{inline((k as Tokens.Strong).tokens, c, kk)}</Text>
       case 'em': return <Text key={kk} style={{ fontStyle: 'italic' }}>{inline((k as Tokens.Em).tokens, c, kk)}</Text>
       case 'del': return <Text key={kk} style={{ textDecorationLine: 'line-through' }}>{inline((k as Tokens.Del).tokens, c, kk)}</Text>
-      case 'codespan': return <Text key={kk} style={{ fontFamily: MONO, fontSize: 14, backgroundColor: c.th.surface3 }}>{` ${decode((k as Tokens.Codespan).text)} `}</Text>
+      case 'codespan': return <Text key={kk} style={{ fontFamily: MONO, fontSize: 14.5, backgroundColor: c.th.surface3 }}>{` ${decode((k as Tokens.Codespan).text)} `}</Text>
       case 'br': return '\n'
       case 'link': { const l = k as Tokens.Link; return <Text key={kk} accessibilityRole="link" onPress={() => open(l.href)} style={{ color: c.th.accentStrong, textDecorationLine: 'underline' }}>{inline(l.tokens, c, kk)}</Text> }
       case 'image': return decode((k as Tokens.Image).text)   // model-written images are never loaded (tracking pixels)
@@ -51,7 +51,7 @@ function CodeBlock({ code, lang, c }: { code: string; lang?: string; c: Ctx }) {
   const [done, setDone] = useState(false), [preview, setPreview] = useState(false)
   const isHtml = /^html?$/i.test(lang ?? '') && /<\w+/.test(code)
   return (
-    <View style={{ marginVertical: 8, borderRadius: 12, overflow: 'hidden', borderWidth: 1, borderColor: c.th.lineStrong, backgroundColor: c.th.surface2 }}>
+    <View style={{ marginVertical: 10, borderRadius: 12, overflow: 'hidden', borderWidth: 1, borderColor: c.th.lineStrong, backgroundColor: c.th.surface2 }}>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 6, backgroundColor: c.th.surface3 }}>
         <Text style={{ color: c.th.muted, fontSize: 12 }}>{lang || 'code'}</Text>
         <View style={{ flexDirection: 'row', gap: 16 }}>
@@ -61,7 +61,7 @@ function CodeBlock({ code, lang, c }: { code: string; lang?: string; c: Ctx }) {
           </Pressable>
         </View>
       </View>
-      <ScrollView horizontal showsHorizontalScrollIndicator><Text selectable style={{ fontFamily: MONO, fontSize: 13, lineHeight: 19, color: c.th.ink, padding: 12 }}>{code}</Text></ScrollView>
+      <ScrollView horizontal showsHorizontalScrollIndicator><Text selectable style={{ fontFamily: MONO, fontSize: 13.5, lineHeight: 21, color: c.th.ink, padding: 12 }}>{code}</Text></ScrollView>
       {isHtml && <HtmlPreview html={code} visible={preview} onClose={() => setPreview(false)} />}
     </View>
   )
@@ -91,21 +91,21 @@ function TableBlock({ tok, c, key0 }: { tok: Tokens.Table; c: Ctx; key0: string 
 }
 
 function blocks(tokens: Token[], c: Ctx, key: string, depth = 0): React.ReactNode[] {
-  const body: TextStyle = { color: c.th.ink, fontSize: 16, lineHeight: 24 }
+  const body: TextStyle = { color: c.th.ink, fontSize: 16.5, lineHeight: 26 }   // line height about 1.6: long answers stay easy to follow
   return tokens.map((k, i) => {
     const kk = `${key}-${i}`
     switch (k.type) {
-      case 'paragraph': return <Text key={kk} selectable style={[body, { marginVertical: 5 }]}>{inline((k as Tokens.Paragraph).tokens, c, kk)}</Text>
+      case 'paragraph': return <Text key={kk} selectable style={[body, { marginVertical: 6 }]}>{inline((k as Tokens.Paragraph).tokens, c, kk)}</Text>
       case 'text': { const tt = k as Tokens.Text; return <Text key={kk} selectable style={body}>{tt.tokens ? inline(tt.tokens, c, kk) : decode(tt.text)}</Text> }
-      case 'heading': { const h = k as Tokens.Heading; return <Text key={kk} selectable style={[body, { fontWeight: '700', fontSize: h.depth <= 1 ? 22 : h.depth === 2 ? 19 : 17, lineHeight: h.depth <= 1 ? 28 : 25, marginTop: 12, marginBottom: 4 }]}>{inline(h.tokens, c, kk)}</Text> }
+      case 'heading': { const h = k as Tokens.Heading; return <Text key={kk} selectable style={[body, { fontWeight: '700', fontSize: h.depth <= 1 ? 23 : h.depth === 2 ? 20 : 17.5, lineHeight: h.depth <= 1 ? 30 : h.depth === 2 ? 27 : 25, marginTop: 18, marginBottom: 6 }]}>{inline(h.tokens, c, kk)}</Text> }
       case 'code': { const cb = k as Tokens.Code; return <CodeBlock key={kk} code={cb.text} lang={cb.lang} c={c} /> }
-      case 'blockquote': return <View key={kk} style={{ borderLeftWidth: 3, borderColor: c.th.accent, paddingLeft: 12, marginVertical: 6 }}>{blocks((k as Tokens.Blockquote).tokens, c, kk, depth)}</View>
+      case 'blockquote': return <View key={kk} style={{ borderLeftWidth: 3, borderColor: c.th.accent, paddingLeft: 14, marginVertical: 8 }}>{blocks((k as Tokens.Blockquote).tokens, c, kk, depth)}</View>
       case 'hr': return <View key={kk} style={{ height: 1, backgroundColor: c.th.lineStrong, marginVertical: 12 }} />
       case 'list': { const l = k as Tokens.List; return (
-        <View key={kk} style={{ marginVertical: 4, paddingLeft: depth ? 12 : 0 }}>
+        <View key={kk} style={{ marginVertical: 6, paddingLeft: depth ? 12 : 2 }}>
           {l.items.map((it, j) => (
-            <View key={`${kk}-${j}`} style={{ flexDirection: 'row', marginVertical: 2 }}>
-              <Text style={[body, { width: 26 }]}>{l.ordered ? `${(Number(l.start) || 1) + j}.` : '•'}</Text>
+            <View key={`${kk}-${j}`} style={{ flexDirection: 'row', marginVertical: 3 }}>
+              <Text style={[body, { width: 28 }]}>{l.ordered ? `${(Number(l.start) || 1) + j}.` : '•'}</Text>
               <View style={{ flex: 1 }}>{blocks(it.tokens, c, `${kk}-${j}`, depth + 1)}</View>
             </View>))}
         </View>) }
