@@ -12,7 +12,7 @@ const KEY = { harmful: 'rpHarmful', sexual: 'rpSexual', hate: 'rpHate', wrong: '
 const ERR = { rate: 'rpErrRate', invalid: 'rpErrInvalid', down: 'rpErrDown', network: 'rpErrNet' } as const
 
 /** Report a reply to the BotConnector team. It sends only this reply, the question before it and the model name, never the rest of the chat. */
-export function ReportSheet({ msg, prompt, onClose }: { msg: Msg | null; prompt: string; onClose: () => void }) {
+export function ReportSheet({ msg, prompt, onClose, onSent }: { msg: Msg | null; prompt: string; onClose: () => void; onSent?: (id: string) => void }) {
   const th = useTheme(), t = useT(), account = useAuth(a => a.account)
   const [reason, setReason] = useState<Reason | null>(null), [note, setNote] = useState(''), [withPrompt, setWithPrompt] = useState(true)
   const [state, setState] = useState<'idle' | 'sending' | 'done'>('idle'), [ref, setRef] = useState(''), [err, setErr] = useState<keyof typeof ERR | null>(null)
@@ -22,10 +22,10 @@ export function ReportSheet({ msg, prompt, onClose }: { msg: Msg | null; prompt:
   const submit = async () => {
     const r = report(); if (!r || state === 'sending') return
     setState('sending'); setErr(null)
-    try { setRef(await sendReport({ name: account?.display_name || email.split('@')[0] || 'BotConnector app', email }, r)); setState('done') }
+    try { setRef(await sendReport({ name: account?.display_name || email.split('@')[0] || 'BotConnector app', email }, r)); setState('done'); if (msg) onSent?.(msg.id) }
     catch (e) { setErr(e instanceof ReportError ? e.reason : 'down'); setState('idle') }
   }
-  const mail = () => { const r = report(); if (r) void Linking.openURL(reportMailto(r)).catch(() => {}) }
+  const mail = () => { const r = report(); if (r) void Linking.openURL(reportMailto(r)).then(() => { if (msg) onSent?.(msg.id) }).catch(() => {}) }
   const btn = { padding: 14, borderRadius: 12, alignItems: 'center' as const }
   return (
     <Modal visible={!!msg} animationType="slide" presentationStyle="pageSheet" onRequestClose={close}>

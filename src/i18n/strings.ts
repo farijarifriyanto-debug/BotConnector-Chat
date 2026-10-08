@@ -64,6 +64,7 @@ const en = {
   stDelete: 'Delete', stDeleteQ: 'Delete this picture?',
   legalTitle: 'About and legal', legalPrivacy: 'Privacy Policy', legalTerms: 'Terms of Service', legalSupport: 'Help and contact',
   rpOpen: 'Report this reply', rpTitle: 'Report a reply', rpIntro: 'Tell us what is wrong with this reply. A person on the BotConnector team reads every report.', rpHarmful: 'Harmful or illegal', rpSexual: 'Sexual or violent', rpHate: 'Hateful or harassing', rpWrong: 'False or misleading', rpPrivacy: 'Privacy violation', rpOther: 'Something else', rpNote: 'What happened? (optional)', rpWithPrompt: 'Include my question', rpSends: 'Sends only this reply, the question before it, the model name and your note. The rest of the chat is not sent.', rpSend: 'Send report', rpMail: 'Send by email instead', rpThanks: 'Thank you. Your report was sent.', rpRef: 'Reference: {r}', rpDone: 'Done', rpErrRate: 'Too many requests. Try again in a minute.', rpErrInvalid: 'The report could not be accepted. Try the email option.', rpErrDown: 'The report desk is unavailable right now. You can send it by email.', rpErrNet: 'No connection. You can send it by email.',
+  rateUp: 'Mark as helpful (saved on this phone only)',
 } as const
 
 export type Key = keyof typeof en
@@ -129,6 +130,7 @@ const id: Record<Key, string> = {
   stDelete: 'Hapus', stDeleteQ: 'Hapus gambar ini?',
   legalTitle: 'Tentang dan legal', legalPrivacy: 'Kebijakan Privasi', legalTerms: 'Ketentuan Layanan', legalSupport: 'Bantuan dan kontak',
   rpOpen: 'Laporkan jawaban ini', rpTitle: 'Laporkan jawaban', rpIntro: 'Beri tahu kami apa yang salah dengan jawaban ini. Setiap laporan dibaca oleh tim BotConnector.', rpHarmful: 'Berbahaya atau ilegal', rpSexual: 'Seksual atau kekerasan', rpHate: 'Kebencian atau pelecehan', rpWrong: 'Salah atau menyesatkan', rpPrivacy: 'Melanggar privasi', rpOther: 'Alasan lain', rpNote: 'Apa yang terjadi? (opsional)', rpWithPrompt: 'Sertakan pertanyaan saya', rpSends: 'Hanya mengirim jawaban ini, pertanyaan sebelumnya, nama model, dan catatan Anda. Isi chat lainnya tidak dikirim.', rpSend: 'Kirim laporan', rpMail: 'Kirim lewat email saja', rpThanks: 'Terima kasih. Laporan Anda sudah terkirim.', rpRef: 'Nomor referensi: {r}', rpDone: 'Selesai', rpErrRate: 'Terlalu banyak permintaan. Coba lagi sebentar lagi.', rpErrInvalid: 'Laporan tidak dapat diterima. Coba lewat email.', rpErrDown: 'Layanan laporan sedang tidak tersedia. Anda bisa mengirimnya lewat email.', rpErrNet: 'Tidak ada koneksi. Anda bisa mengirimnya lewat email.',
+  rateUp: 'Tandai membantu (hanya tersimpan di HP ini)',
 }
 export const STRINGS: Record<Lang, Partial<Record<Key, string>>> & { en: Record<Key, string> } = { en: en as Record<Key, string>, id, ...PACKS } as never
 void LANG_CODES

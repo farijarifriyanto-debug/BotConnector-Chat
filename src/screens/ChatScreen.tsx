@@ -20,6 +20,7 @@ import { ProvidersSheet } from '../components/ProvidersSheet'
 import { SHOT, useShot } from '../lib/shot'
 import { useAuth } from '../store/auth'
 import { currentConv, useChat } from '../store/chat'
+import { useRatings } from '../store/ratings'
 import { useSearch } from '../store/search'
 import { imageAsModel, shortModelName } from '../lib/modelPicker'
 import { useTheme } from '../theme/theme'
@@ -94,7 +95,7 @@ export function ChatScreen() {
       <ChatOptionsSheet visible={optSheet} conv={conv} onClose={() => setOptSheet(false)} />
       <ProvidersSheet visible={provSheet} onClose={() => setProvSheet(false)} />
       <LocalModelsSheet visible={localSheet} onClose={() => setLocalSheet(false)} />
-      <ReportSheet msg={msgs.find(m => m.id === reporting) ?? null} prompt={(() => { const i = msgs.findIndex(m => m.id === reporting); return i > 0 && msgs[i - 1].role === 'user' ? msgs[i - 1].content : '' })()} onClose={() => setReporting(null)} />
+      <ReportSheet msg={msgs.find(m => m.id === reporting) ?? null} prompt={(() => { const i = msgs.findIndex(m => m.id === reporting); return i > 0 && msgs[i - 1].role === 'user' ? msgs[i - 1].content : '' })()} onClose={() => setReporting(null)} onSent={id => useRatings.getState().markDown(id)} />
       <PalsSheet visible={pals} onClose={() => setPals(false)} />
       <SettingsSheet visible={settings} onClose={() => setSettings(false)} />
     </SafeAreaView>

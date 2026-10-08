@@ -59,3 +59,29 @@ describe('report a reply', () => {
     expect(open).toHaveBeenCalledTimes(2); open.mockRestore()
   })
 })
+
+import { MessageView } from '../src/components/MessageView'
+import { useRatings } from '../src/store/ratings'
+jest.mock('expo-speech', () => ({ speak: jest.fn(), stop: jest.fn() }))
+describe('thumbs', () => {
+  const view = (onReport?: () => void) => render(<MessageView msg={msg} streaming={false} status={null} isLastAssistant={false} canAct onRegenerate={() => {}} onReport={onReport} />)
+  beforeEach(() => { mockFetch.mockReset(); useRatings.setState({ up: {}, down: {} } as never) })
+  it('thumbs-up is a marker on this phone: it toggles, and nothing is sent anywhere', async () => {
+    const r = await view(() => {})
+    expect(r.getByTestId('rate-up').props.accessibilityState.selected).toBe(false)
+    await fireEvent.press(r.getByTestId('rate-up')); expect(r.getByTestId('rate-up').props.accessibilityState.selected).toBe(true); expect(useRatings.getState().up.a).toBe(1)
+    await fireEvent.press(r.getByTestId('rate-up')); expect(useRatings.getState().up.a).toBeUndefined()
+    expect(mockFetch).not.toHaveBeenCalled()
+  })
+  it('thumbs-down opens the report, and shows as used once the report has been sent', async () => {
+    const onReport = jest.fn(), r = await view(onReport)
+    await fireEvent.press(r.getByTestId('report-open')); expect(onReport).toHaveBeenCalled(); expect(r.getByTestId('report-open').props.accessibilityState.selected).toBe(false)
+    await act(async () => { useRatings.getState().markDown('a') }); expect(r.getByTestId('report-open').props.accessibilityState.selected).toBe(true)
+  })
+  it('the report sheet tells the screen when a report went out', async () => {
+    useAuth.setState({ account: { email: 'b@x.id' } } as never); mockFetch.mockResolvedValue(reply(200, { success: true, reference: 'R1' }))
+    const onSent = jest.fn(), s = await render(<ReportSheet msg={msg} prompt="" onClose={() => {}} onSent={onSent} />)
+    await fireEvent.press(s.getByTestId('reason-hate')); await fireEvent.press(s.getByTestId('report-send'))
+    await waitFor(() => expect(onSent).toHaveBeenCalledWith('a'))
+  })
+})
