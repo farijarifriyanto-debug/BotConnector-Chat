@@ -138,6 +138,7 @@ export const registerStreamer = (prefix: string, run: Streamer) => { if (!stream
 export async function* streamCompletion(body: Record<string, unknown>, signal?: AbortSignal): AsyncGenerator<Delta> {
   const other = streamers.find(s => String(body.model ?? '').startsWith(s.prefix))
   if (other) { yield* other.run(body, signal); return }
+  if (/^(custom|local):/.test(String(body.model ?? ''))) throw new ChatError('rejected')   // never let a private chat fall through to the cloud
   let r: Response
   try { r = await fetch(`${API_BASE}/v1/chat/completions`, { method: 'POST', headers: headers({ ...JSON_POST, accept: 'text/event-stream, application/json' }), body: JSON.stringify({ ...body, stream: true }), signal }) }
   catch (e) { throw (e as Error)?.name === 'AbortError' ? new ChatError('aborted') : new ChatError('network') }

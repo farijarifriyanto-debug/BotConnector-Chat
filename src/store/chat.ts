@@ -5,6 +5,8 @@ import { runAssistant } from '../lib/agent'
 import { composedSystem, newConv, newId, titleFrom, toApiMessages } from '../lib/conv'
 import { research, ResearchError, type Progress } from '../lib/research'
 import { ChatError, type ChatModel, type Conv, type Msg } from '../lib/types'
+import '../local/engine'
+import { localModels, useLocal } from '../local/store'
 import { customModels } from './providers'
 import { useSettings } from './settings'
 
@@ -26,6 +28,8 @@ let controller: AbortController | null = null
 
 export const currentConv = (s: Pick<ChatState, 'convs' | 'activeId' | 'draft'>): Conv | null => (s.activeId ? s.convs.find(c => c.id === s.activeId) ?? null : s.draft)
 const sortConvs = (list: Conv[]) => [...list].sort((a, b) => b.updatedAt - a.updatedAt)
+/** Chats with on-device or custom-provider models are never sent to BotConnector's cloud models (titles, planning). */
+const isPrivate = (m: ChatModel) => m.access === 'local' || m.access === 'custom'
 const errorCode = (e: unknown) => {
   if (e instanceof ResearchError) return 'research:' + e.code
   const err = e instanceof ChatError ? e : new ChatError('network')
@@ -65,7 +69,7 @@ export const useChat = create<ChatState>((set, get) => {
     try {
       const question = [...history].reverse().find(x => x.role === 'user')?.content.trim() ?? ''
       if (opts.research && caps?.web !== false) {
-        const planner = models.find(x => x.access === 'free' && x.available && !x.reasoning) ?? m
+        const planner = isPrivate(m) ? m : models.find(x => x.access === 'free' && x.available && !x.reasoning) ?? m   // a local or custom model plans its own research; its questions never go to a cloud model
         const res = await research({ question, history: toApiMessages('', history.slice(0, -1), false), system: composedSystem(base, convs), writer: m, planner, signal,
           onProgress: p => set({ status: { research: p } }), onText: c => update({ content: c }), onReasoning: r => update({ reasoning: r }) })
         update({ content: res.content, reasoning: res.reasoning || undefined, sources: res.sources, searched: res.queries, research: { searches: res.searches, pages: res.pages }, ms: Date.now() - t0 }, true)
@@ -75,7 +79,7 @@ export const useChat = create<ChatState>((set, get) => {
         update({ content: res.content, reasoning: res.reasoning || undefined, sources: res.sources.length ? res.sources : undefined, searched: res.queries.length ? res.queries : undefined, ms: Date.now() - t0 }, true)
       }
       const firstQ = history.filter(x => x.role === 'user')
-      if (!base.titled && firstQ.length === 1 && cur.messages.at(-1)?.content && base.title === titleFrom(firstQ[0].content)) void autoTitle(base.id, base.title, firstQ[0].content, cur.messages.at(-1)!.content)
+      if (!isPrivate(m) && !base.titled && firstQ.length === 1 && cur.messages.at(-1)?.content && base.title === titleFrom(firstQ[0].content)) void autoTitle(base.id, base.title, firstQ[0].content, cur.messages.at(-1)!.content)
     } catch (e) {
       update({ error: signal.aborted ? 'aborted' : errorCode(e) }, true)
     } finally {
@@ -92,7 +96,7 @@ export const useChat = create<ChatState>((set, get) => {
     async loadModels() {
       set({ modelsState: 'loading' })
       try {
-        const list = [...await fetchModels(), ...customModels()]
+        const list = [...await fetchModels(), ...customModels(), ...localModels()]
         const saved = useSettings.getState().model
         const pick = (cur: string) => (list.some(m => m.id === cur && m.available) ? cur : saved && list.some(m => m.id === saved && m.available) ? saved : (list.find(m => m.access === 'free' && m.available)?.id ?? list.find(m => m.available)?.id ?? ''))
         const modelId = pick(get().modelId)
@@ -103,7 +107,7 @@ export const useChat = create<ChatState>((set, get) => {
     /** Providers were added, refreshed or removed: swap their models in the picker without asking the cloud again. */
     syncCustom() {
       set(s => {
-        const models = [...s.models.filter(m => m.access !== 'custom'), ...customModels()]
+        const models = [...s.models.filter(m => m.access !== 'custom' && m.access !== 'local'), ...customModels(), ...localModels()]
         const modelId = models.some(m => m.id === s.modelId && m.available) ? s.modelId : (models.find(m => m.access === 'free' && m.available)?.id ?? models.find(m => m.available)?.id ?? '')
         return { models, modelId, draft: s.draft && !s.activeId ? { ...s.draft, model: modelId } : s.draft }
       })
@@ -130,3 +134,6 @@ export const useChat = create<ChatState>((set, get) => {
     stop() { controller?.abort() },
   }
 })
+
+// A model finished downloading (or was deleted): show it in the picker at once.
+useLocal.subscribe((s, prev) => { if (s.models !== prev.models) useChat.getState().syncCustom() })

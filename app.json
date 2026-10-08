@@ -10,7 +10,7 @@
     "ios": {
       "bundleIdentifier": "id.botconnector.app",
       "supportsTablet": true,
-      "buildNumber": "101",
+      "buildNumber": "102",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSCameraUsageDescription": "BotConnector uses the camera to take photos you attach to a chat.",
@@ -56,6 +56,14 @@
           "dark": {
             "backgroundColor": "#0a0c0e"
           }
+        }
+      ],
+      [
+        "llama.rn",
+        {
+          "enableEntitlements": true,
+          "entitlementsProfile": "production",
+          "forceCxx20": true
         }
       ]
     ]
