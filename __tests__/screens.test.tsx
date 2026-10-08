@@ -5,6 +5,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { SettingsSheet } from '../src/components/SettingsSheet'
 import { Sidebar } from '../src/components/Sidebar'
 import { LoginScreen } from '../src/screens/LoginScreen'
+import { OnboardingScreen, seenOnboarding } from '../src/screens/OnboardingScreen'
 import { useAuth } from '../src/store/auth'
 
 jest.mock('expo-secure-store', () => ({ getItemAsync: jest.fn(), setItemAsync: jest.fn(), deleteItemAsync: jest.fn() }))
@@ -43,5 +44,14 @@ describe('screens', () => {
     expect(r.queryByText('Resep nasi goreng')).toBeNull()
     await fireEvent.press(r.getByTestId('conv-b'))
     expect(onOpen).toHaveBeenCalledWith('b')
+  })
+
+  it('onboarding is shown once: the last page marks it as seen', async () => {
+    const done = jest.fn(); expect(seenOnboarding()).toBe(false)
+    const r = await render(wrap(<OnboardingScreen onDone={done} />))
+    await fireEvent.press(r.getByTestId('ob-next')); await fireEvent.press(r.getByTestId('ob-next'))
+    expect(done).not.toHaveBeenCalled()
+    await fireEvent.press(r.getByTestId('ob-skip'))
+    expect(done).toHaveBeenCalledTimes(1); expect(seenOnboarding()).toBe(true)
   })
 })
