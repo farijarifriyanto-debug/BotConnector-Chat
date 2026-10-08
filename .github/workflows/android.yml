@@ -1,0 +1,76 @@
+name: Android build
+# Manual: gh workflow run "Android build" -f version_code=201
+# Produces a signed APK (sideload / direct install) and AAB (Google Play upload) as workflow artifacts.
+on:
+  workflow_dispatch:
+    inputs:
+      version_code:
+        description: 'android versionCode (must be higher than the last Play upload)'
+        required: true
+        default: '201'
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    env:
+      NODE_OPTIONS: --max-old-space-size=4096
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npx jest --ci
+
+      - name: Generate the native Android project
+        env:
+          VERSION_CODE: ${{ github.event.inputs.version_code }}
+        run: |
+          node -e "const f='app.json',j=require('./'+f);j.expo.android.versionCode=+process.env.VERSION_CODE;require('fs').writeFileSync(f,JSON.stringify(j,null,2))"
+          npx expo prebuild --platform android --no-install
+
+      - name: Sign release with the upload key
+        env:
+          KS: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KS_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          [ -n "$KS" ] || { echo "::error::ANDROID_KEYSTORE_BASE64 is not set"; exit 1; }
+          printf '%s' "$KS" | base64 --decode > android/app/upload.jks
+          {
+            echo "BC_STORE_PASSWORD=$KS_PASS"; echo "BC_KEY_ALIAS=$KS_ALIAS"; echo "BC_KEY_PASSWORD=$KS_PASS"
+          } >> android/gradle.properties
+          # release buildType: swap the debug signing for the upload key
+          python3 - <<'PY'
+          import re
+          p='android/app/build.gradle'; s=open(p).read()
+          s=s.replace("    signingConfigs {\n","    signingConfigs {\n        release {\n            storeFile file('upload.jks')\n            storePassword BC_STORE_PASSWORD\n            keyAlias BC_KEY_ALIAS\n            keyPassword BC_KEY_PASSWORD\n        }\n",1)
+          i=s.index("        release {\n            // Caution!")
+          j=s.index("signingConfig signingConfigs.debug",i)
+          s=s[:j]+"signingConfig signingConfigs.release"+s[j+len("signingConfig signingConfigs.debug"):]
+          open(p,'w').write(s)
+          PY
+          grep -n "signingConfigs.release" android/app/build.gradle
+
+      - name: Build APK and AAB (arm64 only: every current phone, much faster than 4 ABIs)
+        working-directory: android
+        run: ./gradlew assembleRelease bundleRelease -PreactNativeArchitectures=arm64-v8a --no-daemon
+
+      - name: Verify signature
+        run: |
+          APKSIGNER=$(ls $ANDROID_HOME/build-tools/*/apksigner | sort -V | tail -n 1)
+          $APKSIGNER verify --print-certs android/app/build/outputs/apk/release/app-release.apk | head -3
+          ls -la android/app/build/outputs/apk/release android/app/build/outputs/bundle/release
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: botconnector-android
+          path: |
+            android/app/build/outputs/apk/release/app-release.apk
+            android/app/build/outputs/bundle/release/app-release.aab
