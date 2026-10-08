@@ -8,6 +8,7 @@ import { FeatureGuide, type Feature } from '../components/FeatureGuide'
 import { Icon } from '../components/Icons'
 import { ImageStudio } from '../components/ImageStudio'
 import { MessageView } from '../components/MessageView'
+import { ModelIcon } from '../components/ModelIcon'
 import { ModelSheet } from '../components/ModelSheet'
 import { PalsSheet } from '../components/PalsSheet'
 import { SettingsSheet } from '../components/SettingsSheet'
@@ -55,7 +56,7 @@ export function ChatScreen() {
         <Pressable testID="open-menu" onPress={() => setMenu(true)} hitSlop={10} accessibilityRole="button" accessibilityLabel={t('menu')}><Icon name="MenuIcon" size={22} color={th.ink} /></Pressable>
         {!narrow ? <Pressable testID="header-title" onPress={() => conv && setOptSheet(true)} accessibilityRole="button" accessibilityLabel={t('instructions')} style={{ flex: 1, minWidth: 0 }}><Text numberOfLines={1} ellipsizeMode="tail" style={{ color: th.ink, fontSize: 16, fontWeight: '700' }}>{conv?.title || t('newChat')}</Text></Pressable> : <View style={{ flex: 1 }} />}
         <Pressable testID="header-model" onPress={() => setModels(true)} accessibilityRole="button" accessibilityLabel={model ? `${t('menuModel')}: ${model.name}` : t('menuModel')} style={{ flexShrink: 1, flexDirection: 'row', alignItems: 'center', gap: 4, maxWidth: Math.round(width * (narrow ? 0.62 : 0.5)), minHeight: 34, paddingHorizontal: 11, borderRadius: 17, borderWidth: 1, borderColor: th.lineStrong, backgroundColor: th.surface }}>
-          <Text numberOfLines={1} ellipsizeMode="tail" style={{ color: th.ink, fontSize: 13, fontWeight: '600', flexShrink: 1 }}>{model ? shortModelName(model.name) : t('model')}</Text><Icon name="Chevron" size={14} color={th.muted} />
+          {!!model && <ModelIcon model={model} size={22} />}<Text numberOfLines={1} ellipsizeMode="tail" style={{ color: th.ink, fontSize: 13, fontWeight: '600', flexShrink: 1 }}>{model ? shortModelName(model.name) : t('model')}</Text><Icon name="Chevron" size={14} color={th.muted} />
         </Pressable>
         <Pressable testID="header-new" onPress={() => chat.newChat()} hitSlop={10} accessibilityRole="button" accessibilityLabel={t('newChat')}><Icon name="Plus" size={22} color={th.ink} /></Pressable>
       </View>

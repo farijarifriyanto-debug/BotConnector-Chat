@@ -1,4 +1,5 @@
 import type { ImageModel } from '../api/api'
+import type { BrandId } from './brandIcons'
 import type { Access, ChatModel } from './types'
 
 export type ModelFilter = 'all' | 'free' | 'cloud' | 'local' | 'image'
@@ -31,3 +32,18 @@ export function aspectOptions(sizes: string[]): AspectOption[] {
   })
 }
 export const defaultSize = (sizes: string[]): string | undefined => sizes.find(s => s === '1024x1024') ?? sizes.find(s => s !== 'auto') ?? sizes[0]
+
+// Which family a model belongs to, read from its own name. Order matters: the first rule that matches wins.
+const FAMILY: [RegExp, BrandId][] = [
+  [/claude|anthropic|sonnet|opus|haiku/, 'claude'], [/gemma/, 'gemma'], [/gemini|google/, 'gemini'], [/gpt|openai|chatgpt|\bo[134]\b/, 'openai'], [/deepseek/, 'deepseek'], [/qwen|qwq/, 'qwen'],
+  [/glm|chatglm|z-ai|zai/, 'zai'], [/kimi|moonshot/, 'kimi'], [/llama|meta-/, 'meta'], [/mistral|mixtral|ministral|codestral|devstral/, 'mistral'], [/nemotron|nvidia/, 'nvidia'], [/mimo|xiaomi/, 'mimo'],
+  [/minimax/, 'minimax'], [/grok|\bxai\b/, 'grok'], [/command-|cohere/, 'cohere'], [/flux/, 'flux'], [/stable-?diffusion|sdxl|stability/, 'stability'], [/laguna|poolside/, 'poolside'], [/solar|upstage/, 'upstage'], [/\bphi-|\bmai-|microsoft/, 'microsoft'],
+]
+const SERVICE: [RegExp, BrandId][] = [[/openrouter/, 'openrouter'], [/ollama/, 'ollama'], [/lm ?studio/, 'lmstudio'], [/hugging ?face/, 'huggingface']]
+/** The brand mark for a model, or null (the picker then shows the first letter). Your own providers fall back to the service's mark. */
+export function modelBrand(m: Pick<ChatModel, 'id' | 'name' | 'provider' | 'access'>): BrandId | null {
+  const own = `${m.id} ${m.name}`.toLowerCase()
+  for (const [re, b] of FAMILY) if (re.test(own)) return b
+  if (m.access === 'custom') { const p = (m.provider ?? '').toLowerCase(); for (const [re, b] of [...SERVICE, ...FAMILY]) if (re.test(p)) return b }
+  return null
+}

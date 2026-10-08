@@ -5,11 +5,12 @@ import { ActivityIndicator, Image, Keyboard, Modal, Pressable, ScrollView, Share
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Text, TextInput } from './Text'
 import { Icon } from './Icons'
+import { ModelIcon } from './ModelIcon'
 import { errorLine } from './MessageView'
 import { useT } from '../hooks/useT'
 import { imageUri } from '../lib/images'
 import { MAX_IMAGES, pickPhotos, type LocalAttachment } from '../lib/attachments'
-import { aspectOptions, defaultSize } from '../lib/modelPicker'
+import { aspectOptions, defaultSize, imageAsModel } from '../lib/modelPicker'
 import type { Msg } from '../lib/types'
 import { useSettings } from '../store/settings'
 import { currentConv, useChat } from '../store/chat'
@@ -101,7 +102,7 @@ export function ImageStudio({ visible, onClose }: { visible: boolean; onClose: (
               {imageModels.map(m => { const on = m.id === model.id; return (
                 <Pressable key={m.id} testID={`studio-model-${m.id}`} disabled={busy} onPress={() => useChat.getState().selectImageModel(m.id)} accessibilityRole="button" accessibilityState={{ selected: on }} accessibilityLabel={`${m.name}, ${t(m.access === 'free' ? 'accFree' : m.access === 'plan' ? 'accPlan' : m.access === 'family' ? 'accFamily' : 'accPayg')}`}
                   style={{ width: 124, borderRadius: 14, borderWidth: on ? 2 : 1, borderColor: on ? th.accent : th.line, backgroundColor: th.surface, overflow: 'hidden' }}>
-                  <View style={{ height: 64, alignItems: 'center', justifyContent: 'center', backgroundColor: on ? th.accentSoft : th.surface3 }}><Icon name="Image" size={26} color={on ? th.accentStrong : th.muted} />{on && <View style={{ position: 'absolute', top: 6, right: 6, backgroundColor: th.accent, borderRadius: 10, padding: 3 }}><Icon name="Check" size={12} color={th.accentInk} /></View>}</View>
+                  <View style={{ height: 64, alignItems: 'center', justifyContent: 'center', backgroundColor: on ? th.accentSoft : th.surface3 }}><ModelIcon model={imageAsModel(m)} size={40} />{on && <View style={{ position: 'absolute', top: 6, right: 6, backgroundColor: th.accent, borderRadius: 10, padding: 3 }}><Icon name="Check" size={12} color={th.accentInk} /></View>}</View>
                   <View style={{ padding: 8, gap: 4 }}>
                     <Text numberOfLines={2} style={{ color: th.ink, fontSize: 13, fontWeight: '600', minHeight: 34 }}>{m.name}</Text>
                     <Text style={{ color: m.access === 'free' ? th.free : m.access === 'payg' ? th.payg : th.plan, fontSize: 11, fontWeight: '700' }}>{t(m.access === 'free' ? 'accFree' : m.access === 'plan' ? 'accPlan' : m.access === 'family' ? 'accFamily' : 'accPayg')}{m.refs ? ` · ${t('imgRefBadge')}` : ''}</Text>

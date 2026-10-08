@@ -7,6 +7,7 @@ import { useT } from '../hooks/useT'
 import { useChat } from '../store/chat'
 import { useTheme } from '../theme/theme'
 import { Icon } from './Icons'
+import { ModelIcon } from './ModelIcon'
 
 /** Connect a laptop running BotConnector Local; its models then appear in the model picker. */
 export function LaptopSheet({ visible, onClose, onUsed }: { visible: boolean; onClose: () => void; onUsed?: () => void }) {
@@ -63,6 +64,7 @@ export function LaptopSheet({ visible, onClose, onUsed }: { visible: boolean; on
               {models.length === 0 && device.online && <Text style={{ color: th.muted, fontSize: 12.5, marginTop: 6 }}>{t('lapNoModels')}</Text>}
               {models.map(m => (
                 <View key={m.runtime + m.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 }}>
+                  <ModelIcon model={{ id: m.id, name: m.name, access: 'laptop' }} size={26} />
                   <Text numberOfLines={1} style={{ color: th.ink, flex: 1, fontSize: 14 }}>{m.name}{m.loaded ? ` · ${t('lapLoaded')}` : ''}</Text>
                   <Pressable testID={`use-${m.id}`} disabled={!device.online} onPress={() => use(laptopId(device.id, m.runtime, m.id))} accessibilityRole="button" style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10, backgroundColor: th.accent, opacity: device.online ? 1 : 0.4 }}><Text style={{ color: th.accentInk, fontWeight: '700', fontSize: 13 }}>{t('lapUse')}</Text></Pressable>
                 </View>))}

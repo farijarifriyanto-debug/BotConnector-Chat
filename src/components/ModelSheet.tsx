@@ -7,6 +7,7 @@ import type { ImageModel } from '../api/api'
 import type { Access, ChatModel } from '../lib/types'
 import { useTheme } from '../theme/theme'
 import { Icon } from './Icons'
+import { ModelIcon } from './ModelIcon'
 
 const GROUPS: { access: Access; key: 'groupAuto' | 'groupFree' | 'groupPlan' | 'groupFamily' | 'groupPayg' | 'groupLocal' }[] = [
   { access: 'auto', key: 'groupAuto' }, { access: 'free', key: 'groupFree' }, { access: 'plan', key: 'groupPlan' }, { access: 'family', key: 'groupFamily' }, { access: 'payg', key: 'groupPayg' }, { access: 'local', key: 'groupLocal' },
@@ -72,6 +73,7 @@ export function ModelSheet({ visible, models, selected, onSelect, onClose, image
                 return (
                   <Pressable key={(m.image ? 'img:' : '') + m.id} testID={`model-${m.id}`} disabled={!m.available} accessibilityRole="button" accessibilityLabel={`${m.name}. ${t(BADGE[m.access])}${d ? '. ' + d : ''}`} accessibilityState={{ selected: on, disabled: !m.available }} onPress={() => pick(m)}
                     style={{ flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 48, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 12, backgroundColor: on ? th.accentSoft : th.surface, borderWidth: 1, borderColor: on ? th.accent : th.line, marginBottom: 6, opacity: m.available ? 1 : 0.5 }}>
+                    <ModelIcon model={m} size={34} />
                     <View style={{ flex: 1 }}>
                       <Text numberOfLines={2} style={{ color: th.ink, fontSize: 15, fontWeight: '600' }}>{m.name}</Text>
                       {!!d && <Text numberOfLines={1} style={{ color: th.muted, fontSize: 12, marginTop: 1 }}>{d}</Text>}

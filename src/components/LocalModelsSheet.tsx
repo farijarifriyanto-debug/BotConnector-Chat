@@ -10,6 +10,7 @@ import { useLocal, localId, type Download } from '../local/store'
 import { useChat } from '../store/chat'
 import { useTheme } from '../theme/theme'
 import { Icon } from './Icons'
+import { ModelIcon } from './ModelIcon'
 
 export const fmtBytes = (n: number) => (n >= 1e9 ? `${(n / 1e9).toFixed(1)} GB` : `${Math.max(1, Math.round(n / 1e6))} MB`)
 /** 'ok' when the file is a comfortable fit for this phone's RAM, 'tight' when iOS may close the app. */
@@ -87,6 +88,7 @@ export function LocalModelsSheet({ visible, onClose, onUsed }: { visible: boolea
             {models.length === 0 && <Text testID="loc-none" style={{ color: th.muted, marginTop: 12 }}>{t('locNone')}</Text>}
             {models.filter(m => match(m.name)).map(m => (
               <View key={m.id} testID={`installed-${m.id}`} style={[card, { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 8 }]}>
+                <ModelIcon model={{ id: m.id, name: m.name, access: 'local' }} size={36} />
                 <View style={{ flex: 1 }}><Text style={{ color: th.ink, fontWeight: '600' }}>{m.name}</Text><Text style={{ color: th.muted, fontSize: 12, marginTop: 2 }}>{fmtBytes(m.bytes)} · {perf(m.bytes)}</Text></View>
                 <Pressable testID={`use-${m.id}`} onPress={() => use(m.id)} accessibilityRole="button" style={btn(true)}><Text style={{ color: th.accentInk, fontWeight: '700' }}>{t('locUse')}</Text></Pressable>
                 <Pressable onPress={() => remove(m.id, m.name)} hitSlop={10} accessibilityRole="button" accessibilityLabel={t('locDelete')} testID={`del-${m.id}`}><Icon name="Trash" size={20} color={th.danger} /></Pressable>
@@ -97,6 +99,7 @@ export function LocalModelsSheet({ visible, onClose, onUsed }: { visible: boolea
             {tab === 'all' && label(t('locRecommended'))}
             {RECOMMENDED.filter(r => match(r.name)).map(r => (
               <View key={r.file} style={[card, { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 8 }]}>
+                <ModelIcon model={{ id: r.repo, name: r.name, access: 'local' }} size={36} />
                 <View style={{ flex: 1 }}><Text style={{ color: th.ink, fontWeight: '600' }}>{r.name}</Text><Text style={{ color: th.muted, fontSize: 12, marginTop: 2 }}>{fmtBytes(r.bytes)} · {perf(r.bytes)}</Text><Text style={{ color: th.muted2, fontSize: 11.5, marginTop: 1 }}>{ramNote(r.bytes)}</Text>{warn(r.bytes)}</View>
                 {getBtn(r.repo, r.file, r.bytes, r.name)}
               </View>))}

@@ -29,3 +29,22 @@ describe('model picker helpers', () => {
     expect(defaultSize([])).toBeUndefined()
   })
 })
+
+import { modelBrand } from '../src/lib/modelPicker'
+describe('model brand marks', () => {
+  const b = (name: string, access: ChatModel['access'] = 'free', extra: Partial<ChatModel> = {}) => modelBrand({ id: name, name, access, ...extra })
+  it('reads the family from the model name, cloud or local', () => {
+    expect(b('Claude Sonnet 5.5', 'plan')).toBe('claude'); expect(b('Gemini 2.5 Flash Lite')).toBe('gemini'); expect(b('Gemma 3 1B', 'local')).toBe('gemma')
+    expect(b('GPT-OSS 20B')).toBe('openai'); expect(b('GPT-6 Luna', 'plan')).toBe('openai'); expect(b('DeepSeek V4.1 Flash')).toBe('deepseek')
+    expect(b('Qwen3 0.6B', 'local')).toBe('qwen'); expect(b('GLM-5.3 Flash')).toBe('zai'); expect(b('Kimi K2.6', 'plan')).toBe('kimi')
+    expect(b('Llama 3.2 1B Instruct', 'local')).toBe('meta'); expect(b('NVIDIA Nemotron 3 Super')).toBe('nvidia'); expect(b('Laguna S 2.1')).toBe('poolside')
+  })
+  it('does not guess: unknown families get no mark, and Auto has none to read', () => {
+    expect(b('Ling 3.0 Flash')).toBeNull(); expect(b('Agnes 3.0 Flash')).toBeNull(); expect(b('Auto', 'auto')).toBeNull()
+    expect(b('Gemini')).toBe('gemini'); expect(b('Pro')).toBeNull()   // no accidental match on short words
+  })
+  it('your own provider falls back to the service mark, but a laptop name never does', () => {
+    expect(b('my-model', 'custom', { provider: 'OpenRouter' })).toBe('openrouter'); expect(b('my-model', 'custom', { provider: 'Ollama (laptop)' })).toBe('ollama')
+    expect(b('my-model', 'laptop', { provider: 'Ollama PC' })).toBeNull()
+  })
+})
