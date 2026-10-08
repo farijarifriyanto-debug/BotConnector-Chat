@@ -1,13 +1,16 @@
 import React from 'react'
-import { ActivityIndicator, Image, Pressable, View } from 'react-native'
+import { ActivityIndicator, Image, Linking, Pressable, View } from 'react-native'
 import { Text } from '../components/Text'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useT } from '../hooks/useT'
+import { legalUrl } from '../lib/links'
 import { useAuth } from '../store/auth'
+import { useSettings } from '../store/settings'
 import { useTheme } from '../theme/theme'
 
 export function LoginScreen() {
   const th = useTheme(), t = useT(), busy = useAuth(a => a.busy), error = useAuth(a => a.error)
+  const lang = useSettings(x => x.lang)
   const msg = error ? t(error === 'unavailable' || error === 'network' ? 'loginUnavailable' : 'loginFailed') : null
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: th.bg }}>
@@ -21,6 +24,9 @@ export function LoginScreen() {
         </Pressable>
         <Pressable testID="guest-button" onPress={() => useAuth.getState().continueAsGuest()} accessibilityRole="button" style={{ marginTop: 10, alignSelf: 'stretch', padding: 14, borderRadius: 14, borderWidth: 1, borderColor: th.lineStrong, alignItems: 'center' }}><Text style={{ color: th.ink, fontSize: 15, fontWeight: '600' }}>{t('guestBtn')}</Text></Pressable>
         <Text style={{ color: th.muted, fontSize: 12.5, lineHeight: 18, textAlign: 'center', marginTop: 10 }}>{t('guestNote')}</Text>
+        <View style={{ flexDirection: 'row', gap: 18, marginTop: 14 }}>
+          {(['privacy', 'terms'] as const).map(pg => <Pressable key={pg} testID={`login-${pg}`} onPress={() => void Linking.openURL(legalUrl(pg, lang)).catch(() => {})} accessibilityRole="link" hitSlop={8}><Text style={{ color: th.accentStrong, fontSize: 13, fontWeight: '600' }}>{t(pg === 'privacy' ? 'legalPrivacy' : 'legalTerms')}</Text></Pressable>)}
+        </View>
       </View>
     </SafeAreaView>
   )

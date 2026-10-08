@@ -1,8 +1,10 @@
-import React, { useState } from 'react'
-import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, View } from 'react-native'
+import React, { useEffect, useState } from 'react'
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, ScrollView, View } from 'react-native'
 import { Text, TextInput } from './Text'
 import { useT } from '../hooks/useT'
 import { langName } from '../i18n/langs'
+import { legalUrl, type LegalPage } from '../lib/links'
+import { SHOT, useShot } from '../lib/shot'
 import { useAuth } from '../store/auth'
 import { useChat } from '../store/chat'
 import { useSettings, type ThemePref } from '../store/settings'
@@ -25,6 +27,9 @@ const cap = (x: string) => x.charAt(0).toUpperCase() + x.slice(1)
 export function SettingsSheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const th = useTheme(), t = useT(), s = useSettings(), account = useAuth(a => a.account), guest = useAuth(a => a.status === 'guest')
   const [providers, setProviders] = useState(false), [local, setLocal] = useState(false), [personal, setPersonal] = useState(false), [laptop, setLaptop] = useState(false), [langOpen, setLangOpen] = useState(false), [usage, setUsage] = useState(false), [search, setSearch] = useState(false), [deleting, setDeleting] = useState(false), [pw, setPw] = useState(''), [phrase, setPhrase] = useState(''), [busy, setBusy] = useState(false), [err, setErr] = useState<DeleteFailure | null>(null)
+  const scene = useShot(x => x.scene)
+  useEffect(() => { if (SHOT) { setLangOpen(scene === 'language'); setSearch(scene === 'search'); setPersonal(scene === 'personal') } }, [scene])   // screenshot build only
+  const open = (page: LegalPage) => { void Linking.openURL(legalUrl(page, s.lang)).catch(() => {}) }
   const done = () => { setDeleting(false); setPw(''); setPhrase(''); setErr(null); setBusy(false) }
   const close = () => { if (!busy) { done(); onClose() } }
   const confirmLogout = () => Alert.alert(t('logout'), t('logoutConfirm'), [{ text: t('cancel'), style: 'cancel' }, { text: t('logout'), style: 'destructive', onPress: () => { onClose(); useChat.getState().reset(); void useAuth.getState().logout() } }])
@@ -87,6 +92,11 @@ export function SettingsSheet({ visible, onClose }: { visible: boolean; onClose:
               {!guest && <Pressable testID="open-laptop" onPress={() => setLaptop(true)} accessibilityRole="button" style={{ marginTop: 10, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: th.lineStrong, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}><Text style={{ color: th.ink, fontWeight: '600' }}>{t('laptop')}</Text><Icon name="Chevron" size={16} color={th.muted} /></Pressable>}
               <Pressable testID="open-local" onPress={() => setLocal(true)} accessibilityRole="button" style={{ marginTop: 10, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: th.lineStrong, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}><Text style={{ color: th.ink, fontWeight: '600' }}>{t('locManage')}</Text><Icon name="Chevron" size={16} color={th.muted} /></Pressable>
               {!guest && <SyncSection />}
+              {label(t('legalTitle'))}
+              {(['privacy', 'terms', 'support'] as const).map(pg => (
+                <Pressable key={pg} testID={`legal-${pg}`} onPress={() => open(pg)} accessibilityRole="link" style={{ marginBottom: 8, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: th.lineStrong, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <Text style={{ color: th.ink, fontWeight: '600' }}>{t(pg === 'privacy' ? 'legalPrivacy' : pg === 'terms' ? 'legalTerms' : 'legalSupport')}</Text><Icon name="ChevR" size={16} color={th.muted} />
+                </Pressable>))}
               <Text style={{ color: th.muted, fontSize: 12.5, marginTop: 18 }}>{t('chatsOnDevice')}</Text>
               {!guest && <Pressable testID="logout" onPress={confirmLogout} accessibilityRole="button" style={{ marginTop: 18, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: th.lineStrong, alignItems: 'center' }}><Text style={{ color: th.ink, fontWeight: '700' }}>{t('logout')}</Text></Pressable>}
               {!guest && <Pressable testID="delete-account" onPress={() => setDeleting(true)} accessibilityRole="button" style={{ marginTop: 10, padding: 14, alignItems: 'center' }}><Text style={{ color: th.danger, fontWeight: '600' }}>{t('dAcctBtn')}</Text></Pressable>}

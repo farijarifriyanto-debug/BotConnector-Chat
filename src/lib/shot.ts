@@ -8,7 +8,7 @@ import { useAuth } from '../store/auth'
 export const SHOT = process.env.EXPO_PUBLIC_SCREENSHOT === '1'
 export const useShot = create<{ scene: string }>(() => ({ scene: 'login' }))
 
-/** CI writes "<counter>:<scene>" into Documents/shot.txt of the simulator's app container (no dialogs, unlike opening a link). Scenes: lang-id, lang-en, dark, guest, home, local, providers, settings. */
+/** CI writes "<counter>:<scene>" into Documents/shot.txt of the simulator's app container (no dialogs, unlike opening a link). Scenes: lang-id, lang-en, dark, guest, home, local, providers, settings, language, search, personal. */
 export function useShotLinks() {
   useEffect(() => {
     if (!SHOT) return

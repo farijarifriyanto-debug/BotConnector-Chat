@@ -14,7 +14,7 @@ export default function App() {
   const th = useTheme(), status = useAuth(a => a.status), [intro, setIntro] = useState(() => !seenOnboarding())
   useShotLinks()
   const scene = useShot(s => s.scene)
-  useEffect(() => { if (SHOT && ['home', 'local', 'providers', 'settings'].includes(scene)) setIntro(false) }, [scene])   // screenshot build only
+  useEffect(() => { if (SHOT && ['home', 'local', 'providers', 'settings', 'language', 'search', 'personal'].includes(scene)) setIntro(false) }, [scene])   // screenshot build only
   useEffect(() => {
     void useAuth.getState().init()
     const sub = AppState.addEventListener('change', s => { if (s === 'active') { void useAuth.getState().refreshAccount(); scheduleSync(500) } })   // plan/balance may have changed in the browser

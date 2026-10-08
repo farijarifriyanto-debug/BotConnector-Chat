@@ -44,7 +44,7 @@ export function ChatScreen() {
   const web = guest ? ownSearch : chat.caps?.web !== false
   const lastAssistant = useMemo(() => { for (let i = msgs.length - 1; i >= 0; i--) if (msgs[i].role === 'assistant') return msgs[i].id; return null }, [msgs])
   const scene = useShot(x => x.scene)
-  useEffect(() => { if (SHOT) { setLocalSheet(scene === 'local'); setProvSheet(scene === 'providers'); setSettings(scene === 'settings') } }, [scene])   // screenshot build only
+  useEffect(() => { if (SHOT) { setLocalSheet(scene === 'local'); setProvSheet(scene === 'providers'); setSettings(['settings', 'language', 'search', 'personal'].includes(scene)) } }, [scene])   // screenshot build only
   useEffect(() => { void chat.init() }, [])   // eslint-disable-line react-hooks/exhaustive-deps
   const opts = { web, research: false }
   const last = msgs[msgs.length - 1]
