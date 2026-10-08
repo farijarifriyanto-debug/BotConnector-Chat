@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
-import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native'
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, View } from 'react-native'
+import { Text, TextInput } from './Text'
 import { useT } from '../hooks/useT'
 import { useAuth } from '../store/auth'
 import { useChat } from '../store/chat'
@@ -30,7 +31,7 @@ export function SettingsSheet({ visible, onClose }: { visible: boolean; onClose:
     if (r.ok || r.reason === 'session') { useChat.getState().reset(); done(); onClose(); return }
     setBusy(false); setErr(r.reason)
   }
-  const seg = <T extends string>(value: T, items: { v: T; label: string }[], set: (v: T) => void) => (
+  const seg = <T extends string | number>(value: T, items: { v: T; label: string }[], set: (v: T) => void) => (
     <View style={{ flexDirection: 'row', borderWidth: 1, borderColor: th.lineStrong, borderRadius: 10, overflow: 'hidden' }}>
       {items.map(i => <Pressable key={i.v} testID={`seg-${i.v}`} accessibilityRole="button" accessibilityState={{ selected: value === i.v }} onPress={() => set(i.v)} style={{ flex: 1, paddingVertical: 9, alignItems: 'center', backgroundColor: value === i.v ? th.accentSoft : th.surface }}><Text style={{ color: value === i.v ? th.accentStrong : th.ink, fontWeight: '600', fontSize: 14 }}>{i.label}</Text></Pressable>)}
     </View>)
@@ -74,6 +75,8 @@ export function SettingsSheet({ visible, onClose }: { visible: boolean; onClose:
               {seg(s.lang, [{ v: 'id', label: 'Indonesia' }, { v: 'en', label: 'English' }], s.setLang)}
               {label(t('theme'))}
               {seg<ThemePref>(s.theme, [{ v: 'auto', label: cap(t('themeAuto').replace(/^.*: /, '')) }, { v: 'light', label: cap(t('themeLight').replace(/^.*: /, '')) }, { v: 'dark', label: cap(t('themeDark').replace(/^.*: /, '')) }], s.setTheme)}
+              {label(t('fsTitle'))}
+              {seg<number>(s.fontScale, [{ v: 0.9, label: t('fsSmall') }, { v: 1, label: t('fsNormal') }, { v: 1.15, label: t('fsLarge') }, { v: 1.3, label: t('fsXL') }], s.setFontScale)}
               <Pressable testID="open-personal" onPress={() => setPersonal(true)} accessibilityRole="button" style={{ marginTop: 18, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: th.lineStrong, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}><Text style={{ color: th.ink, fontWeight: '600' }}>{t('personalization')}</Text><Icon name="Chevron" size={16} color={th.muted} /></Pressable>
               <Pressable testID="open-search" onPress={() => setSearch(true)} accessibilityRole="button" style={{ marginTop: 10, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: th.lineStrong, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}><Text style={{ color: th.ink, fontWeight: '600' }}>{t('srchTitle')}</Text><Icon name="Chevron" size={16} color={th.muted} /></Pressable>
               <Pressable testID="open-providers" onPress={() => setProviders(true)} accessibilityRole="button" style={{ marginTop: 10, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: th.lineStrong, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}><Text style={{ color: th.ink, fontWeight: '600' }}>{t('provTitle')}</Text><Icon name="Chevron" size={16} color={th.muted} /></Pressable>

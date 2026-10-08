@@ -1,6 +1,7 @@
 import * as Clipboard from 'expo-clipboard'
 import React, { useEffect, useState } from 'react'
-import { Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Share, Text, TextInput, View } from 'react-native'
+import { Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Share, View } from 'react-native'
+import { Text, TextInput } from './Text'
 import { useT } from '../hooks/useT'
 import { toMarkdown } from '../lib/export'
 import type { Conv } from '../lib/types'

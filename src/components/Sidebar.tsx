@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { Alert, Animated, FlatList, Pressable, Text, TextInput, View, useWindowDimensions } from 'react-native'
+import { Alert, Animated, FlatList, Pressable, View, useWindowDimensions } from 'react-native'
+import { Text, TextInput } from './Text'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useT } from '../hooks/useT'
 import { groupByDay } from '../lib/conv'

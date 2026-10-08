@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
-import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Switch, Text, TextInput, View } from 'react-native'
+import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Switch, View } from 'react-native'
+import { Text, TextInput } from './Text'
 import { useT } from '../hooks/useT'
 import { MEMORY_ID } from '../lib/conv'
 import { useChat } from '../store/chat'

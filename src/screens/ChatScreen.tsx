@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { FlatList, Image, ScrollView, KeyboardAvoidingView, Platform, Pressable, Text, View } from 'react-native'
+import { FlatList, Image, ScrollView, KeyboardAvoidingView, Platform, Pressable, View } from 'react-native'
+import { Text } from '../components/Text'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { ChatOptionsSheet } from '../components/ChatOptionsSheet'
 import { Composer } from '../components/Composer'
@@ -41,7 +42,10 @@ export function ChatScreen() {
   useEffect(() => { void chat.init() }, [])   // eslint-disable-line react-hooks/exhaustive-deps
   const opts = { web, research: false }
   const last = msgs[msgs.length - 1]
-  useEffect(() => { if (msgs.length) list.current?.scrollToEnd({ animated: true }) }, [msgs.length, last?.content.length])   // eslint-disable-line react-hooks/exhaustive-deps
+  const stick = useRef(true)   // follow the answer while it is written, unless the reader scrolled up
+  useEffect(() => { stick.current = true }, [conv?.id])
+  useEffect(() => { if (chat.busy) { stick.current = true; list.current?.scrollToEnd({ animated: true }) } }, [chat.busy])
+  const follow = () => { if (stick.current) list.current?.scrollToEnd({ animated: false }) }
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: th.bg }} edges={['top', 'bottom', 'left', 'right']}>
@@ -71,7 +75,7 @@ export function ChatScreen() {
             <FeatureGuide features={guideFor({ attach: !guest, web, research: web && !guest, image: chat.imageModels.length > 0 })} />
           </ScrollView>
         ) : (
-          <FlatList ref={list} data={msgs} keyExtractor={m => m.id} contentContainerStyle={{ padding: 12, gap: 12 }} keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive"
+          <FlatList ref={list} data={msgs} onContentSizeChange={follow} onLayout={follow} scrollEventThrottle={64} onScroll={e => { const m = e.nativeEvent; stick.current = m.contentSize.height - m.layoutMeasurement.height - m.contentOffset.y < 140 }} keyExtractor={m => m.id} contentContainerStyle={{ padding: 12, gap: 12 }} keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive"
             renderItem={({ item }) => <MessageView msg={item} streaming={chat.busy && item.id === last?.id && item.role === 'assistant'} status={chat.busy && item.id === last?.id ? chat.status : null} isLastAssistant={item.id === lastAssistant} canAct={!chat.busy} onRegenerate={() => void chat.regenerate(opts)} />} />
         )}
         <Composer busy={chat.busy} model={model} webAvailable={web} researchAvailable={!guest} onSend={(text, o, atts) => void chat.send(text, o, atts)} onStop={chat.stop} files={{ available: chat.caps?.files === true && model?.access !== 'local' && model?.access !== 'custom' }} image={{ available: chat.imageModels.length > 0, modelName: chat.imageModels.find(m => m.id === chat.imageModelId)?.name ?? '', onPick: () => setImgSheet(true) }} />

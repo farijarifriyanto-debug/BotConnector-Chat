@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
-import { Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native'
+import { Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, View } from 'react-native'
+import { Text, TextInput } from './Text'
 import { useT } from '../hooks/useT'
 import { useChat } from '../store/chat'
 import { useSettings } from '../store/settings'

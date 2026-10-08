@@ -1,5 +1,6 @@
 import React from 'react'
-import { Text, View } from 'react-native'
+import { View } from 'react-native'
+import { Text } from './Text'
 import { useT } from '../hooks/useT'
 import { useTheme } from '../theme/theme'
 import { Icon, type IconName } from './Icons'

@@ -1,6 +1,7 @@
 import * as Device from 'expo-device'
 import React, { useEffect, useState } from 'react'
-import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Switch, Text, TextInput, View } from 'react-native'
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Switch, View } from 'react-native'
+import { Text, TextInput } from './Text'
 import { useT } from '../hooks/useT'
 import { RECOMMENDED } from '../local/catalog'
 import { listFiles, parseSource, searchRepos, type HfFile, type HfRepo } from '../local/hf'

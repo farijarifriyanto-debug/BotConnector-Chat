@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
-import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native'
+import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, View } from 'react-native'
+import { Text, TextInput } from './Text'
 import { BYOK_PROVIDERS, type SearchProviderId } from '../api/search'
 import { useT } from '../hooks/useT'
 import { RESULT_COUNTS, useSearch } from '../store/search'

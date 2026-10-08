@@ -1,5 +1,6 @@
 import React from 'react'
-import { Alert, Pressable, Switch, Text, View } from 'react-native'
+import { Alert, Pressable, Switch, View } from 'react-native'
+import { Text } from './Text'
 import { useT } from '../hooks/useT'
 import { useSync } from '../sync/store'
 import { useTheme } from '../theme/theme'

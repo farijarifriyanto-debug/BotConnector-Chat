@@ -1,5 +1,6 @@
 import React from 'react'
-import { ActivityIndicator, Image, Pressable, Text, View } from 'react-native'
+import { ActivityIndicator, Image, Pressable, View } from 'react-native'
+import { Text } from '../components/Text'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useT } from '../hooks/useT'
 import { useAuth } from '../store/auth'

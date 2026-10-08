@@ -1,6 +1,7 @@
 import Storage from 'expo-sqlite/kv-store'
 import React, { useRef, useState } from 'react'
-import { Image, Pressable, ScrollView, Text, View, useWindowDimensions, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native'
+import { Image, Pressable, ScrollView, View, useWindowDimensions, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native'
+import { Text } from '../components/Text'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useT } from '../hooks/useT'
 import { useTheme } from '../theme/theme'

@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
-import { ActionSheetIOS, ActivityIndicator, Alert, Image, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native'
+import { ActionSheetIOS, ActivityIndicator, Alert, Image, Platform, Pressable, ScrollView, View } from 'react-native'
+import { Text, TextInput } from './Text'
 import { useAttachments } from '../hooks/useAttachments'
 import { useT } from '../hooks/useT'
 import { MAX_IMAGES } from '../lib/attachments'

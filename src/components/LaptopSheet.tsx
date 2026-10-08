@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
-import { ActivityIndicator, Alert, Modal, Pressable, ScrollView, Text, View } from 'react-native'
+import { ActivityIndicator, Alert, Modal, Pressable, ScrollView, View } from 'react-native'
+import { Text } from './Text'
 import { createPairCode, laptopId, revokeDevice } from '../laptop/api'
 import { useLaptop } from '../laptop/store'
 import { useT } from '../hooks/useT'

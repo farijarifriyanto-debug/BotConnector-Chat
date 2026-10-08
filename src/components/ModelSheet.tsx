@@ -1,5 +1,6 @@
 import React from 'react'
-import { Modal, Pressable, ScrollView, Text, View } from 'react-native'
+import { Modal, Pressable, ScrollView, View } from 'react-native'
+import { Text } from './Text'
 import { useT } from '../hooks/useT'
 import type { Access, ChatModel } from '../lib/types'
 import { useTheme } from '../theme/theme'

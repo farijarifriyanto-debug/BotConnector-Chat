@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react'
-import { Modal, Pressable, ScrollView, Text, View, useWindowDimensions } from 'react-native'
+import { Modal, Pressable, ScrollView, View, useWindowDimensions } from 'react-native'
+import { Text } from './Text'
 import { SvgXml } from 'react-native-svg'
 import { canPie, chartSvg, PALETTE, type ChartData, type ChartType } from '../lib/chart'
 import { t } from '../i18n/strings'
