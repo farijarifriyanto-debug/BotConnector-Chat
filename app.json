@@ -1,0 +1,59 @@
+{
+  "expo": {
+    "name": "BotConnector",
+    "slug": "botconnector-chat",
+    "scheme": "botconnector",
+    "version": "2.0.0",
+    "orientation": "default",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "bundleIdentifier": "id.botconnector.app",
+      "supportsTablet": true,
+      "buildNumber": "100",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSCameraUsageDescription": "BotConnector uses the camera to take photos you attach to a chat.",
+        "NSPhotoLibraryUsageDescription": "BotConnector reads photos you choose to attach to a chat.",
+        "NSMicrophoneUsageDescription": "BotConnector uses the microphone for voice input."
+      }
+    },
+    "android": {
+      "package": "id.botconnector.app",
+      "versionCode": 200,
+      "adaptiveIcon": {
+        "backgroundImage": "./assets/android-icon-background.png",
+        "foregroundImage": "./assets/android-icon-foreground.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-secure-store",
+      "expo-web-browser",
+      "expo-sqlite",
+      "expo-localization",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "BotConnector reads photos you choose to attach to a chat.",
+          "cameraPermission": "BotConnector uses the camera to take photos you attach to a chat."
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 170,
+          "resizeMode": "contain",
+          "backgroundColor": "#f3f6f4",
+          "dark": {
+            "backgroundColor": "#0a0c0e"
+          }
+        }
+      ]
+    ]
+  }
+}
