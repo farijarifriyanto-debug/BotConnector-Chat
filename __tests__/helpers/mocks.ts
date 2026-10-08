@@ -3,4 +3,5 @@ jest.mock('expo-sqlite/kv-store', () => { const m = new Map<string, string>(); r
 jest.mock('expo-localization', () => ({ getLocales: () => [{ languageCode: 'en' }] }))
 jest.mock('expo-clipboard', () => ({ setStringAsync: jest.fn(async () => true) }))
 jest.mock('expo-crypto', () => ({ getRandomBytes: (n: number) => new Uint8Array(require('crypto').randomBytes(n)), randomUUID: () => require('crypto').randomUUID() }))
+jest.mock('react-native-webview', () => ({ WebView: () => null }))
 export {}

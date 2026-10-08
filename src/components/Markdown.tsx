@@ -7,6 +7,7 @@ import { t } from '../i18n/strings'
 import { useSettings } from '../store/settings'
 import { useTheme, type Theme } from '../theme/theme'
 import type { Source } from '../lib/types'
+import { HtmlPreview } from './HtmlPreview'
 import { TableChart } from './TableChart'
 
 const MONO = Platform.select({ ios: 'Menlo', default: 'monospace' })
@@ -45,16 +46,21 @@ function inline(tokens: Token[] | undefined, c: Ctx, key: string): React.ReactNo
 }
 
 function CodeBlock({ code, lang, c }: { code: string; lang?: string; c: Ctx }) {
-  const [done, setDone] = useState(false)
+  const [done, setDone] = useState(false), [preview, setPreview] = useState(false)
+  const isHtml = /^html?$/i.test(lang ?? '') && /<\w+/.test(code)
   return (
     <View style={{ marginVertical: 8, borderRadius: 12, overflow: 'hidden', borderWidth: 1, borderColor: c.th.lineStrong, backgroundColor: c.th.surface2 }}>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 6, backgroundColor: c.th.surface3 }}>
         <Text style={{ color: c.th.muted, fontSize: 12 }}>{lang || 'code'}</Text>
-        <Pressable accessibilityRole="button" onPress={() => { void Clipboard.setStringAsync(code); setDone(true); setTimeout(() => setDone(false), 1500) }} hitSlop={8}>
-          <Text style={{ color: c.th.accentStrong, fontSize: 12, fontWeight: '700' }}>{done ? t(c.lang, 'copied') : 'Copy'}</Text>
-        </Pressable>
+        <View style={{ flexDirection: 'row', gap: 16 }}>
+          {isHtml && <Pressable accessibilityRole="button" testID="html-preview" onPress={() => setPreview(true)} hitSlop={8}><Text style={{ color: c.th.accentStrong, fontSize: 12, fontWeight: '700' }}>{t(c.lang, 'previewBtn')}</Text></Pressable>}
+          <Pressable accessibilityRole="button" onPress={() => { void Clipboard.setStringAsync(code); setDone(true); setTimeout(() => setDone(false), 1500) }} hitSlop={8}>
+            <Text style={{ color: c.th.accentStrong, fontSize: 12, fontWeight: '700' }}>{done ? t(c.lang, 'copied') : 'Copy'}</Text>
+          </Pressable>
+        </View>
       </View>
       <ScrollView horizontal showsHorizontalScrollIndicator><Text selectable style={{ fontFamily: MONO, fontSize: 13, lineHeight: 19, color: c.th.ink, padding: 12 }}>{code}</Text></ScrollView>
+      {isHtml && <HtmlPreview html={code} visible={preview} onClose={() => setPreview(false)} />}
     </View>
   )
 }

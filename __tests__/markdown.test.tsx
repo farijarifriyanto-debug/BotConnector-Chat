@@ -45,3 +45,12 @@ describe('Markdown', () => {
     expect(r2.queryByTestId('table-chart-open')).toBeNull()   // a text table has no chart button
   })
 })
+
+describe('HTML code blocks', () => {
+  it('offers a preview only for html, not for other languages', async () => {
+    const a = await render(<Markdown text={'```html\n<h1>Halo</h1>\n```'} />)
+    expect(a.getByTestId('html-preview')).toBeTruthy()
+    const b = await render(<Markdown text={'```js\nconst a = 1\n```'} />)
+    expect(b.queryByTestId('html-preview')).toBeNull()
+  })
+})
