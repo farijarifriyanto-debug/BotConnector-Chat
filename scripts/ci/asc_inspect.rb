@@ -7,7 +7,7 @@ bundle = ENV['BUNDLE_ID'] || 'id.botconnector.app'
 yn = ->(v) { v.to_s.strip.empty? ? 'empty' : "filled(#{v.to_s.length})" }
 
 app = ASC.list("/v1/apps?filter[bundleId]=#{bundle}").first or abort 'app not found for this API key'
-puts "app: #{app['attributes']['name']} | primaryLocale=#{app['attributes']['primaryLocale']} | id ok"
+puts "app: #{app['attributes']['name']} | primaryLocale=#{app['attributes']['primaryLocale']} | appId=#{app['id']}"
 
 puts "\n== builds (latest 6)"
 ASC.list("/v1/builds?filter[app]=#{app['id']}&sort=-uploadedDate&limit=6").each { |b| a = b['attributes']; puts "  build #{a['version']} processing=#{a['processingState']} expired=#{a['expired']}" }
