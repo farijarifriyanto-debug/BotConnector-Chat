@@ -7,11 +7,11 @@ import type { Conv } from '../lib/types'
 import { useTheme } from '../theme/theme'
 import { Icon } from './Icons'
 
-interface Props { open: boolean; convs: Conv[]; activeId: string | null; onClose: () => void; onNew: () => void; onOpen: (id: string) => void; onDelete: (id: string) => void; onSettings: () => void }
+interface Props { open: boolean; convs: Conv[]; activeId: string | null; onClose: () => void; onNew: () => void; onOpen: (id: string) => void; onDelete: (id: string) => void; onSettings: () => void; onPals: () => void }
 type Row = { kind: 'head'; key: string; label: string } | { kind: 'conv'; key: string; conv: Conv }
 
 /** Slide-in chat history. Grouped by day like the web; long-press a chat to delete it. */
-export function Sidebar({ open, convs, activeId, onClose, onNew, onOpen, onDelete, onSettings }: Props) {
+export function Sidebar({ open, convs, activeId, onClose, onNew, onOpen, onDelete, onSettings, onPals }: Props) {
   const th = useTheme(), t = useT(), { width } = useWindowDimensions()
   const w = Math.min(width * 0.84, 340), x = useRef(new Animated.Value(-w)).current
   const [shown, setShown] = useState(open), [query, setQuery] = useState('')
@@ -37,6 +37,7 @@ export function Sidebar({ open, convs, activeId, onClose, onNew, onOpen, onDelet
             <Text style={{ color: th.ink, fontSize: 17, fontWeight: '700', flex: 1 }}>{t('appTitle')}</Text>
             <Pressable testID="sidebar-new" onPress={() => { onNew(); onClose() }} accessibilityRole="button" accessibilityLabel={t('newChat')} hitSlop={10} style={{ padding: 6, borderRadius: 10, borderWidth: 1, borderColor: th.lineStrong }}><Icon name="Plus" size={18} color={th.ink} /></Pressable>
           </View>
+          <Pressable testID="sidebar-pals" onPress={() => { onPals(); onClose() }} accessibilityRole="button" style={{ marginHorizontal: 12, marginBottom: 8, flexDirection: 'row', alignItems: 'center', gap: 10, padding: 10, borderRadius: 12, borderWidth: 1, borderColor: th.line, backgroundColor: th.surface }}><Icon name="Research" size={18} color={th.accentStrong} /><Text style={{ color: th.ink, fontWeight: '600', fontSize: 15 }}>{t('palsTitle')}</Text></Pressable>
           <View style={{ marginHorizontal: 12, marginBottom: 6, flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderColor: th.lineStrong, borderRadius: 12, paddingHorizontal: 10, backgroundColor: th.surface2 }}>
             <Icon name="Search" size={16} color={th.muted2} />
             <TextInput value={query} onChangeText={setQuery} placeholder={t('search')} placeholderTextColor={th.muted2} style={{ flex: 1, color: th.ink, paddingVertical: 9, fontSize: 15 }} />

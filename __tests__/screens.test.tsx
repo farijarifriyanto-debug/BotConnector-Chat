@@ -37,7 +37,7 @@ describe('screens', () => {
 
   it('sidebar lists chats and filters by search', async () => {
     const onOpen = jest.fn()
-    const r = await render(wrap(<Sidebar open convs={[conv('a', 'Resep nasi goreng', Date.now()), conv('b', 'Harga beras', Date.now())] as never} activeId={null} onClose={() => {}} onNew={() => {}} onOpen={onOpen} onDelete={() => {}} onSettings={() => {}} />))
+    const r = await render(wrap(<Sidebar open convs={[conv('a', 'Resep nasi goreng', Date.now()), conv('b', 'Harga beras', Date.now())] as never} activeId={null} onClose={() => {}} onNew={() => {}} onOpen={onOpen} onDelete={() => {}} onSettings={() => {}} onPals={() => {}} />))
     expect(r.getByText('Resep nasi goreng')).toBeTruthy()
     await fireEvent.changeText(r.getByPlaceholderText('Search chats'), 'beras')
     expect(r.queryByText('Resep nasi goreng')).toBeNull()

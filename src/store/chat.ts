@@ -21,6 +21,7 @@ interface ChatState {
   models: ChatModel[]; modelId: string; imageModels: ImageModel[]; imageModelId: string; modelsState: ModelsState; caps: Capabilities | null
   busy: boolean; status: RunStatus | null
   init(): Promise<void>; loadModels(): Promise<void>; syncCustom(): void; selectImageModel(id: string): void
+  startWith(system: string): void
   updateConv(id: string, patch: Partial<Pick<Conv, 'title' | 'system' | 'pinned'>>): Promise<void>
   saveMemory(patch: Partial<Pick<Conv, 'system' | 'memory' | 'useMemory'>>): Promise<void>
   selectModel(id: string): void; newChat(): void; open(id: string): void; remove(id: string): Promise<void>; reset(): void
@@ -122,6 +123,8 @@ export const useChat = create<ChatState>((set, get) => {
       })
     },
     selectImageModel(id) { set({ imageModelId: id }) },
+    /** New chat that already carries an assistant's instructions. */
+    startWith(system) { if (get().busy) return; set(s => ({ activeId: null, draft: { ...newConv(s.modelId), system } })) },
     async updateConv(id, patch) {
       const s = get(), saved = s.convs.find(c => c.id === id)
       if (saved) { const next = { ...saved, ...patch, ...(patch.title !== undefined ? { titled: true } : {}) }; replace(next); await putConv(next).catch(() => {}); return }

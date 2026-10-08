@@ -1,9 +1,11 @@
 import * as Clipboard from 'expo-clipboard'
-import React, { memo, useState } from 'react'
+import * as Speech from 'expo-speech'
+import React, { memo, useEffect, useState } from 'react'
 import { ActivityIndicator, Image, Linking, Pressable, Share, Text, View } from 'react-native'
 import { errorText } from '../i18n/strings'
 import { useT } from '../hooks/useT'
 import { imageUri } from '../lib/images'
+import { plainText } from '../lib/speech'
 import type { Progress } from '../lib/research'
 import { ChatError, type Msg } from '../lib/types'
 import { useSettings } from '../store/settings'
@@ -43,7 +45,7 @@ interface Props { msg: Msg; streaming: boolean; status: RunStatus | null; isLast
 
 function MessageViewBase({ msg, streaming, status, isLastAssistant, canAct, onRegenerate }: Props) {
   const th = useTheme(), t = useT(), lang = useSettings(s => s.lang)
-  const [copied, setCopied] = useState(false), [thinking, setThinking] = useState(false)
+  const [speaking, setSpeaking] = useState(false), [copied, setCopied] = useState(false), [thinking, setThinking] = useState(false)
   if (msg.role === 'user') return (
     <View style={{ alignItems: 'flex-end', marginVertical: 8, paddingHorizontal: 16 }} accessibilityLabel={t('you')}>
       <View style={{ maxWidth: '88%', backgroundColor: th.accentSoft, borderWidth: 1, borderColor: th.line, borderRadius: 18, borderBottomRightRadius: 6, paddingHorizontal: 14, paddingVertical: 10 }}>
@@ -57,6 +59,13 @@ function MessageViewBase({ msg, streaming, status, isLastAssistant, canAct, onRe
       </View>
     </View>
   )
+  const speak = () => {
+    if (speaking) { void Speech.stop(); setSpeaking(false); return }
+    const text = plainText(msg.content); if (!text) return
+    setSpeaking(true)
+    Speech.speak(text, { language: lang === 'id' ? 'id-ID' : 'en-US', onDone: () => setSpeaking(false), onStopped: () => setSpeaking(false), onError: () => setSpeaking(false) })
+  }
+  useEffect(() => () => { if (speaking) void Speech.stop() }, [speaking])
   const copy = async () => { await Clipboard.setStringAsync(msg.content || msg.image?.prompt || ''); setCopied(true); setTimeout(() => setCopied(false), 1500) }
   const showTyping = streaming && !msg.content && !status && !msg.reasoning
   return (
@@ -91,6 +100,7 @@ function MessageViewBase({ msg, streaming, status, isLastAssistant, canAct, onRe
       {!streaming && (!!msg.content || !!msg.attachments?.length) && (
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6 }}>
           <Pressable onPress={copy} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('copy')} style={{ flexDirection: 'row', alignItems: 'center', gap: 5, padding: 6 }}><Icon name={copied ? 'Check' : 'Copy'} size={16} color={th.muted} /><Text style={{ color: th.muted, fontSize: 12.5 }}>{copied ? t('copied') : t('copy')}</Text></Pressable>
+          {!!msg.content && <Pressable onPress={speak} hitSlop={8} accessibilityRole="button" accessibilityLabel={t(speaking ? 'stopReading' : 'readAloud')} testID="read-aloud" style={{ flexDirection: 'row', alignItems: 'center', gap: 5, padding: 6 }}><Icon name={speaking ? 'Stop' : 'Speaker'} size={16} color={th.muted} /></Pressable>}
           <Pressable onPress={() => void Share.share({ message: msg.content + (msg.sources?.length ? '\n\n' + msg.sources.map((s, i) => `${i + 1}. ${s.title} ${s.url}`).join('\n') : '') })} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('share')} style={{ flexDirection: 'row', alignItems: 'center', gap: 5, padding: 6 }}><Icon name="Share" size={16} color={th.muted} /><Text style={{ color: th.muted, fontSize: 12.5 }}>{t('share')}</Text></Pressable>
           {isLastAssistant && canAct && <Pressable onPress={onRegenerate} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('regenerate')} style={{ flexDirection: 'row', alignItems: 'center', gap: 5, padding: 6 }}><Icon name="Refresh" size={16} color={th.muted} /><Text style={{ color: th.muted, fontSize: 12.5 }}>{t('regenerate')}</Text></Pressable>}
           {!!msg.model && <Text numberOfLines={1} style={{ color: th.muted2, fontSize: 12, flexShrink: 1, marginLeft: 4 }}>{msg.model}</Text>}
