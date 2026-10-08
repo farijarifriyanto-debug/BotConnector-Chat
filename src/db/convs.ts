@@ -21,3 +21,8 @@ export async function listConvs(): Promise<Conv[]> {
 export async function putConv(c: Conv): Promise<void> { await (await db()).runAsync('INSERT OR REPLACE INTO convs (id, updated_at, doc) VALUES (?, ?, ?)', c.id, c.updatedAt, JSON.stringify(c)) }
 export async function deleteConv(id: string): Promise<void> { await (await db()).runAsync('DELETE FROM convs WHERE id = ?', id) }
 export async function clearConvs(): Promise<void> { await (await db()).runAsync('DELETE FROM convs') }
+export async function getConv(id: string): Promise<Conv | null> {
+  const r = await (await db()).getFirstAsync<{ doc: string }>('SELECT doc FROM convs WHERE id = ?', id)
+  if (!r) return null
+  try { return JSON.parse(r.doc) as Conv } catch { return null }
+}

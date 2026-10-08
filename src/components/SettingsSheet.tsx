@@ -11,6 +11,7 @@ import { LaptopSheet } from './LaptopSheet'
 import { LocalModelsSheet } from './LocalModelsSheet'
 import { PersonalizationSheet } from './PersonalizationSheet'
 import { ProvidersSheet } from './ProvidersSheet'
+import { SyncSection } from './SyncSection'
 
 export const DELETE_PHRASE = 'HAPUS AKUN'   // the server accepts only this exact phrase, whatever the app language is
 const REASON = { wrong_password: 'dAcctWrong', confirmation: 'dAcctBadPhrase', rate_limited: 'dAcctRate', session: 'dAcctSession', unavailable: 'dAcctDown', network: 'dAcctNet' } as const
@@ -70,6 +71,7 @@ export function SettingsSheet({ visible, onClose }: { visible: boolean; onClose:
               <Pressable testID="open-providers" onPress={() => setProviders(true)} accessibilityRole="button" style={{ marginTop: 10, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: th.lineStrong, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}><Text style={{ color: th.ink, fontWeight: '600' }}>{t('provTitle')}</Text><Icon name="Chevron" size={16} color={th.muted} /></Pressable>
               <Pressable testID="open-laptop" onPress={() => setLaptop(true)} accessibilityRole="button" style={{ marginTop: 10, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: th.lineStrong, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}><Text style={{ color: th.ink, fontWeight: '600' }}>{t('laptop')}</Text><Icon name="Chevron" size={16} color={th.muted} /></Pressable>
               <Pressable testID="open-local" onPress={() => setLocal(true)} accessibilityRole="button" style={{ marginTop: 10, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: th.lineStrong, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}><Text style={{ color: th.ink, fontWeight: '600' }}>{t('locManage')}</Text><Icon name="Chevron" size={16} color={th.muted} /></Pressable>
+              <SyncSection />
               <Text style={{ color: th.muted, fontSize: 12.5, marginTop: 18 }}>{t('chatsOnDevice')}</Text>
               <Pressable testID="logout" onPress={confirmLogout} accessibilityRole="button" style={{ marginTop: 18, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: th.lineStrong, alignItems: 'center' }}><Text style={{ color: th.ink, fontWeight: '700' }}>{t('logout')}</Text></Pressable>
               <Pressable testID="delete-account" onPress={() => setDeleting(true)} accessibilityRole="button" style={{ marginTop: 10, padding: 14, alignItems: 'center' }}><Text style={{ color: th.danger, fontWeight: '600' }}>{t('dAcctBtn')}</Text></Pressable>

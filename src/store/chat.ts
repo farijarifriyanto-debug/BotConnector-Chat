@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { fetchCapabilities, fetchImageModels, fetchModels, generateImage, streamCompletion, type Capabilities, type ImageModel } from '../api/api'
 import { deleteConv, listConvs, putConv } from '../db/convs'
+import { noteDeleted, registerReload, scheduleSync, useSync } from '../sync/store'
 import { runAssistant } from '../lib/agent'
 import { deleteImagesOf, saveImage } from '../lib/images'
 import { MEMORY_ID, composedSystem, fileIdsOf, newConv, newId, titleFrom, toApiMessages } from '../lib/conv'
@@ -63,7 +64,7 @@ export const useChat = create<ChatState>((set, get) => {
     const { models, modelId, convs, caps } = get()
     const m = models.find(x => x.id === base.model) ?? models.find(x => x.id === modelId); if (!m) return
     const aId = newId(), t0 = Date.now()
-    let cur: Conv = { ...base, model: m.id, messages: [...history, { id: aId, role: 'assistant', content: '', createdAt: Date.now(), model: m.name }], updatedAt: Date.now() }
+    let cur: Conv = { ...base, model: m.id, ...(base.local || isPrivate(m) ? { local: true } : {}), messages: [...history, { id: aId, role: 'assistant', content: '', createdAt: Date.now(), model: m.name }], updatedAt: Date.now() }
     controller = new AbortController(); const signal = controller.signal
     set({ busy: true, status: null }); put(cur)
     let timer: ReturnType<typeof setTimeout> | null = null
@@ -98,12 +99,13 @@ export const useChat = create<ChatState>((set, get) => {
       controller = null; set({ busy: false, status: null })
       const done = { ...cur, updatedAt: Date.now() }; replace(done)
       await putConv(done).catch(() => {})
+      scheduleSync()
     }
   }
 
   return {
     convs: [], activeId: null, draft: null, models: [], modelId: '', imageModels: [], imageModelId: '', modelsState: 'idle', caps: null, busy: false, status: null,
-    async init() { void get().loadModels(); void useLaptop.getState().refresh(); try { set({ convs: await listConvs() }) } catch { /* an unreadable database starts empty */ } },
+    async init() { registerReload(async () => { if (!get().busy) set({ convs: sortConvs(await listConvs()) }) }); scheduleSync(800); void get().loadModels(); void useLaptop.getState().refresh(); try { set({ convs: await listConvs() }) } catch { /* an unreadable database starts empty */ } },
     async loadModels() {
       set({ modelsState: 'loading' })
       try {
@@ -143,10 +145,10 @@ export const useChat = create<ChatState>((set, get) => {
     open(id) { if (!get().busy) set({ activeId: id }) },
     async remove(id) {
       await deleteImagesOf(get().convs.find(c => c.id === id)?.messages ?? [])
-      await deleteConv(id).catch(() => {})
+      await deleteConv(id).catch(() => {}); noteDeleted(id)
       set(s => ({ convs: s.convs.filter(c => c.id !== id), ...(s.activeId === id ? { activeId: null, draft: newConv(s.modelId) } : {}) }))
     },
-    reset() { controller?.abort(); useLaptop.getState().clear(); set({ convs: [], activeId: null, draft: null, models: [], imageModels: [], imageModelId: '', modelId: '', modelsState: 'idle', caps: null, busy: false, status: null }) },
+    reset() { controller?.abort(); useLaptop.getState().clear(); void useSync.getState().disable(false); set({ convs: [], activeId: null, draft: null, models: [], imageModels: [], imageModelId: '', modelId: '', modelsState: 'idle', caps: null, busy: false, status: null }) },
     async send(text, opts, attachments = []) {
       const s = get(), conv = currentConv(s), body = text.trim()
       if (s.busy || !conv || !body || !s.models.length) return
