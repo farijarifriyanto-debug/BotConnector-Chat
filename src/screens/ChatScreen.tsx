@@ -11,6 +11,7 @@ import { MessageView } from '../components/MessageView'
 import { ModelIcon } from '../components/ModelIcon'
 import { ModelSheet } from '../components/ModelSheet'
 import { PalsSheet } from '../components/PalsSheet'
+import { ReportSheet } from '../components/ReportSheet'
 import { SettingsSheet } from '../components/SettingsSheet'
 import { Sidebar } from '../components/Sidebar'
 import { useT } from '../hooks/useT'
@@ -36,7 +37,7 @@ const guideFor = (on: { attach: boolean; web: boolean; research: boolean; image:
 export function ChatScreen() {
   const th = useTheme(), t = useT()
   const chat = useChat(), conv = useChat(currentConv)
-  const guest = useAuth(a => a.status === 'guest'), ownSearch = useSearch(x => x.provider !== 'botconnector' && !!x.hasKey[x.provider]), [provSheet, setProvSheet] = useState(false), [localSheet, setLocalSheet] = useState(false), [pals, setPals] = useState(false), [optSheet, setOptSheet] = useState(false), [imgSheet, setImgSheet] = useState(false), [studio, setStudio] = useState(false), [menu, setMenu] = useState(false), [models, setModels] = useState(false), [settings, setSettings] = useState(false)
+  const guest = useAuth(a => a.status === 'guest'), ownSearch = useSearch(x => x.provider !== 'botconnector' && !!x.hasKey[x.provider]), [provSheet, setProvSheet] = useState(false), [localSheet, setLocalSheet] = useState(false), [pals, setPals] = useState(false), [optSheet, setOptSheet] = useState(false), [imgSheet, setImgSheet] = useState(false), [studio, setStudio] = useState(false), [reporting, setReporting] = useState<string | null>(null), [menu, setMenu] = useState(false), [models, setModels] = useState(false), [settings, setSettings] = useState(false)
   const list = useRef<FlatList>(null)
   const { width, fontScale } = useWindowDimensions(), narrow = width / Math.max(1, fontScale) < 340   // very small phone or very large system text: the model keeps the room, the title steps aside
   const msgs = conv?.messages ?? []
@@ -82,7 +83,7 @@ export function ChatScreen() {
           </ScrollView>
         ) : (
           <FlatList ref={list} data={msgs} onContentSizeChange={follow} onLayout={follow} scrollEventThrottle={64} onScroll={e => { const m = e.nativeEvent; stick.current = m.contentSize.height - m.layoutMeasurement.height - m.contentOffset.y < 140 }} keyExtractor={m => m.id} contentContainerStyle={{ padding: 12, gap: 12 }} keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive"
-            renderItem={({ item }) => <MessageView msg={item} streaming={chat.busy && item.id === last?.id && item.role === 'assistant'} status={chat.busy && item.id === last?.id ? chat.status : null} isLastAssistant={item.id === lastAssistant} canAct={!chat.busy} onRegenerate={() => void chat.regenerate(opts)} />} />
+            renderItem={({ item }) => <MessageView msg={item} streaming={chat.busy && item.id === last?.id && item.role === 'assistant'} status={chat.busy && item.id === last?.id ? chat.status : null} isLastAssistant={item.id === lastAssistant} canAct={!chat.busy} onRegenerate={() => void chat.regenerate(opts)} onReport={item.role === 'assistant' && !item.error && (item.content || item.attachments?.length) ? () => setReporting(item.id) : undefined} />} />
         )}
         <Composer busy={chat.busy} model={model} webAvailable={web} researchAvailable={!guest} onSend={(text, o, atts) => void chat.send(text, o, atts)} onStop={chat.stop} files={{ available: chat.caps?.files === true && model?.access !== 'local' && model?.access !== 'custom' }} image={{ available: chat.imageModels.length > 0, modelName: chat.imageModels.find(m => m.id === chat.imageModelId)?.name ?? '', onPick: () => setImgSheet(true) }} />
       </KeyboardAvoidingView>
@@ -93,6 +94,7 @@ export function ChatScreen() {
       <ChatOptionsSheet visible={optSheet} conv={conv} onClose={() => setOptSheet(false)} />
       <ProvidersSheet visible={provSheet} onClose={() => setProvSheet(false)} />
       <LocalModelsSheet visible={localSheet} onClose={() => setLocalSheet(false)} />
+      <ReportSheet msg={msgs.find(m => m.id === reporting) ?? null} prompt={(() => { const i = msgs.findIndex(m => m.id === reporting); return i > 0 && msgs[i - 1].role === 'user' ? msgs[i - 1].content : '' })()} onClose={() => setReporting(null)} />
       <PalsSheet visible={pals} onClose={() => setPals(false)} />
       <SettingsSheet visible={settings} onClose={() => setSettings(false)} />
     </SafeAreaView>

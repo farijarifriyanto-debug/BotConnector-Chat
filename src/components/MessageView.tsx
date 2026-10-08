@@ -43,9 +43,9 @@ export function errorLine(code: string, lang: Lang, t: ReturnType<typeof useT>):
   return errorText(lang, new ChatError(k as ChatError['kind'], { retryAfterSeconds: s ? Number(s) : undefined }))
 }
 
-interface Props { msg: Msg; streaming: boolean; status: RunStatus | null; isLastAssistant: boolean; canAct: boolean; onRegenerate: () => void }
+interface Props { msg: Msg; streaming: boolean; status: RunStatus | null; isLastAssistant: boolean; canAct: boolean; onRegenerate: () => void; onReport?: () => void }
 
-function MessageViewBase({ msg, streaming, status, isLastAssistant, canAct, onRegenerate }: Props) {
+function MessageViewBase({ msg, streaming, status, isLastAssistant, canAct, onRegenerate, onReport }: Props) {
   const th = useTheme(), t = useT(), lang = useSettings(s => s.lang)
   const [speaking, setSpeaking] = useState(false), [copied, setCopied] = useState(false), [thinking, setThinking] = useState(false)
   if (msg.role === 'user') return (
@@ -105,6 +105,7 @@ function MessageViewBase({ msg, streaming, status, isLastAssistant, canAct, onRe
           {!!msg.content && <Pressable onPress={speak} hitSlop={8} accessibilityRole="button" accessibilityLabel={t(speaking ? 'stopReading' : 'readAloud')} testID="read-aloud" style={{ flexDirection: 'row', alignItems: 'center', gap: 5, padding: 6 }}><Icon name={speaking ? 'Stop' : 'Speaker'} size={16} color={th.muted} /></Pressable>}
           <Pressable onPress={() => void Share.share({ message: msg.content + (msg.sources?.length ? '\n\n' + msg.sources.map((s, i) => `${i + 1}. ${s.title} ${s.url}`).join('\n') : '') })} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('share')} style={{ flexDirection: 'row', alignItems: 'center', gap: 5, padding: 6 }}><Icon name="Share" size={16} color={th.muted} /><Text style={{ color: th.muted, fontSize: 12.5 }}>{t('share')}</Text></Pressable>
           {isLastAssistant && canAct && <Pressable onPress={onRegenerate} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('regenerate')} style={{ flexDirection: 'row', alignItems: 'center', gap: 5, padding: 6 }}><Icon name="Refresh" size={16} color={th.muted} /><Text style={{ color: th.muted, fontSize: 12.5 }}>{t('regenerate')}</Text></Pressable>}
+          {!!onReport && <Pressable testID="report-open" onPress={onReport} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('rpOpen')} style={{ padding: 6 }}><Icon name="Flag" size={16} color={th.muted} /></Pressable>}
           {!!msg.model && <Text numberOfLines={1} style={{ color: th.muted2, fontSize: 12, flexShrink: 1, marginLeft: 4 }}>{msg.model}</Text>}
         </View>)}
       {!streaming && !msg.content && !!msg.error && isLastAssistant && canAct && (
