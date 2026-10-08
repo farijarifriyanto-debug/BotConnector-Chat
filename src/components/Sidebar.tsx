@@ -33,7 +33,7 @@ export function Sidebar({ open, convs, activeId, onClose, onNew, onOpen, onDelet
       <Animated.View style={{ position: 'absolute', top: 0, bottom: 0, left: 0, width: w, transform: [{ translateX: x }], backgroundColor: th.surface, borderRightWidth: 1, borderColor: th.line }}>
         <SafeAreaView style={{ flex: 1 }} edges={['top', 'bottom', 'left']}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12 }}>
-            <Image source={require('../../assets/bico/bico-mark@2x.png')} style={{ width: 28, height: 28 }} accessibilityIgnoresInvertColors />
+            <Image source={require('../../assets/bico/bico-mark.png')} style={{ width: 28, height: 28 }} accessibilityIgnoresInvertColors />
             <Text style={{ color: th.ink, fontSize: 17, fontWeight: '700', flex: 1 }}>{t('appTitle')}</Text>
             <Pressable testID="sidebar-new" onPress={() => { onNew(); onClose() }} accessibilityRole="button" accessibilityLabel={t('newChat')} hitSlop={10} style={{ padding: 6, borderRadius: 10, borderWidth: 1, borderColor: th.lineStrong }}><Icon name="Plus" size={18} color={th.ink} /></Pressable>
           </View>

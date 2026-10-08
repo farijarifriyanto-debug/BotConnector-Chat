@@ -37,7 +37,7 @@ export function ChatScreen() {
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         {msgs.length === 0 ? (
           <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 }}>
-            <Image source={require('../../assets/bico/bico-mark@2x.png')} style={{ width: 64, height: 64 }} accessibilityIgnoresInvertColors />
+            <Image source={require('../../assets/bico/bico-mark.png')} style={{ width: 64, height: 64 }} accessibilityIgnoresInvertColors />
             <Text style={{ color: th.ink, fontSize: 22, fontWeight: '800', marginTop: 12, textAlign: 'center' }}>{t('emptyTitle')}</Text>
             <Text style={{ color: th.muted, fontSize: 14.5, marginTop: 6, textAlign: 'center' }}>{t('emptySub')}</Text>
             {chat.modelsState === 'error' && <Pressable testID="models-retry" onPress={() => void chat.loadModels()} accessibilityRole="button" style={{ marginTop: 14 }}><Text style={{ color: th.danger, textAlign: 'center' }}>{t('modelsError')} {t('retry')}</Text></Pressable>}
