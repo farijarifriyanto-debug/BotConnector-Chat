@@ -1,4 +1,5 @@
 // BotConnector Cloud API client (Bearer access token). Same wire contract as the web Chat's lib/api.ts, minus the cookie-only BFF routes.
+import { niceName } from '../lib/modelPicker'
 import { fetch } from 'expo/fetch'
 import { API_BASE } from './config'
 import { ChatError, type Access, type ChatModel } from '../lib/types'
@@ -73,7 +74,7 @@ export async function fetchModels(): Promise<ChatModel[]> {
       const toolsFlag = (v: unknown) => v === true || v === 'supported'
       const fund = m.botconnector_funding
       return {
-        id: String(m.id), name: String(m.botconnector_name || c?.name || prettyId(String(m.id))), access: accessOf(m.botconnector_access),
+        id: String(m.id), name: niceName(String(m.botconnector_name || c?.name || prettyId(String(m.id)))), access: accessOf(m.botconnector_access),
         context: typeof m.botconnector_context_limit_tokens === 'number' ? m.botconnector_context_limit_tokens : typeof c?.contextTokens === 'number' ? c.contextTokens : undefined,
         vision: caps.vision === true || ccaps.vision === true, tools: toolsFlag(caps.tools) || toolsFlag(ccaps.tools), reasoning: caps.reasoning === true || ccaps.reasoning === true,
         available: !(fund && fund.available_now === false), reason: typeof fund?.reason === 'string' ? fund.reason : undefined,

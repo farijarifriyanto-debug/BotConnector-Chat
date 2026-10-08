@@ -47,3 +47,17 @@ export function modelBrand(m: Pick<ChatModel, 'id' | 'name' | 'provider' | 'acce
   if (m.access === 'custom') { const p = (m.provider ?? '').toLowerCase(); for (const [re, b] of [...SERVICE, ...FAMILY]) if (re.test(p)) return b }
   return null
 }
+
+const WORDS: Record<string, string> = { deepseek: 'DeepSeek', gpt: 'GPT', glm: 'GLM', oss: 'OSS', qwen: 'Qwen', llama: 'Llama', gemini: 'Gemini', gemma: 'Gemma', kimi: 'Kimi', mimo: 'MiMo', minimax: 'MiniMax', nemotron: 'Nemotron', nvidia: 'NVIDIA', claude: 'Claude', openai: 'OpenAI', mistral: 'Mistral', ai: 'AI', it: 'IT', vl: 'VL', moe: 'MoE', llm: 'LLM' }
+/** A model name that is really an id ("deepseek-v4-pro:0813") becomes something to read ("DeepSeek V4 Pro 0813"). Names that already have spaces are left alone. */
+export function niceName(name: string): string {
+  if (/\s/.test(name) || !/[-_:/]/.test(name)) return name
+  return name.split(/[-_:/]+/).filter(Boolean).map(w => {
+    const k = w.toLowerCase()
+    if (WORDS[k]) return WORDS[k]
+    if (/^\d[\d.]*$/.test(k)) return w                                  // 4, 0813, 5.6
+    if (/^(?:[a-z]\d[\d.]*[a-z]?|\d[\d.]*[a-z])$/.test(k)) return w.toUpperCase()   // v4, k2, a22b, 235b
+    const m = /^([a-z]+)(\d[\d.]*)$/.exec(k)                              // qwen3, gemma3
+    return m ? (WORDS[m[1]] ?? m[1][0].toUpperCase() + m[1].slice(1)) + m[2] : w[0].toUpperCase() + w.slice(1)
+  }).join(' ')
+}

@@ -48,3 +48,12 @@ describe('model brand marks', () => {
     expect(b('my-model', 'laptop', { provider: 'Ollama PC' })).toBeNull()
   })
 })
+
+import { niceName } from '../src/lib/modelPicker'
+describe('model names that are ids', () => {
+  it('become readable, and real names are never touched', () => {
+    expect(niceName('deepseek-v4-pro:0813')).toBe('DeepSeek V4 Pro 0813'); expect(niceName('gpt-oss-120b')).toBe('GPT OSS 120B')
+    expect(niceName('qwen3-vl-235b-a22b')).toBe('Qwen3 VL 235B A22B'); expect(niceName('kimi-k2.6')).toBe('Kimi K2.6'); expect(niceName('glm-5.3-flash')).toBe('GLM 5.3 Flash')
+    expect(niceName('Gemini 2.5 Flash Lite')).toBe('Gemini 2.5 Flash Lite'); expect(niceName('Claude Sonnet 5.5 · Max+')).toBe('Claude Sonnet 5.5 · Max+'); expect(niceName('Auto')).toBe('Auto')
+  })
+})
