@@ -56,7 +56,7 @@ export function ChatScreen() {
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         {msgs.length === 0 ? (
           <ScrollView style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24, paddingVertical: 20 }} keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive">
-            <Image source={require('../../assets/bico/bico-mark.png')} style={{ width: 64, height: 64 }} accessibilityIgnoresInvertColors />
+            <Image source={require('../../assets/bico/bico-hero.png')} style={{ width: 150, height: 150 }} resizeMode="contain" accessibilityIgnoresInvertColors />
             <Text style={{ color: th.ink, fontSize: 22, fontWeight: '800', marginTop: 12, textAlign: 'center' }}>{t(guest && !model ? 'guestEmpty' : 'emptyTitle')}</Text>
             <Text style={{ color: th.muted, fontSize: 14.5, marginTop: 6, textAlign: 'center' }}>{t(guest && !model ? 'guestEmptySub' : 'emptySub')}</Text>
             {guest && !model && (
