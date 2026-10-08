@@ -1,4 +1,4 @@
-export type Access = 'free' | 'plan' | 'payg' | 'family' | 'auto' | 'custom' | 'local'
+export type Access = 'free' | 'plan' | 'payg' | 'family' | 'auto' | 'custom' | 'local' | 'laptop'
 
 export interface ChatModel {
   id: string

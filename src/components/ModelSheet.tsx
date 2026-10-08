@@ -20,7 +20,8 @@ export function ModelSheet({ visible, models, selected, onSelect, onClose }: { v
         </View>
         <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 40 }}>
           {[...GROUPS.map(g => ({ id: g.access, title: t(g.key), list: models.filter(m => m.access === g.access) })),
-            ...[...new Set(models.filter(m => m.access === 'custom').map(m => m.provider ?? ''))].map(pn => ({ id: 'custom:' + pn, title: pn, list: models.filter(m => m.access === 'custom' && (m.provider ?? '') === pn) }))].map(g => {
+            ...[...new Set(models.filter(m => m.access === 'custom').map(m => m.provider ?? ''))].map(pn => ({ id: 'custom:' + pn, title: pn, list: models.filter(m => m.access === 'custom' && (m.provider ?? '') === pn) })),
+            ...[...new Set(models.filter(m => m.access === 'laptop').map(m => m.provider ?? ''))].map(pn => ({ id: 'laptop:' + pn, title: `${t('laptop')} · ${pn}`, list: models.filter(m => m.access === 'laptop' && (m.provider ?? '') === pn) }))].map(g => {
             const list = g.list; if (!list.length) return null
             return (
               <View key={g.id} style={{ marginBottom: 14 }}>

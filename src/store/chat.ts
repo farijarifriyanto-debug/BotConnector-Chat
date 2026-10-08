@@ -7,6 +7,8 @@ import { MEMORY_ID, composedSystem, fileIdsOf, newConv, newId, titleFrom, toApiM
 import { research, ResearchError, type Progress } from '../lib/research'
 import { ChatError, type Attachment, type ChatModel, type Conv, type Msg } from '../lib/types'
 import '../local/engine'
+import '../laptop/api'
+import { laptopModels, useLaptop } from '../laptop/store'
 import { localModels, useLocal } from '../local/store'
 import { customModels } from './providers'
 import { useSettings } from './settings'
@@ -33,7 +35,7 @@ let controller: AbortController | null = null
 export const currentConv = (s: Pick<ChatState, 'convs' | 'activeId' | 'draft'>): Conv | null => (s.activeId ? s.convs.find(c => c.id === s.activeId) ?? null : s.draft)
 const sortConvs = (list: Conv[]) => [...list].sort((a, b) => b.updatedAt - a.updatedAt)
 /** Chats with on-device or custom-provider models are never sent to BotConnector's cloud models (titles, planning). */
-const isPrivate = (m: ChatModel) => m.access === 'local' || m.access === 'custom'
+const isPrivate = (m: ChatModel) => m.access === 'local' || m.access === 'custom' || m.access === 'laptop'
 const errorCode = (e: unknown) => {
   if (e instanceof ResearchError) return 'research:' + e.code
   const err = e instanceof ChatError ? e : new ChatError('network')
@@ -101,11 +103,11 @@ export const useChat = create<ChatState>((set, get) => {
 
   return {
     convs: [], activeId: null, draft: null, models: [], modelId: '', imageModels: [], imageModelId: '', modelsState: 'idle', caps: null, busy: false, status: null,
-    async init() { void get().loadModels(); try { set({ convs: await listConvs() }) } catch { /* an unreadable database starts empty */ } },
+    async init() { void get().loadModels(); void useLaptop.getState().refresh(); try { set({ convs: await listConvs() }) } catch { /* an unreadable database starts empty */ } },
     async loadModels() {
       set({ modelsState: 'loading' })
       try {
-        const list = [...await fetchModels(), ...customModels(), ...localModels()]
+        const list = [...await fetchModels(), ...customModels(), ...localModels(), ...laptopModels()]
         const saved = useSettings.getState().model
         const pick = (cur: string) => (list.some(m => m.id === cur && m.available) ? cur : saved && list.some(m => m.id === saved && m.available) ? saved : (list.find(m => m.access === 'free' && m.available)?.id ?? list.find(m => m.available)?.id ?? ''))
         const modelId = pick(get().modelId)
@@ -117,7 +119,7 @@ export const useChat = create<ChatState>((set, get) => {
     /** Providers were added, refreshed or removed: swap their models in the picker without asking the cloud again. */
     syncCustom() {
       set(s => {
-        const models = [...s.models.filter(m => m.access !== 'custom' && m.access !== 'local'), ...customModels(), ...localModels()]
+        const models = [...s.models.filter(m => m.access !== 'custom' && m.access !== 'local' && m.access !== 'laptop'), ...customModels(), ...localModels(), ...laptopModels()]
         const modelId = models.some(m => m.id === s.modelId && m.available) ? s.modelId : (models.find(m => m.access === 'free' && m.available)?.id ?? models.find(m => m.available)?.id ?? '')
         return { models, modelId, draft: s.draft && !s.activeId ? { ...s.draft, model: modelId } : s.draft }
       })
@@ -144,7 +146,7 @@ export const useChat = create<ChatState>((set, get) => {
       await deleteConv(id).catch(() => {})
       set(s => ({ convs: s.convs.filter(c => c.id !== id), ...(s.activeId === id ? { activeId: null, draft: newConv(s.modelId) } : {}) }))
     },
-    reset() { controller?.abort(); set({ convs: [], activeId: null, draft: null, models: [], imageModels: [], imageModelId: '', modelId: '', modelsState: 'idle', caps: null, busy: false, status: null }) },
+    reset() { controller?.abort(); useLaptop.getState().clear(); set({ convs: [], activeId: null, draft: null, models: [], imageModels: [], imageModelId: '', modelId: '', modelsState: 'idle', caps: null, busy: false, status: null }) },
     async send(text, opts, attachments = []) {
       const s = get(), conv = currentConv(s), body = text.trim()
       if (s.busy || !conv || !body || !s.models.length) return
@@ -162,3 +164,4 @@ export const useChat = create<ChatState>((set, get) => {
 
 // A model finished downloading (or was deleted): show it in the picker at once.
 useLocal.subscribe((s, prev) => { if (s.models !== prev.models) useChat.getState().syncCustom() })
+useLaptop.subscribe((s, prev) => { if (s.entries !== prev.entries) useChat.getState().syncCustom() })

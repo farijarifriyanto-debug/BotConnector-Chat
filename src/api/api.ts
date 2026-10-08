@@ -65,7 +65,7 @@ export async function fetchModels(): Promise<ChatModel[]> {
     getJson<{ data?: any[] }>('/v1/catalog').catch(() => ({ data: [] as any[] })),
   ])
   const byId = new Map<string, any>((catalog.data ?? []).map(c => [String(c.id), c]))
-  const rank: Record<Access, number> = { auto: 0, free: 1, plan: 2, family: 3, payg: 4, custom: 5, local: 6 }
+  const rank: Record<Access, number> = { auto: 0, free: 1, plan: 2, family: 3, payg: 4, custom: 5, local: 6, laptop: 7 }
   return (models.data ?? [])
     .filter(m => m && typeof m.id === 'string' && !/image|embed|rerank|speech|audio/i.test(String(m.botconnector_modality ?? '')))
     .map((m): ChatModel => {
@@ -164,7 +164,7 @@ export const registerStreamer = (prefix: string, run: Streamer) => { if (!stream
 export async function* streamCompletion(body: Record<string, unknown>, signal?: AbortSignal): AsyncGenerator<Delta> {
   const other = streamers.find(s => String(body.model ?? '').startsWith(s.prefix))
   if (other) { yield* other.run(body, signal); return }
-  if (/^(custom|local):/.test(String(body.model ?? ''))) throw new ChatError('rejected')   // never let a private chat fall through to the cloud
+  if (/^(custom|local|laptop):/.test(String(body.model ?? ''))) throw new ChatError('rejected')   // never let a private chat fall through to the cloud
   let r: Response
   try { r = await fetch(`${API_BASE}/v1/chat/completions`, { method: 'POST', headers: headers({ ...JSON_POST, accept: 'text/event-stream, application/json' }), body: JSON.stringify({ ...body, stream: true }), signal }) }
   catch (e) { throw (e as Error)?.name === 'AbortError' ? new ChatError('aborted') : new ChatError('network') }
