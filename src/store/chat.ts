@@ -3,9 +3,9 @@ import { fetchCapabilities, fetchImageModels, fetchModels, generateImage, stream
 import { deleteConv, listConvs, putConv } from '../db/convs'
 import { runAssistant } from '../lib/agent'
 import { deleteImagesOf, saveImage } from '../lib/images'
-import { composedSystem, newConv, newId, titleFrom, toApiMessages } from '../lib/conv'
+import { composedSystem, fileIdsOf, newConv, newId, titleFrom, toApiMessages } from '../lib/conv'
 import { research, ResearchError, type Progress } from '../lib/research'
-import { ChatError, type ChatModel, type Conv, type Msg } from '../lib/types'
+import { ChatError, type Attachment, type ChatModel, type Conv, type Msg } from '../lib/types'
 import '../local/engine'
 import { localModels, useLocal } from '../local/store'
 import { customModels } from './providers'
@@ -22,7 +22,7 @@ interface ChatState {
   busy: boolean; status: RunStatus | null
   init(): Promise<void>; loadModels(): Promise<void>; syncCustom(): void; selectImageModel(id: string): void
   selectModel(id: string): void; newChat(): void; open(id: string): void; remove(id: string): Promise<void>; reset(): void
-  send(text: string, opts: SendOptions): Promise<void>; regenerate(opts: SendOptions): Promise<void>; stop(): void
+  send(text: string, opts: SendOptions, attachments?: Attachment[]): Promise<void>; regenerate(opts: SendOptions): Promise<void>; stop(): void
 }
 
 let controller: AbortController | null = null
@@ -80,7 +80,7 @@ export const useChat = create<ChatState>((set, get) => {
           onProgress: p => set({ status: { research: p } }), onText: c => update({ content: c }), onReasoning: r => update({ reasoning: r }) })
         update({ content: res.content, reasoning: res.reasoning || undefined, sources: res.sources, searched: res.queries, research: { searches: res.searches, pages: res.pages }, ms: Date.now() - t0 }, true)
       } else {
-        const res = await runAssistant({ model: m, messages: toApiMessages(composedSystem(base, convs), history, m.vision), web: opts.web && caps?.web !== false, fileIds: [], signal,
+        const res = await runAssistant({ model: m, messages: toApiMessages(composedSystem(base, convs), history, m.vision), web: opts.web && caps?.web !== false, fileIds: isPrivate(m) ? [] : fileIdsOf(history), signal,
           onText: c => update({ content: c }), onReasoning: r => update({ reasoning: r }), onStatus: s => set({ status: s }) })
         update({ content: res.content, reasoning: res.reasoning || undefined, sources: res.sources.length ? res.sources : undefined, searched: res.queries.length ? res.queries : undefined, ms: Date.now() - t0 }, true)
       }
@@ -129,10 +129,10 @@ export const useChat = create<ChatState>((set, get) => {
       set(s => ({ convs: s.convs.filter(c => c.id !== id), ...(s.activeId === id ? { activeId: null, draft: newConv(s.modelId) } : {}) }))
     },
     reset() { controller?.abort(); set({ convs: [], activeId: null, draft: null, models: [], imageModels: [], imageModelId: '', modelId: '', modelsState: 'idle', caps: null, busy: false, status: null }) },
-    async send(text, opts) {
+    async send(text, opts, attachments = []) {
       const s = get(), conv = currentConv(s), body = text.trim()
       if (s.busy || !conv || !body || !s.models.length) return
-      const user: Msg = { id: newId(), role: 'user', content: body, createdAt: Date.now() }
+      const user: Msg = { id: newId(), role: 'user', content: body, createdAt: Date.now(), ...(attachments.length ? { attachments } : {}) }
       await run({ ...conv, web: opts.web, title: conv.title || titleFrom(body) }, [...conv.messages, user], opts)
     },
     async regenerate(opts) {

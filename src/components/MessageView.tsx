@@ -47,7 +47,13 @@ function MessageViewBase({ msg, streaming, status, isLastAssistant, canAct, onRe
   if (msg.role === 'user') return (
     <View style={{ alignItems: 'flex-end', marginVertical: 8, paddingHorizontal: 16 }} accessibilityLabel={t('you')}>
       <View style={{ maxWidth: '88%', backgroundColor: th.accentSoft, borderWidth: 1, borderColor: th.line, borderRadius: 18, borderBottomRightRadius: 6, paddingHorizontal: 14, paddingVertical: 10 }}>
-        <Text selectable style={{ color: th.ink, fontSize: 16, lineHeight: 23 }}>{msg.shown ?? msg.content}</Text>
+        {!!msg.attachments?.length && (
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: msg.content ? 8 : 0 }}>
+            {msg.attachments.map((a, i) => a.kind === 'image' && a.dataUrl
+              ? <Image key={i} source={{ uri: a.dataUrl }} style={{ width: 96, height: 96, borderRadius: 10 }} accessibilityIgnoresInvertColors accessibilityLabel={a.name} />
+              : <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, backgroundColor: th.surface, borderWidth: 1, borderColor: th.line, maxWidth: 220 }}><Icon name="Check" size={14} color={th.accentStrong} /><Text numberOfLines={1} style={{ color: th.ink, fontSize: 13, flexShrink: 1 }}>{a.name}</Text></View>)}
+          </View>)}
+        {!!(msg.shown ?? msg.content) && <Text selectable style={{ color: th.ink, fontSize: 16, lineHeight: 23 }}>{msg.shown ?? msg.content}</Text>}
       </View>
     </View>
   )

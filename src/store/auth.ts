@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { configureApi } from '../api/api'
+import { configureFiles } from '../api/files'
 import { AuthError, clearSession, deleteAccount as apiDelete, fetchAccount, loadSession, login as apiLogin, logout as apiLogout, type Account, type DeleteFailure, type Session } from '../auth/session'
 import { clearConvs } from '../db/convs'
 
@@ -51,3 +52,4 @@ export const useAuth = create<AuthState>((set, get) => ({
 }))
 
 configureApi({ token: () => useAuth.getState().session?.accessToken ?? null, onUnauthorized: () => { void useAuth.getState().refreshAccount() } })
+configureFiles(() => useAuth.getState().session?.accessToken ?? null)

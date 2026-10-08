@@ -53,7 +53,7 @@ export function ChatScreen() {
           <FlatList ref={list} data={msgs} keyExtractor={m => m.id} contentContainerStyle={{ padding: 12, gap: 12 }} keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive"
             renderItem={({ item }) => <MessageView msg={item} streaming={chat.busy && item.id === last?.id && item.role === 'assistant'} status={chat.busy && item.id === last?.id ? chat.status : null} isLastAssistant={item.id === lastAssistant} canAct={!chat.busy} onRegenerate={() => void chat.regenerate(opts)} />} />
         )}
-        <Composer busy={chat.busy} model={model} webAvailable={web} onSend={(text, o) => void chat.send(text, o)} onStop={chat.stop} image={{ available: chat.imageModels.length > 0, modelName: chat.imageModels.find(m => m.id === chat.imageModelId)?.name ?? '', onPick: () => setImgSheet(true) }} />
+        <Composer busy={chat.busy} model={model} webAvailable={web} onSend={(text, o, atts) => void chat.send(text, o, atts)} onStop={chat.stop} files={{ available: chat.caps?.files === true && model?.access !== 'local' && model?.access !== 'custom' }} image={{ available: chat.imageModels.length > 0, modelName: chat.imageModels.find(m => m.id === chat.imageModelId)?.name ?? '', onPick: () => setImgSheet(true) }} />
       </KeyboardAvoidingView>
       <Sidebar open={menu} convs={chat.convs} activeId={chat.activeId} onClose={() => setMenu(false)} onNew={chat.newChat} onOpen={chat.open} onDelete={id => void chat.remove(id)} onSettings={() => setSettings(true)} />
       <ModelSheet visible={models} models={chat.models} selected={chat.modelId} onSelect={id => { chat.selectModel(id); setModels(false) }} onClose={() => setModels(false)} />
