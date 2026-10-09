@@ -131,17 +131,41 @@ export async function fetchCapabilities(): Promise<Capabilities> {
   return { files: j?.capabilities?.files === true, web: j?.capabilities?.web_search !== false, filesReason: typeof j?.reasons?.files === 'string' ? j.reasons.files : undefined }
 }
 
+
+// ---------- transient failures: retry quietly instead of making the reader press "retry" ----------
+const TRANSIENT = new Set(['network', 'unavailable', 'capacity'])
+export const RETRY = { tries: 2, backoffMs: [700, 1800], maxWaitMs: 8000 }
+const sleep = (ms: number, signal?: AbortSignal) => new Promise<void>((resolve, reject) => {
+  if (signal?.aborted) return reject(new ChatError('aborted'))
+  const done = () => { clearTimeout(t); signal?.removeEventListener('abort', onAbort) }
+  const onAbort = () => { done(); reject(new ChatError('aborted')) }
+  const t = setTimeout(() => { done(); resolve() }, ms)
+  signal?.addEventListener('abort', onAbort, { once: true })
+})
+/** How long to wait before retry number `attempt` (0-based), or null when this error should not be retried. */
+export function retryDelay(e: unknown, attempt: number): number | null {
+  if (!(e instanceof ChatError) || !TRANSIENT.has(e.kind) || attempt >= RETRY.tries) return null
+  const asked = e.retryAfterSeconds !== undefined ? e.retryAfterSeconds * 1000 : 0
+  if (asked > RETRY.maxWaitMs) return null   // the server wants a long pause: tell the reader instead of hanging
+  return Math.max(asked, RETRY.backoffMs[attempt] ?? 1800)
+}
+export async function withRetry<T>(run: () => Promise<T>, signal?: AbortSignal): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    try { return await run() } catch (e) { const wait = retryDelay(e, attempt); if (wait === null || signal?.aborted) throw e; await sleep(wait, signal) }
+  }
+}
+
 export interface SearchHit { title: string; url: string; snippet: string }
 /** Chosen by the app: the user's own search provider (BYOK), or null to use BotConnector Search. */
 let byokSearch: (q: string, signal?: AbortSignal) => Promise<SearchHit[] | null> = async () => null
 export const configureByokSearch = (fn: typeof byokSearch) => { byokSearch = fn }
 export async function webSearch(query: string, signal?: AbortSignal): Promise<SearchHit[]> {
   const own = await byokSearch(query, signal); if (own) return own
-  const j = await postJson<{ results?: any[] }>('/v1/web/search', { query, max_results: 5 }, signal)
+  const j = await withRetry(() => postJson<{ results?: any[] }>('/v1/web/search', { query, max_results: 5 }, signal), signal)
   return (j.results ?? []).filter(x => x && typeof x.url === 'string').map(x => ({ title: String(x.title || x.url).slice(0, 200), url: String(x.url), snippet: String(x.snippet || '').slice(0, 700) }))
 }
 export async function webFetch(url: string, signal?: AbortSignal): Promise<{ title: string; text: string }> {
-  const j = await postJson<any>('/v1/web/fetch', { url }, signal)
+  const j = await withRetry(() => postJson<any>('/v1/web/fetch', { url }, signal), signal)
   return { title: String(j?.title || url).slice(0, 200), text: String(j?.content ?? j?.text ?? j?.markdown ?? '').slice(0, 12000) }
 }
 
@@ -199,7 +223,23 @@ export function readWithin<T>(read: () => Promise<T>, ms: number, onTimeout: () 
   })
 }
 
+/** Cloud completions: a failure BEFORE the first word arrives (a deploy restarting the API, a dropped link, a full queue) is retried quietly; after text has started the error is shown, so nothing is ever repeated. */
 export async function* streamCompletion(body: Record<string, unknown>, signal?: AbortSignal): AsyncGenerator<Delta> {
+  if (streamers.some(x => String(body.model ?? '').startsWith(x.prefix)) || /^(custom|local|laptop):/.test(String(body.model ?? ''))) { yield* streamOnce(body, signal); return }
+  for (let attempt = 0; ; attempt++) {
+    let started = false
+    try {
+      for await (const d of streamOnce(body, signal)) { started = true; yield d }
+      return
+    } catch (e) {
+      const wait = started ? null : retryDelay(e, attempt)
+      if (wait === null || signal?.aborted) throw e
+      await sleep(wait, signal)
+    }
+  }
+}
+
+async function* streamOnce(body: Record<string, unknown>, signal?: AbortSignal): AsyncGenerator<Delta> {
   const other = streamers.find(s => String(body.model ?? '').startsWith(s.prefix))
   if (other) { yield* other.run(body, signal); return }
   if (/^(custom|local|laptop):/.test(String(body.model ?? ''))) throw new ChatError('rejected')   // never let a private chat fall through to the cloud

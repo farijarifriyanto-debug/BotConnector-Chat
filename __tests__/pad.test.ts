@@ -62,3 +62,38 @@ describe('streamCompletion with a model stuck in blanks', () => {
     expect(text).toBe('Halo dunia'); expect(finish).toBe('stop')
   })
 })
+
+describe('quiet retry of transient failures', () => {
+  const { withRetry, retryDelay } = require('../src/api/api') as typeof import('../src/api/api')
+  const { ChatError } = require('../src/lib/types') as typeof import('../src/lib/types')
+  beforeEach(() => { jest.useFakeTimers(); mockFetch.mockReset() })
+  afterEach(() => jest.useRealTimers())
+  it('retries network, unavailable and short capacity waits; never auth, balance or long waits', () => {
+    expect(retryDelay(new ChatError('unavailable'), 0)).toBe(700)
+    expect(retryDelay(new ChatError('network'), 1)).toBe(1800)
+    expect(retryDelay(new ChatError('network'), 2)).toBeNull()
+    expect(retryDelay(new ChatError('capacity', { retryAfterSeconds: 3 }), 0)).toBe(3000)
+    expect(retryDelay(new ChatError('capacity', { retryAfterSeconds: 60 }), 0)).toBeNull()
+    for (const k of ['auth', 'balance', 'plan', 'too_large', 'rejected', 'privacy', 'aborted'] as const) expect(retryDelay(new ChatError(k), 0)).toBeNull()
+    expect(retryDelay(new Error('boom'), 0)).toBeNull()
+  })
+  it('withRetry succeeds after a blip and gives up after two retries', async () => {
+    const ok = jest.fn().mockRejectedValueOnce(new ChatError('unavailable')).mockResolvedValueOnce('fine')
+    const p = withRetry(ok); await jest.advanceTimersByTimeAsync(800); await expect(p).resolves.toBe('fine'); expect(ok).toHaveBeenCalledTimes(2)
+    const dead = jest.fn().mockRejectedValue(new ChatError('network'))
+    const q = withRetry(dead); const out = expect(q).rejects.toMatchObject({ kind: 'network' }); await jest.advanceTimersByTimeAsync(5000); await out
+    expect(dead).toHaveBeenCalledTimes(3)
+  })
+  it('a stream that fails before any text is retried; one that fails mid-answer is not', async () => {
+    const bad = (status: number) => ({ ok: false, status, headers: { get: () => null }, json: async () => ({}) }) as unknown as Response
+    mockFetch.mockResolvedValueOnce(bad(502)).mockResolvedValueOnce(sse([delta('Halo'), delta(' dunia')]))
+    const run = (async () => { let t = ''; for await (const d of streamCompletion({ model: 'x', messages: [] })) if (d.content) t += d.content; return t })()
+    await jest.advanceTimersByTimeAsync(800); await expect(run).resolves.toBe('Halo dunia'); expect(mockFetch).toHaveBeenCalledTimes(2)
+
+    mockFetch.mockReset()
+    const dying = { ok: true, status: 200, headers: { get: (k: string) => (k.toLowerCase() === 'content-type' ? 'text/event-stream' : null) }, body: { getReader: () => { let n = 0; return { read: async () => { if (n++ === 0) return { done: false, value: new TextEncoder().encode(`data: ${JSON.stringify(delta('Sebagian'))}\n\n`) }; throw new Error('link dropped') }, cancel: async () => {}, releaseLock: () => {} } } } } as unknown as Response
+    mockFetch.mockResolvedValueOnce(dying)
+    const run2 = (async () => { let t = ''; try { for await (const d of streamCompletion({ model: 'x', messages: [] })) if (d.content) t += d.content } catch (e) { return `${t}|${(e as { kind?: string }).kind}` } return t })()
+    await jest.advanceTimersByTimeAsync(5000); await expect(run2).resolves.toBe('Sebagian|network'); expect(mockFetch).toHaveBeenCalledTimes(1)
+  })
+})
