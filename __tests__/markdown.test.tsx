@@ -53,4 +53,16 @@ describe('HTML code blocks', () => {
     const b = await render(<Markdown text={'```js\nconst a = 1\n```'} />)
     expect(b.queryByTestId('html-preview')).toBeNull()
   })
+
+  it('shows a half-written table as plain text while streaming and as a table once the answer is complete', async () => {
+    const table = 'Ringkasan.\n\n| Fitur | Harga |\n|---|---|\n| A | 10 |\n| B | 20 |\n'
+    const live = await render(<Markdown text={table} streaming />)
+    expect(live.queryByTestId('table-chart-open')).toBeNull()
+    expect(live.getByText(/\| Fitur \| Harga \|/)).toBeTruthy()
+    const half = await render(<Markdown text={'Ringkasan.\n\n| Fitur | BotConnector.id | Spicelab'} streaming />)
+    expect(half.getByText(/\| Fitur \| BotConnector\.id \| Spicelab/)).toBeTruthy()
+    const done = await render(<Markdown text={table} />)
+    expect(done.queryByText(/\| Fitur \| Harga \|/)).toBeNull()      // rendered as cells now
+    expect(done.getByText('Fitur')).toBeTruthy()
+  })
 })

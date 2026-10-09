@@ -23,3 +23,15 @@ export class Follow {
   /** the reader pressed "down", or sent a message */
   jump() { this.stick = true; this.until = 0 }
 }
+
+/** At most one call per `ms`, the last one always delivered: content-size events can fire in a storm while a table is laid out, and each one used to scroll the list. */
+export function throttled(fn: () => void, ms: number, now: () => number = Date.now) {
+  let last = -Infinity, timer: ReturnType<typeof setTimeout> | null = null
+  const run = () => { timer = null; last = now(); fn() }
+  const call = () => {
+    const wait = ms - (now() - last)
+    if (wait <= 0) { if (timer) clearTimeout(timer); run() } else if (!timer) timer = setTimeout(run, wait)
+  }
+  call.cancel = () => { if (timer) clearTimeout(timer); timer = null }
+  return call
+}

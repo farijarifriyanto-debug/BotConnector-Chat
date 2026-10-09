@@ -182,6 +182,15 @@ type Streamer = (body: Record<string, unknown>, signal?: AbortSignal) => AsyncGe
 const streamers: { prefix: string; run: Streamer }[] = []
 export const registerStreamer = (prefix: string, run: Streamer) => { if (!streamers.some(s => s.prefix === prefix)) streamers.push({ prefix, run }) }
 
+/** No bytes for this long = the connection is dead (a stalled mobile link never errors by itself); the answer so far is kept. */
+export const STREAM_IDLE_MS = 90_000
+export function readWithin<T>(read: () => Promise<T>, ms: number, onTimeout: () => Error): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(onTimeout()), ms)
+    read().then(v => { clearTimeout(timer); resolve(v) }, e => { clearTimeout(timer); reject(e) })
+  })
+}
+
 export async function* streamCompletion(body: Record<string, unknown>, signal?: AbortSignal): AsyncGenerator<Delta> {
   const other = streamers.find(s => String(body.model ?? '').startsWith(s.prefix))
   if (other) { yield* other.run(body, signal); return }
@@ -199,11 +208,11 @@ export async function* streamCompletion(body: Record<string, unknown>, signal?: 
   try {
     for (;;) {
       let chunk: ReadableStreamReadResult<Uint8Array>
-      try { chunk = await reader.read() } catch (e) { throw (e as Error)?.name === 'AbortError' ? new ChatError('aborted') : new ChatError('network') }
+      try { chunk = await readWithin(() => reader.read(), STREAM_IDLE_MS, () => new ChatError('network')) } catch (e) { void reader.cancel?.().catch?.(() => {}); throw (e as Error)?.name === 'AbortError' ? new ChatError('aborted') : e instanceof ChatError ? e : new ChatError('network') }
       if (chunk.done) break
       buf += dec.decode(chunk.value, { stream: true })
       const { payloads, rest } = drainSse(buf); buf = rest
       for (const p of payloads) { const d = parseChunk(p); if (d) yield d }
     }
-  } finally { reader.releaseLock?.() }
+  } finally { try { reader.releaseLock?.() } catch { /* a read was still pending (stalled stream): the reader was cancelled above */ } }
 }

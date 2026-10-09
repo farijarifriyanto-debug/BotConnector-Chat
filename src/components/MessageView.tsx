@@ -86,7 +86,7 @@ function MessageViewBase({ msg, streaming, status, isLastAssistant, canAct, onRe
           <Text numberOfLines={1} style={{ color: th.muted, fontSize: 13, flexShrink: 1 }}>{status.searching ? t('searching', { q: status.searching }) : t('reading', { u: domain(status.reading ?? '') })}</Text>
         </View>)}
       {msg.research && !streaming && <Text style={{ color: th.muted, fontSize: 12, marginBottom: 6 }}>{t('researchLog', { s: msg.research.searches, p: msg.research.pages })}</Text>}
-      {showTyping ? <ActivityIndicator color={th.muted2} style={{ alignSelf: 'flex-start', marginVertical: 8 }} /> : !!msg.content && <Markdown text={msg.content} sources={msg.sources} />}
+      {showTyping ? <ActivityIndicator color={th.muted2} style={{ alignSelf: 'flex-start', marginVertical: 8 }} /> : !!msg.content && <Markdown text={msg.content} sources={msg.sources} streaming={streaming} />}
       {(msg.attachments ?? []).filter(a => a.kind === 'image' && a.uri && imageUri(a.uri)).map(a => (
         <Pressable key={a.uri} testID="generated-image" accessibilityRole="imagebutton" accessibilityLabel={msg.image?.prompt || t('imgAlt')} onPress={() => void Share.share({ url: imageUri(a.uri!) })} style={{ marginTop: 4, alignSelf: 'flex-start', width: '100%', maxWidth: 420, aspectRatio: 1, borderRadius: 14, overflow: 'hidden', backgroundColor: th.surface3 }}>
           <Image source={{ uri: imageUri(a.uri!) }} style={{ width: '100%', height: '100%' }} resizeMode="contain" accessibilityIgnoresInvertColors />

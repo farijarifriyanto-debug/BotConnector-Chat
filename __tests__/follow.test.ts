@@ -1,4 +1,4 @@
-import { Follow } from '../src/lib/follow'
+import { Follow, throttled } from '../src/lib/follow'
 
 const m = (contentHeight: number, offset: number) => ({ contentHeight, viewHeight: 600, offset })
 describe('following the answer', () => {
@@ -23,5 +23,25 @@ describe('following the answer', () => {
     const f = new Follow(); f.begin(); f.end(0, 1000)
     f.scroll(m(2000, 1400), 1001); expect(f.stick).toBe(true)
     f.begin(); f.scroll(m(2000, 100), 1002); expect(f.stick).toBe(false); f.jump(); expect(f.stick).toBe(true)
+  })
+})
+
+describe('throttled', () => {
+  beforeEach(() => jest.useFakeTimers())
+  afterEach(() => jest.useRealTimers())
+  it('turns a storm of calls into one call per interval and never drops the last one', () => {
+    let t = 0; const fn = jest.fn(); const th = throttled(fn, 100, () => t)
+    for (let i = 0; i < 500; i++) th()                      // 500 size events in the same instant
+    expect(fn).toHaveBeenCalledTimes(1)
+    t = 40; jest.advanceTimersByTime(40); expect(fn).toHaveBeenCalledTimes(1)
+    t = 100; jest.advanceTimersByTime(60); expect(fn).toHaveBeenCalledTimes(2)   // the trailing call
+    t = 150; th(); expect(fn).toHaveBeenCalledTimes(2)       // too soon: waits
+    t = 200; jest.advanceTimersByTime(50); expect(fn).toHaveBeenCalledTimes(3)
+    th.cancel(); t = 400; th(); expect(fn).toHaveBeenCalledTimes(4)
+  })
+  it('cancel drops a pending call', () => {
+    let t = 0; const fn = jest.fn(); const th = throttled(fn, 100, () => t)
+    th(); t = 10; th(); th.cancel(); t = 500; jest.advanceTimersByTime(500)
+    expect(fn).toHaveBeenCalledTimes(1)
   })
 })

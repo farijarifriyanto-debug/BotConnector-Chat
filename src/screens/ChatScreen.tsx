@@ -22,7 +22,7 @@ import { useAuth } from '../store/auth'
 import { currentConv, useChat } from '../store/chat'
 import { useRatings } from '../store/ratings'
 import { useSearch } from '../store/search'
-import { Follow } from '../lib/follow'
+import { Follow, throttled } from '../lib/follow'
 import { imageAsModel, shortModelName } from '../lib/modelPicker'
 import { useTheme } from '../theme/theme'
 
@@ -55,7 +55,8 @@ export function ChatScreen() {
   const toEnd = (animated: boolean) => list.current?.scrollToEnd({ animated })
   useEffect(() => { fol.current.jump(); setAway(false) }, [conv?.id])
   useEffect(() => { if (chat.busy) { fol.current.jump(); setAway(false); toEnd(true) } }, [chat.busy])   // eslint-disable-line react-hooks/exhaustive-deps
-  const follow = () => { if (fol.current.stick) toEnd(false) }
+  const follow = useMemo(() => throttled(() => { if (fol.current.stick) list.current?.scrollToEnd({ animated: false }) }, 100), [])   // one scroll per 100 ms, however many size events a table causes
+  useEffect(() => () => follow.cancel(), [follow])
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: th.bg }} edges={['top', 'bottom', 'left', 'right']}>

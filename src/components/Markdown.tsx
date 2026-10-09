@@ -90,10 +90,14 @@ function TableBlock({ tok, c, key0 }: { tok: Tokens.Table; c: Ctx; key0: string 
   )
 }
 
-function blocks(tokens: Token[], c: Ctx, key: string, depth = 0): React.ReactNode[] {
+/** While an answer is still streaming a table is half written and changes shape on every chunk; it is shown as plain text until the answer is complete. */
+const looksLikeTable = (k: Token) => k.type === 'table' || ((k.type === 'paragraph' || k.type === 'text') && /^\s*\|/.test(k.raw))
+
+function blocks(tokens: Token[], c: Ctx, key: string, depth = 0, streaming = false): React.ReactNode[] {
   const body: TextStyle = { color: c.th.ink, fontSize: 16.5, lineHeight: 26 }   // line height about 1.6: long answers stay easy to follow
   return tokens.map((k, i) => {
     const kk = `${key}-${i}`
+    if (streaming && looksLikeTable(k)) return <Text key={kk} style={{ fontFamily: MONO, fontSize: 13, lineHeight: 20, color: c.th.muted, marginVertical: 6 }}>{k.raw.trimEnd()}</Text>
     switch (k.type) {
       case 'paragraph': return <Text key={kk} selectable style={[body, { marginVertical: 6 }]}>{inline((k as Tokens.Paragraph).tokens, c, kk)}</Text>
       case 'text': { const tt = k as Tokens.Text; return <Text key={kk} selectable style={body}>{tt.tokens ? inline(tt.tokens, c, kk) : decode(tt.text)}</Text> }
@@ -118,8 +122,8 @@ function blocks(tokens: Token[], c: Ctx, key: string, depth = 0): React.ReactNod
 }
 
 /** Renders a model answer (streamed or finished). [n] citations are tappable when `sources` are given. */
-export const Markdown = memo(function Markdown({ text, sources = [] }: { text: string; sources?: Source[] }) {
+export const Markdown = memo(function Markdown({ text, sources = [], streaming = false }: { text: string; sources?: Source[]; streaming?: boolean }) {
   const th = useTheme(), lang = useSettings(s => s.lang)
   const tokens = useMemo(() => marked.lexer(text, { gfm: true, breaks: true }), [text])
-  return <View>{blocks(tokens, { th, sources, lang }, 'md')}</View>
+  return <View>{blocks(tokens, { th, sources, lang }, 'md', 0, streaming)}</View>
 })
