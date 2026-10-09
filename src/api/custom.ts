@@ -1,6 +1,7 @@
 // Custom OpenAI-compatible providers. These calls go straight to the provider with the user's own key; the BotConnector token is never sent.
 import { fetch } from 'expo/fetch'
-import { drainSse, parseChunk, registerStreamer, type Delta } from './api'
+import { PadGuard } from '../lib/pad'
+import { padGuard, drainSse, parseChunk, registerStreamer, type Delta } from './api'
 import { ChatError } from '../lib/types'
 
 export const CUSTOM_PREFIX = 'custom:'
@@ -74,7 +75,7 @@ async function* streamCustom(body: Record<string, unknown>, signal?: AbortSignal
     if (d) yield { ...d, finish: d.finish ?? 'stop' }
     return
   }
-  const reader = r.body.getReader(), dec = new TextDecoder(); let buf = ''
+  const reader = r.body.getReader(), dec = new TextDecoder(); let buf = ''; const pads = { text: new PadGuard(), thought: new PadGuard() }
   try {
     for (;;) {
       let chunk: ReadableStreamReadResult<Uint8Array>
@@ -82,8 +83,12 @@ async function* streamCustom(body: Record<string, unknown>, signal?: AbortSignal
       if (chunk.done) break
       buf += dec.decode(chunk.value, { stream: true }).replace(/\r\n/g, '\n')
       const { payloads, rest } = drainSse(buf); buf = rest
-      for (const p of payloads) { const d = parseChunk(p); if (d) yield d }
+      for (const p of payloads) {
+        const d = parseChunk(p); if (!d) continue
+        if (padGuard(d, pads)) { void reader.cancel?.().catch?.(() => {}); yield { finish: 'length' }; return }
+        if (d.content !== undefined || d.reasoning !== undefined || d.toolCalls || d.finish) yield d
+      }
     }
-  } finally { reader.releaseLock?.() }
+  } finally { try { reader.releaseLock?.() } catch { /* cancelled while a read was pending */ } }
 }
 registerStreamer(CUSTOM_PREFIX, streamCustom)

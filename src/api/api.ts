@@ -1,4 +1,5 @@
 // BotConnector Cloud API client (Bearer access token). Same wire contract as the web Chat's lib/api.ts, minus the cookie-only BFF routes.
+import { PadGuard } from '../lib/pad'
 import { fetch } from 'expo/fetch'
 import { API_BASE } from './config'
 import { ChatError, type Access, type ChatModel } from '../lib/types'
@@ -182,6 +183,13 @@ type Streamer = (body: Record<string, unknown>, signal?: AbortSignal) => AsyncGe
 const streamers: { prefix: string; run: Streamer }[] = []
 export const registerStreamer = (prefix: string, run: Streamer) => { if (!streamers.some(s => s.prefix === prefix)) streamers.push({ prefix, run }) }
 
+/** Applies the padding guard to one parsed chunk in place; true = the model is stuck in blanks, cut the stream. */
+export function padGuard(d: Delta, g: { text: PadGuard; thought: PadGuard }): boolean {
+  if (d.content !== undefined) { const r = g.text.feed(d.content); if (r.out) d.content = r.out; else delete d.content; if (r.stop) return true }
+  if (d.reasoning !== undefined) { const r = g.thought.feed(d.reasoning); if (r.out) d.reasoning = r.out; else delete d.reasoning; if (r.stop) return true }
+  return false
+}
+
 /** No bytes for this long = the connection is dead (a stalled mobile link never errors by itself); the answer so far is kept. */
 export const STREAM_IDLE_MS = 90_000
 export function readWithin<T>(read: () => Promise<T>, ms: number, onTimeout: () => Error): Promise<T> {
@@ -204,7 +212,7 @@ export async function* streamCompletion(body: Record<string, unknown>, signal?: 
     if (d) yield { ...d, finish: d.finish ?? 'stop' }
     return
   }
-  const reader = r.body.getReader(), dec = new TextDecoder(); let buf = ''
+  const reader = r.body.getReader(), dec = new TextDecoder(); let buf = ''; const pads = { text: new PadGuard(), thought: new PadGuard() }
   try {
     for (;;) {
       let chunk: ReadableStreamReadResult<Uint8Array>
@@ -212,7 +220,11 @@ export async function* streamCompletion(body: Record<string, unknown>, signal?: 
       if (chunk.done) break
       buf += dec.decode(chunk.value, { stream: true })
       const { payloads, rest } = drainSse(buf); buf = rest
-      for (const p of payloads) { const d = parseChunk(p); if (d) yield d }
+      for (const p of payloads) {
+        const d = parseChunk(p); if (!d) continue
+        const stuck = padGuard(d, pads); if (stuck) { void reader.cancel?.().catch?.(() => {}); yield { finish: 'length' }; return }
+        if (d.content !== undefined || d.reasoning !== undefined || d.toolCalls || d.finish) yield d
+      }
     }
   } finally { try { reader.releaseLock?.() } catch { /* a read was still pending (stalled stream): the reader was cancelled above */ } }
 }
