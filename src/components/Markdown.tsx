@@ -4,6 +4,7 @@ import React, { memo, useMemo, useState } from 'react'
 import { Linking, Platform, Pressable, ScrollView, View, type TextStyle } from 'react-native'
 import { Text } from './Text'
 import { chartDataFromRows } from '../lib/chart'
+import { columnWidths } from '../lib/tablecols'
 import { numStyle } from '../i18n/langs'
 import { t, type Lang } from '../i18n/strings'
 import { useSettings } from '../store/settings'
@@ -70,8 +71,9 @@ function CodeBlock({ code, lang, c }: { code: string; lang?: string; c: Ctx }) {
 function TableBlock({ tok, c, key0 }: { tok: Tokens.Table; c: Ctx; key0: string }) {
   const [chart, setChart] = useState(false)
   const data = useMemo(() => chartDataFromRows(tok.header.map(h => plain(h.tokens)), tok.rows.map(r => r.map(x => plain(x.tokens))), numStyle(c.lang) === 'id'), [tok, c.lang])
-  const cell = (tokens: Token[], head: boolean, k: string, last: boolean) => (
-    <View key={k} style={{ minWidth: 96, maxWidth: 240, padding: 8, borderRightWidth: last ? 0 : 1, borderColor: c.th.lineStrong, backgroundColor: head ? c.th.surface3 : undefined }}>
+  const widths = useMemo(() => columnWidths(tok.header.map(h => plain(h.tokens)), tok.rows.map(r => r.map(x => plain(x.tokens)))), [tok])
+  const cell = (tokens: Token[], head: boolean, k: string, last: boolean, col: number) => (
+    <View key={k} style={{ width: widths[col] ?? 96, padding: 8, borderRightWidth: last ? 0 : 1, borderColor: c.th.lineStrong, backgroundColor: head ? c.th.surface3 : undefined }}>
       <Text style={{ color: c.th.ink, fontSize: 14, lineHeight: 20, fontWeight: head ? '700' : '400' }}>{inline(tokens, c, k)}</Text>
     </View>
   )
@@ -81,8 +83,8 @@ function TableBlock({ tok, c, key0 }: { tok: Tokens.Table; c: Ctx; key0: string 
         <Text style={{ color: c.th.accentStrong, fontSize: 12, fontWeight: '700' }}>{t(c.lang, 'chartBtn')}</Text></Pressable>}
       <ScrollView horizontal showsHorizontalScrollIndicator style={{ borderWidth: 1, borderColor: c.th.lineStrong, borderRadius: 10 }}>
         <View>
-          <View style={{ flexDirection: 'row', borderBottomWidth: 1, borderColor: c.th.lineStrong }}>{tok.header.map((h, i) => cell(h.tokens, true, `${key0}-h${i}`, i === tok.header.length - 1))}</View>
-          {tok.rows.map((r, ri) => <View key={`${key0}-r${ri}`} style={{ flexDirection: 'row', borderBottomWidth: ri === tok.rows.length - 1 ? 0 : 1, borderColor: c.th.line }}>{r.map((x, i) => cell(x.tokens, false, `${key0}-r${ri}c${i}`, i === r.length - 1))}</View>)}
+          <View style={{ flexDirection: 'row', borderBottomWidth: 1, borderColor: c.th.lineStrong }}>{tok.header.map((h, i) => cell(h.tokens, true, `${key0}-h${i}`, i === tok.header.length - 1, i))}</View>
+          {tok.rows.map((r, ri) => <View key={`${key0}-r${ri}`} style={{ flexDirection: 'row', borderBottomWidth: ri === tok.rows.length - 1 ? 0 : 1, borderColor: c.th.line }}>{r.map((x, i) => cell(x.tokens, false, `${key0}-r${ri}c${i}`, i === r.length - 1, i))}</View>)}
         </View>
       </ScrollView>
       {data && <TableChart data={data} visible={chart} onClose={() => setChart(false)} />}
