@@ -13,12 +13,12 @@ let token: () => string | null = () => null
 export const configureFiles = (fn: () => string | null) => { token = fn }
 
 /** Multipart upload straight from the file on disk (never read into memory). Field name "upload" is what the service expects. */
-export async function uploadFile(f: { uri: string; name: string; mime: string; size: number }, onProgress?: (p: number) => void): Promise<RemoteFile> {
+export async function uploadFile(f: { uri: string; name: string; mime: string; size: number }, onProgress?: (p: number) => void, cloudProcessingAllowed = false): Promise<RemoteFile> {
   if (!(f.size > 0) || f.size > FILE_MAX_BYTES) throw new ChatError('too_large')
   const t = token(); if (!t) throw new ChatError('auth')
   const task = FileSystem.createUploadTask(`${API_BASE}/v1/client/files`, f.uri, {
     httpMethod: 'POST', uploadType: FileSystem.FileSystemUploadType.MULTIPART, fieldName: 'upload', mimeType: f.mime || 'application/octet-stream',
-    headers: { authorization: `Bearer ${t}`, accept: 'application/json' }, parameters: { filename: f.name },
+    headers: { authorization: `Bearer ${t}`, accept: 'application/json' }, parameters: { filename: f.name, cloud_processing_allowed: String(cloudProcessingAllowed), contains_sensitive_data: String(!cloudProcessingAllowed) },
   }, p => onProgress?.(p.totalBytesExpectedToSend > 0 ? p.totalBytesSent / p.totalBytesExpectedToSend : 0))
   let res: Awaited<ReturnType<typeof task.uploadAsync>>
   try { res = await task.uploadAsync() } catch { throw new ChatError('network') }
