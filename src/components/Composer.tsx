@@ -33,11 +33,28 @@ export function Composer({ busy, model, webAvailable, onSend, onStop, image, fil
   }
   const openAttach = () => {
     setNote(null)
-    const run = (i: number) => { if (i === 0) void att.addPhotos(); else if (i === 1) void att.addCamera().then(r => { if (r === 'denied') setNote(t('camDenied')) }); else if (i === 2) void att.addDocument() }
-    const labels = [t('attachPhoto'), t('attachCamera'), ...(files?.available ? [t('attachFile')] : [])]
-    if (att.photoCount >= MAX_IMAGES) labels.splice(0, 2)
-    if (Platform.OS === 'ios') ActionSheetIOS.showActionSheetWithOptions({ options: [...labels, t('cancel')], cancelButtonIndex: labels.length }, i => { if (i < labels.length) run(att.photoCount >= MAX_IMAGES ? 2 : i) })
-    else Alert.alert(t('attach'), undefined, [...labels.map((l, i) => ({ text: l, onPress: () => run(att.photoCount >= MAX_IMAGES ? 2 : i) })), { text: t('cancel'), style: 'cancel' as const }])
+    const options: { text: string; action: () => void }[] = []
+    if (att.photoCount < MAX_IMAGES) {
+      options.push({ text: t('attachPhoto'), action: () => { void att.addPhotos() } })
+      options.push({ text: t('attachCamera'), action: () => { void att.addCamera().then(r => { if (r === 'denied') setNote(t('camDenied')) }) } })
+    }
+    if (files?.available) {
+      options.push({ text: t('attachFile') + ' (lokal)', action: () => { void att.addDocument(false) } })
+      // Explicit user action also constitutes consent for nonsensitive cloud processing.
+      // Default remains local; the backend independently enforces the cloud limit.
+      options.push({ text: 'Dokumen Cloud (tidak sensitif, maksimal 20 MB)', action: () => { void att.addDocument(true) } })
+    }
+    if (Platform.OS === 'ios') {
+      ActionSheetIOS.showActionSheetWithOptions({
+        options: [...options.map(x => x.text), t('cancel')],
+        cancelButtonIndex: options.length
+      }, i => { if (i >= 0 && i < options.length) options[i].action() })
+    } else {
+      Alert.alert(t('attach'), undefined, [
+        ...options.map(x => ({ text: x.text, onPress: x.action })),
+        { text: t('cancel'), style: 'cancel' as const }
+      ])
+    }
   }
   const pill = (on: boolean) => ({ flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6, paddingHorizontal: on ? 12 : 9, height: 34, minWidth: 34, justifyContent: 'center' as const, borderRadius: 17, borderWidth: 1, borderColor: on ? th.accent : th.lineStrong, backgroundColor: on ? th.accentSoft : th.surface })
   const warn = hasPhotos && !model?.vision ? t('attachNeedsModel') : !att.ready && !att.hasFailed ? t('fileWait') : note
