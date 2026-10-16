@@ -11,10 +11,10 @@ export function useAttachments() {
   const patch = useCallback((id: string, p: Partial<LocalAttachment>) => setItems(l => l.map(x => (x.id === id ? { ...x, ...p } : x))), [])
   useEffect(() => () => { aborts.current.forEach(a => a.abort()) }, [])
 
-  const track = useCallback(async (a: LocalAttachment) => {
+  const track = useCallback(async (a: LocalAttachment, cloudProcessingAllowed = false) => {
     const ctl = new AbortController(); aborts.current.set(a.id, ctl)
     try {
-      const up = await uploadFile({ uri: a.sourceUri!, name: a.name, mime: a.mime, size: a.size }, p => patch(a.id, { progress: p }))
+      const up = await uploadFile({ uri: a.sourceUri!, name: a.name, mime: a.mime, size: a.size }, p => patch(a.id, { progress: p }), cloudProcessingAllowed)
       patch(a.id, { fileId: up.id, status: up.status === 'ready' ? 'ready' : up.status === 'failed' ? 'failed' : 'processing', progress: 1 })
       const t0 = Date.now(); let st = up.status
       while (!isTerminal(st) && !ctl.signal.aborted && Date.now() - t0 < GIVE_UP_MS) {
@@ -35,7 +35,7 @@ export function useAttachments() {
     const r = await takePhoto(); if (r === 'denied') return 'denied'
     if (r) setItems(l => [...l, r]); return 'ok'
   }, [photoCount])
-  const addDocument = useCallback(async () => { const d = await pickDocument(); if (!d) return; setItems(l => [...l, d]); void track(d) }, [track])
+  const addDocument = useCallback(async (cloudProcessingAllowed = false) => { const d = await pickDocument(); if (!d) return; setItems(l => [...l, d]); void track(d, cloudProcessingAllowed) }, [track])
   const remove = useCallback((id: string) => { aborts.current.get(id)?.abort(); aborts.current.delete(id); setItems(l => l.filter(x => x.id !== id)) }, [])
   const clear = useCallback(() => { aborts.current.forEach(a => a.abort()); aborts.current.clear(); setItems([]) }, [])
   const ready = items.every(x => x.kind === 'image' || x.status === 'ready')
