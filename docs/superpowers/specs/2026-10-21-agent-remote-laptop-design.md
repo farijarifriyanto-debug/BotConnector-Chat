@@ -261,3 +261,46 @@ session screen at a time; document in English (repo convention); en+id strings f
 **Left to the builder**: exact file layout inside `src/agent/`; card visual details (follow
 existing chat/theme components); Device CLI module structure; test fixture format;
 workspaces discovery details beyond §6.
+
+## 14. Builder-check resolutions (2026-10-21)
+
+A fresh builder reviewer read this document against the three repos and raised six
+questions. Resolutions:
+
+**Settled as design decisions (author's calls, owner may veto):**
+- **B1 / doc Q6 — release branching**: the 2.0.0 App Store submission is frozen on build
+  113 (verified via ASC inspect: submitted version locked, no editable version). Merges to
+  this repo's `main` do not touch the submission. Still, the phone-side Agent UI lives on a
+  feature branch and merges to `main` only after 2.0.0 resolves (approved or rejected), so a
+  re-cut 2.0.x build can never contain half-done agent surface. bccli and BotConnector-Desktop
+  work merges independently (separate artifacts, separate release channels).
+- **B2 / doc Q3 — session baseline size**: the bridge truncates the baseline it returns for
+  `agent.session` to the most recent messages within ~200 KB, adding
+  `{truncated:true, omittedCount:n}`; the phone shows a "earlier history truncated" marker.
+  No bccli pagination change in MVP. Rationale: relay frames cap at 1 MB and request bodies
+  at 256 KB — reconnect must not fail on long sessions.
+- **B3 / doc Q5 — bccli installed but not configured**: the bridge preflights bccli (exists,
+  serve-compatible version, has usable provider config) at `agent.capabilities` and
+  `agent.start`, and returns a distinct localized error `agent_not_configured` with a setup
+  link. Raw engine errors are never the first-run experience (anti-goal: silent fallbacks /
+  dishonest errors).
+- **B4 — tool output cap**: forwarded `tool_result.output` is capped at ~32 KB with a
+  truncated marker (formalizes R5).
+- **B5 / doc Q2 — release runbook**: the plan MUST include a verified publish runbook for
+  both production artifacts before first release: (a) Device CLI tgz + manifest path from
+  GitHub Releases to `https://app.botconnector.id/device-cli.json` (launcher rejects
+  cross-origin tgz URLs — the mirror/rewrite step must be found and documented), and (b)
+  the deployed relay artifact and its update procedure. If either pipeline cannot be
+  verified, the feature does not ship.
+
+**Open — owner decision required (see conversation):**
+- **O1 / doc Q1 — account-api & production scope**: `/v1/client/devices/{id}/request|stream`
+  behavior (method allowlist? SSE buffering? timeout caps?) must be inspected in the
+  production backend, and changes there (plus nginx stream timeouts) are likely needed.
+  Needs owner authorization for production VPS work under the standing VPS rules
+  (audit + backup + canary + rollback), and a concurrency policy for hour-long streams.
+- **O2 / doc Q4 — updating already-paired devices**: the launcher checks for Device CLI
+  updates only at start, so existing paired computers lack `agent.*` until restarted. MVP
+  plan A: honest `agent_unsupported` error + guidance (accept this as the primary first-run
+  experience). Plan B: add a relay-driven "restart to update" nudge (extra relay+launcher
+  work). Owner chooses.
