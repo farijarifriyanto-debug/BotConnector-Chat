@@ -24,13 +24,14 @@ export async function loadSession(): Promise<Session | null> {
 export const saveSession = (s: Session) => SecureStore.setItemAsync(KEY, JSON.stringify(s), { keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK })
 export const clearSession = () => SecureStore.deleteItemAsync(KEY).catch(() => {})
 
-/** Opens the BotConnector login in the system browser and returns the signed-in session. */
-export async function login(): Promise<Session> {
+/** Opens the BotConnector login in the system browser and returns the signed-in session.
+ *  reauth: a fresh login that cannot reuse the browser's cookies (iOS ephemeral session), and is not stored. */
+export async function login({ reauth = false }: { reauth?: boolean } = {}): Promise<Session> {
   const state = randomToken(), verifier = randomToken()
   const url = new URL(`${ACCOUNT_BASE}/app-login/start`)
   url.searchParams.set('client_id', NATIVE_CLIENT_ID); url.searchParams.set('state', state)
   url.searchParams.set('code_challenge', await challengeFor(verifier)); url.searchParams.set('code_challenge_method', 'S256')
-  const result = await WebBrowser.openAuthSessionAsync(url.toString(), NATIVE_CALLBACK)
+  const result = await WebBrowser.openAuthSessionAsync(url.toString(), NATIVE_CALLBACK, reauth ? { preferEphemeralSession: true } : undefined)
   if (result.type !== 'success') throw new AuthError('cancelled')
   const cb = parseCallback(result.url)
   if (!cb || cb.state !== state) throw new AuthError('invalid')   // a callback that does not belong to this attempt is refused
@@ -43,7 +44,7 @@ export async function login(): Promise<Session> {
   const j = await r.json().catch(() => null)
   if (!j || typeof j.session_token !== 'string' || typeof j.access_token !== 'string' || typeof j.user_id !== 'string') throw new AuthError('invalid')
   const session: Session = { sessionToken: j.session_token, accessToken: j.access_token, userId: j.user_id, expiresAt: Number(j.expires_at) || 0 }
-  await saveSession(session)
+  if (!reauth) await saveSession(session)
   return session
 }
 
@@ -58,12 +59,31 @@ export async function fetchAccount(s: Session): Promise<Account | null> {
   return (await r.json().catch(() => null)) as Account | null
 }
 
+/** Ends one session on the server only (a reauth session that is not needed any more). */
+export async function revokeSession(s: Session): Promise<void> {
+  try { await fetch(`${ACCOUNT_BASE}/app-login/native/logout`, { method: 'POST', headers: bearer(s) }) } catch { /* expires by itself */ }
+}
+
 export async function logout(s: Session): Promise<void> {
-  try { await fetch(`${ACCOUNT_BASE}/app-login/native/logout`, { method: 'POST', headers: bearer(s) }) } catch { /* the local sign-out must still happen */ }
+  await revokeSession(s)   // the local sign-out must still happen when this fails
   await clearSession()
 }
 
-export type DeleteFailure = 'wrong_password' | 'confirmation' | 'rate_limited' | 'session' | 'unavailable' | 'network'
+/** Deletion confirmed by signing in again (Google/GitHub accounts have no password they know). `fresh` = the reauth session. */
+export async function deleteAccountByReauth(fresh: Session, confirmation: string): Promise<{ ok: true } | { ok: false; reason: DeleteFailure }> {
+  let r: Response
+  try { r = await fetch(`${ACCOUNT_BASE}/app-login/native/delete-account/reauth`, { method: 'POST', headers: { ...bearer(fresh), 'content-type': 'application/json' }, body: JSON.stringify({ confirmation }) }) }
+  catch { return { ok: false, reason: 'network' } }
+  if (r.ok) { await clearSession(); return { ok: true } }
+  switch (r.status) {
+    case 422: return { ok: false, reason: 'confirmation' }
+    case 429: return { ok: false, reason: 'rate_limited' }
+    case 403: return { ok: false, reason: 'reauth' }
+    default: return { ok: false, reason: 'unavailable' }
+  }
+}
+
+export type DeleteFailure = 'wrong_password' | 'confirmation' | 'rate_limited' | 'session' | 'unavailable' | 'network' | 'reauth' | 'reauth_other'
 /** Permanently deletes the account (App Store 5.1.1(v)). A wrong password never signs the user out. */
 export async function deleteAccount(s: Session, currentPassword: string, confirmation: string): Promise<{ ok: true } | { ok: false; reason: DeleteFailure }> {
   let r: Response

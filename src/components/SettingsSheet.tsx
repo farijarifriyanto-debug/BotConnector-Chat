@@ -22,7 +22,7 @@ import { SyncSection } from './SyncSection'
 import { UsageSheet } from './UsageSheet'
 
 export const DELETE_PHRASE = 'HAPUS AKUN'   // the server accepts only this exact phrase, whatever the app language is
-const REASON = { wrong_password: 'dAcctWrong', confirmation: 'dAcctBadPhrase', rate_limited: 'dAcctRate', session: 'dAcctSession', unavailable: 'dAcctDown', network: 'dAcctNet', apple_mismatch: 'dAcctAppleMismatch' } as const
+const REASON = { wrong_password: 'dAcctWrong', confirmation: 'dAcctBadPhrase', rate_limited: 'dAcctRate', session: 'dAcctSession', unavailable: 'dAcctDown', network: 'dAcctNet', apple_mismatch: 'dAcctAppleMismatch', reauth: 'dAcctReauthFailed', reauth_other: 'dAcctReauthOther' } as const
 type DeleteError = DeleteFailure | 'apple_mismatch'
 
 const cap = (x: string) => x.charAt(0).toUpperCase() + x.slice(1)
@@ -41,6 +41,12 @@ export function SettingsSheet({ visible, onClose }: { visible: boolean; onClose:
   const doDelete = async () => {
     setBusy(true); setErr(null)
     const r = viaApple ? await useAuth.getState().deleteAccountWithApple(phrase.trim()) : await useAuth.getState().deleteAccount(pw, phrase.trim())
+    if (r.ok || r.reason === 'session') { useChat.getState().reset(); done(); onClose(); return }
+    setBusy(false); setErr(r.reason === 'cancelled' ? null : r.reason)
+  }
+  const deleteByLogin = async () => {
+    setBusy(true); setErr(null)
+    const r = await useAuth.getState().deleteAccountByLogin(phrase.trim())
     if (r.ok || r.reason === 'session') { useChat.getState().reset(); done(); onClose(); return }
     setBusy(false); setErr(r.reason === 'cancelled' ? null : r.reason)
   }
@@ -77,6 +83,13 @@ export function SettingsSheet({ visible, onClose }: { visible: boolean; onClose:
                   {busy ? <ActivityIndicator color="#fff" /> : <Text style={{ color: '#fff', fontWeight: '700' }}>{t(viaApple ? 'dAcctApple' : 'dAcctConfirm')}</Text>}
                 </Pressable>
               </View>
+              {!viaApple && <View style={{ marginTop: 18 }}>
+                <Text style={{ color: th.muted, fontSize: 13.5, lineHeight: 20 }}>{t('dAcctReauthNote')}</Text>
+                <Pressable testID="delete-reauth" onPress={deleteByLogin} disabled={busy || phrase.trim() !== DELETE_PHRASE} accessibilityRole="button" accessibilityState={{ disabled: busy || phrase.trim() !== DELETE_PHRASE }}
+                  style={{ marginTop: 10, padding: 13, borderRadius: 12, borderWidth: 1, borderColor: th.danger, alignItems: 'center', opacity: busy || phrase.trim() !== DELETE_PHRASE ? 0.45 : 1 }}>
+                  <Text style={{ color: th.danger, fontWeight: '700' }}>{t('dAcctReauth')}</Text>
+                </Pressable>
+              </View>}
             </View>
           ) : (
             <View>

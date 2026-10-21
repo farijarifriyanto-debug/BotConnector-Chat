@@ -120,3 +120,54 @@ describe('deleting an Apple account', () => {
     expect(r.getByTestId('delete-password')).toBeTruthy()
   })
 })
+
+describe('deleting a Google/GitHub account (no password they know)', () => {
+  const browser = jest.requireMock('expo-web-browser').openAuthSessionAsync as jest.Mock
+  const store = jest.requireMock('expo-secure-store').setItemAsync as jest.Mock
+  const signedIn = { status: 'signedIn', session: { sessionToken: 'old'.repeat(14), accessToken: 'a', userId: 'u1', expiresAt: 9e9 }, account: { email: 'a@gmail.com', plan: 'free' }, appleLinked: false }
+  const signInAgainAs = (userId: string) => {
+    browser.mockImplementation(async (url: string) => ({ type: 'success', url: `botconnector://auth/callback?code=c1&state=${new URL(url).searchParams.get('state')}` }))
+    mockFetch.mockImplementation(async (u: string) =>
+      u.endsWith('/native/exchange') ? reply(200, { ...SESSION, user_id: userId, session_token: 'fresh'.repeat(9) })
+      : u.endsWith('/delete-account/reauth') ? reply(200, { message: 'ok' }) : reply(204, {}))
+  }
+  const calls = (end: string) => mockFetch.mock.calls.filter(c => String(c[0]).endsWith(end))
+  beforeEach(() => { browser.mockReset(); store.mockClear(); useAuth.setState(signedIn as never) })
+
+  it('a fresh, cookie-free sign-in to the same account deletes it; the fresh session is never stored', async () => {
+    signInAgainAs('u1')
+    expect(await useAuth.getState().deleteAccountByLogin('HAPUS AKUN')).toEqual({ ok: true })
+    expect(browser.mock.calls[0][2]).toEqual({ preferEphemeralSession: true })
+    const del = calls('/delete-account/reauth')[0]
+    expect(del[1].headers.authorization).toBe(`Bearer ${'fresh'.repeat(9)}`)
+    expect(JSON.parse(del[1].body)).toEqual({ confirmation: 'HAPUS AKUN' })
+    expect(store).not.toHaveBeenCalled()
+    expect(useAuth.getState().status).toBe('signedOut')
+  })
+
+  it('signing in to another account deletes nothing and ends that extra session', async () => {
+    signInAgainAs('someone-else')
+    expect(await useAuth.getState().deleteAccountByLogin('HAPUS AKUN')).toEqual({ ok: false, reason: 'reauth_other' })
+    expect(calls('/delete-account/reauth')).toHaveLength(0)
+    expect(calls('/native/logout')[0][1].headers.authorization).toBe(`Bearer ${'fresh'.repeat(9)}`)
+    expect(useAuth.getState().status).toBe('signedIn')
+  })
+
+  it('closing the login sheet is not an error', async () => {
+    browser.mockResolvedValue({ type: 'cancel' })
+    expect(await useAuth.getState().deleteAccountByLogin('HAPUS AKUN')).toEqual({ ok: false, reason: 'cancelled' })
+    expect(mockFetch.mock.calls.filter(c => String(c[0]).startsWith('https://botconnector.id/app-login/'))).toHaveLength(0)   // other screens may still load models
+    expect(useAuth.getState().status).toBe('signedIn')
+  })
+
+  it('the sign-in-again button waits for the exact phrase', async () => {
+    const byLogin = jest.fn(async () => ({ ok: false as const, reason: 'reauth_other' as const })); useAuth.setState({ deleteAccountByLogin: byLogin } as never)
+    const r = await render(<SettingsSheet visible onClose={() => {}} />)
+    await fireEvent.press(r.getByTestId('delete-account'))
+    expect(r.getByTestId('delete-reauth').props.accessibilityState.disabled).toBe(true)
+    await fireEvent.changeText(r.getByTestId('delete-phrase'), 'HAPUS AKUN')
+    await fireEvent.press(r.getByTestId('delete-reauth'))
+    expect(byLogin).toHaveBeenCalledWith('HAPUS AKUN')
+    expect((await r.findByTestId('delete-error')).props.children).toContain('different account')
+  })
+})

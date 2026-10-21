@@ -4,7 +4,7 @@ import { configureApi } from '../api/api'
 import { configureFiles } from '../api/files'
 import { configureLaptop } from '../laptop/api'
 import { configureSync } from '../sync/chatSync'
-import { AuthError, clearSession, deleteAccount as apiDelete, fetchAccount, loadSession, login as apiLogin, logout as apiLogout, type Account, type DeleteFailure, type Session } from '../auth/session'
+import { AuthError, clearSession, deleteAccount as apiDelete, deleteAccountByReauth, fetchAccount, loadSession, login as apiLogin, logout as apiLogout, revokeSession, type Account, type DeleteFailure, type Session } from '../auth/session'
 import { AppleError, appleAvailable, appleDeleteAccount, appleLink, appleLinked, appleRegister, appleSignIn, type ApplePending } from '../auth/apple'
 import { clearConvs } from '../db/convs'
 
@@ -26,6 +26,8 @@ interface AuthState {
   /** 'ok', null when the person closed the Apple sheet, or an 'apple_<reason>' failure */
   linkApple(): Promise<string | null>
   deleteAccountWithApple(phrase: string): Promise<{ ok: true } | { ok: false; reason: AppleDeleteFailure }>
+  /** Google/GitHub accounts (no password they know): confirm by signing in again, then delete. */
+  deleteAccountByLogin(phrase: string): Promise<{ ok: true } | { ok: false; reason: AppleDeleteFailure }>
 }
 
 export const useAuth = create<AuthState>((set, get) => ({
@@ -95,6 +97,20 @@ export const useAuth = create<AuthState>((set, get) => ({
     await clearSession(); await clearConvs().catch(() => {})
     set({ status: 'signedOut', session: null, account: null, appleLinked: null })
     return { ok: true }
+  },
+  async deleteAccountByLogin(phrase) {
+    const s = get().session; if (!s) return { ok: false, reason: 'session' }
+    let fresh: Session
+    try { fresh = await apiLogin({ reauth: true }) } catch (e) {
+      const why = e instanceof AuthError ? e.reason : 'invalid'
+      return { ok: false, reason: why === 'cancelled' ? 'cancelled' : why === 'network' ? 'network' : why === 'invalid' ? 'reauth' : 'unavailable' }
+    }
+    if (fresh.userId !== s.userId) { await revokeSession(fresh); return { ok: false, reason: 'reauth_other' } }   // signed in as someone else: delete nothing
+    const r = await deleteAccountByReauth(fresh, phrase)
+    if (!r.ok) { await revokeSession(fresh); return r }
+    await clearConvs().catch(() => {})
+    set({ status: 'signedOut', session: null, account: null, appleLinked: null })
+    return r
   },
   async logout() {
     const s = get().session
