@@ -10,6 +10,7 @@ import { useChat } from '../store/chat'
 import { useSettings, type ThemePref } from '../store/settings'
 import { useTheme } from '../theme/theme'
 import type { DeleteFailure } from '../auth/session'
+import { AppleButton } from './AppleButton'
 import { Icon } from './Icons'
 import { LanguageSheet } from './LanguageSheet'
 import { LaptopSheet } from './LaptopSheet'
@@ -21,12 +22,16 @@ import { SyncSection } from './SyncSection'
 import { UsageSheet } from './UsageSheet'
 
 export const DELETE_PHRASE = 'HAPUS AKUN'   // the server accepts only this exact phrase, whatever the app language is
-const REASON = { wrong_password: 'dAcctWrong', confirmation: 'dAcctBadPhrase', rate_limited: 'dAcctRate', session: 'dAcctSession', unavailable: 'dAcctDown', network: 'dAcctNet' } as const
+const REASON = { wrong_password: 'dAcctWrong', confirmation: 'dAcctBadPhrase', rate_limited: 'dAcctRate', session: 'dAcctSession', unavailable: 'dAcctDown', network: 'dAcctNet', apple_mismatch: 'dAcctAppleMismatch' } as const
+type DeleteError = DeleteFailure | 'apple_mismatch'
 
 const cap = (x: string) => x.charAt(0).toUpperCase() + x.slice(1)
 export function SettingsSheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const th = useTheme(), t = useT(), s = useSettings(), account = useAuth(a => a.account), guest = useAuth(a => a.status === 'guest')
-  const [providers, setProviders] = useState(false), [local, setLocal] = useState(false), [personal, setPersonal] = useState(false), [laptop, setLaptop] = useState(false), [langOpen, setLangOpen] = useState(false), [usage, setUsage] = useState(false), [search, setSearch] = useState(false), [deleting, setDeleting] = useState(false), [pw, setPw] = useState(''), [phrase, setPhrase] = useState(''), [busy, setBusy] = useState(false), [err, setErr] = useState<DeleteFailure | null>(null)
+  const apple = useAuth(a => a.apple), appleLinked = useAuth(a => a.appleLinked), [linkMsg, setLinkMsg] = useState<string | null>(null)
+  const [providers, setProviders] = useState(false), [local, setLocal] = useState(false), [personal, setPersonal] = useState(false), [laptop, setLaptop] = useState(false), [langOpen, setLangOpen] = useState(false), [usage, setUsage] = useState(false), [search, setSearch] = useState(false), [deleting, setDeleting] = useState(false), [pw, setPw] = useState(''), [phrase, setPhrase] = useState(''), [busy, setBusy] = useState(false), [err, setErr] = useState<DeleteError | null>(null)
+  const viaApple = appleLinked === true   // Apple HIG: an Apple account is never asked for a password; Apple confirms it is the owner
+  const canDelete = !busy && phrase.trim() === DELETE_PHRASE && (viaApple || !!pw)
   const scene = useShot(x => x.scene)
   useEffect(() => { if (SHOT) { setLangOpen(scene === 'language'); setSearch(scene === 'search'); setPersonal(scene === 'personal') } }, [scene])   // screenshot build only
   const open = (page: LegalPage) => { void Linking.openURL(legalUrl(page, s.lang)).catch(() => {}) }
@@ -35,9 +40,14 @@ export function SettingsSheet({ visible, onClose }: { visible: boolean; onClose:
   const confirmLogout = () => Alert.alert(t('logout'), t('logoutConfirm'), [{ text: t('cancel'), style: 'cancel' }, { text: t('logout'), style: 'destructive', onPress: () => { onClose(); useChat.getState().reset(); void useAuth.getState().logout() } }])
   const doDelete = async () => {
     setBusy(true); setErr(null)
-    const r = await useAuth.getState().deleteAccount(pw, phrase.trim())
+    const r = viaApple ? await useAuth.getState().deleteAccountWithApple(phrase.trim()) : await useAuth.getState().deleteAccount(pw, phrase.trim())
     if (r.ok || r.reason === 'session') { useChat.getState().reset(); done(); onClose(); return }
-    setBusy(false); setErr(r.reason)
+    setBusy(false); setErr(r.reason === 'cancelled' ? null : r.reason)
+  }
+  const link = async () => {
+    setLinkMsg(null)
+    const e = await useAuth.getState().linkApple()
+    setLinkMsg(e === 'ok' ? 'appleLinked' : e === 'apple_taken' ? 'appleLinkTaken' : e === null ? null : 'appleErrFailed')
   }
   const seg = <T extends string | number>(value: T, items: { v: T; label: string }[], set: (v: T) => void) => (
     <View style={{ flexDirection: 'row', borderWidth: 1, borderColor: th.lineStrong, borderRadius: 10, overflow: 'hidden' }}>
@@ -57,12 +67,14 @@ export function SettingsSheet({ visible, onClose }: { visible: boolean; onClose:
             <View>
               <Text style={{ color: th.ink, fontSize: 15, lineHeight: 22 }}>{t('dAcctWarning')}</Text>
               <TextInput testID="delete-phrase" style={input} value={phrase} onChangeText={setPhrase} placeholder={t('dAcctPhrase')} placeholderTextColor={th.muted2} autoCapitalize="characters" autoCorrect={false} editable={!busy} />
-              <TextInput testID="delete-password" style={input} value={pw} onChangeText={setPw} placeholder={t('dAcctPassword')} placeholderTextColor={th.muted2} secureTextEntry autoCapitalize="none" autoCorrect={false} textContentType="password" editable={!busy} />
+              {viaApple
+                ? <Text testID="delete-apple-note" style={{ color: th.muted, fontSize: 13.5, lineHeight: 20, marginTop: 10 }}>{t('dAcctAppleNote')}</Text>
+                : <TextInput testID="delete-password" style={input} value={pw} onChangeText={setPw} placeholder={t('dAcctPassword')} placeholderTextColor={th.muted2} secureTextEntry autoCapitalize="none" autoCorrect={false} textContentType="password" editable={!busy} />}
               {!!err && <Text testID="delete-error" accessibilityRole="alert" style={{ color: th.danger, marginTop: 10 }}>{t(REASON[err])}</Text>}
               <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
                 <Pressable testID="delete-cancel" onPress={done} disabled={busy} accessibilityRole="button" style={{ flex: 1, padding: 13, borderRadius: 12, borderWidth: 1, borderColor: th.lineStrong, alignItems: 'center' }}><Text style={{ color: th.ink, fontWeight: '600' }}>{t('cancel')}</Text></Pressable>
-                <Pressable testID="delete-confirm" onPress={doDelete} disabled={busy || !pw || phrase.trim() !== DELETE_PHRASE} accessibilityRole="button" accessibilityState={{ disabled: busy || !pw || phrase.trim() !== DELETE_PHRASE }} style={{ flex: 1, padding: 13, borderRadius: 12, backgroundColor: th.danger, alignItems: 'center', opacity: busy || !pw || phrase.trim() !== DELETE_PHRASE ? 0.45 : 1 }}>
-                  {busy ? <ActivityIndicator color="#fff" /> : <Text style={{ color: '#fff', fontWeight: '700' }}>{t('dAcctConfirm')}</Text>}
+                <Pressable testID="delete-confirm" onPress={doDelete} disabled={!canDelete} accessibilityRole="button" accessibilityState={{ disabled: !canDelete }} style={{ flex: 1, padding: 13, borderRadius: 12, backgroundColor: th.danger, alignItems: 'center', opacity: canDelete ? 1 : 0.45 }}>
+                  {busy ? <ActivityIndicator color="#fff" /> : <Text style={{ color: '#fff', fontWeight: '700' }}>{t(viaApple ? 'dAcctApple' : 'dAcctConfirm')}</Text>}
                 </Pressable>
               </View>
             </View>
@@ -73,10 +85,17 @@ export function SettingsSheet({ visible, onClose }: { visible: boolean; onClose:
                 {guest ? (<>
                   <Text style={{ color: th.ink, fontSize: 15, lineHeight: 21 }}>{t('guestMode')}</Text>
                   <Pressable testID="guest-signin" onPress={() => { onClose(); void useAuth.getState().login() }} accessibilityRole="button" style={{ marginTop: 12, padding: 12, borderRadius: 10, backgroundColor: th.accent, alignItems: 'center' }}><Text style={{ color: th.accentInk, fontWeight: '700' }}>{t('guestSignIn')}</Text></Pressable>
+                  <View style={{ marginTop: 10 }}><AppleButton testID="guest-apple-signin" height={44} radius={10} onPress={() => { onClose(); void useAuth.getState().loginWithApple() }} /></View>
                 </>) : (<>
                   <Text style={{ color: th.ink, fontSize: 16, fontWeight: '600' }}>{account?.display_name || account?.email || t('acctDefault')}</Text>
                   {!!account?.email && !!account?.display_name && <Text style={{ color: th.muted, fontSize: 13, marginTop: 2 }}>{account.email}</Text>}
+                  {viaApple && <Text testID="apple-using" style={{ color: th.muted, fontSize: 13, marginTop: 2 }}>{t('appleUsing')}</Text>}
                   {!!account?.plan && <Text style={{ color: th.muted, fontSize: 13, marginTop: 6 }}>{t('planLabel')}: {account.plan}</Text>}
+                  {apple && appleLinked === false && <View style={{ marginTop: 12 }}>
+                    <Text style={{ color: th.muted, fontSize: 13, lineHeight: 19, marginBottom: 8 }}>{t('appleLinkNote')}</Text>
+                    <AppleButton testID="apple-link" type="CONTINUE" height={44} radius={10} onPress={() => void link()} />
+                  </View>}
+                  {!!linkMsg && <Text testID="apple-link-msg" accessibilityRole="alert" style={{ color: linkMsg === 'appleLinked' ? th.accentStrong : th.danger, fontSize: 13, marginTop: 8 }}>{t(linkMsg as never)}</Text>}
                   <Pressable testID="open-usage" onPress={() => setUsage(true)} accessibilityRole="button" style={{ marginTop: 12, padding: 12, borderRadius: 10, borderWidth: 1, borderColor: th.lineStrong, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}><Text style={{ color: th.ink, fontWeight: '600' }}>{t('usageTitle')}</Text><Icon name="ChevR" size={16} color={th.muted} /></Pressable>
                 </>)}
               </View>
