@@ -23,7 +23,8 @@ sub = versions.find { |v| %w[WAITING_FOR_REVIEW IN_REVIEW PENDING_DEVELOPER_RELE
 if sub
   sid = sub['id']
   puts "\n== submitted version #{sub['attributes']['versionString']} (#{sub['attributes']['appStoreState']})"
-  b = ASC.list("/v1/appStoreVersions/#{sid}/build").first
+  bd = ASC.list("/v1/appStoreVersions/#{sid}/build")
+  b = bd.is_a?(Array) ? bd.first : bd
   if b
     ba = b['attributes']
     puts "  build: #{ba['version']} uploaded=#{ba['uploadedDate']} processing=#{ba['processingState']} expired=#{ba['expired']} nonExemptEncryption=#{ba['usesNonExemptEncryption'].inspect} minOs=#{ba['minOsVersion']}"
