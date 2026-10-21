@@ -2,6 +2,9 @@ name: ASC inspect
 # READ ONLY look at the App Store Connect record. Output is public (public repo), so it prints no private values.
 on:
   workflow_dispatch:
+  schedule:
+    # Daily 01:30 UTC (08:30 WIB): surface review-queue changes (WAITING_FOR_REVIEW -> IN_REVIEW -> ...) without manual checks.
+    - cron: '30 1 * * *'
 jobs:
   inspect:
     runs-on: ubuntu-latest
