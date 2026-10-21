@@ -1,4 +1,4 @@
-// Local AI on the user's paired laptop (BotConnector Local). Requests go account-api -> device relay -> the laptop; no cloud model is involved.
+﻿// Local AI on the user's paired laptop (BotConnector Local). Requests go account-api -> device relay -> the laptop; no cloud model is involved.
 import { fetch } from 'expo/fetch'
 import { API_BASE } from '../api/config'
 import { drainSse, registerStreamer, type Delta } from '../api/api'
@@ -11,7 +11,7 @@ let token: () => string | null = () => null
 export const configureLaptop = (fn: () => string | null) => { token = fn }
 
 export class LaptopError extends Error { code: string; status: number; constructor(code: string, status = 0) { super(code); Object.setPrototypeOf(this, new.target.prototype); this.name = 'LaptopError'; this.code = code; this.status = status } }
-export interface Device { id: string; name: string; online: boolean; platform?: string }
+export interface Device { id: string; name: string; online: boolean; platform?: string; capabilities: string[] }
 export interface LaptopModel { id: string; name: string; runtime: string; loaded: boolean }
 export const laptopId = (deviceId: string, runtime: string, model: string) => `${LAPTOP_PREFIX}${deviceId}:${runtime}:${model}`
 export function parseLaptopId(id: string): { deviceId: string; runtime: string; model: string } | null {
@@ -35,7 +35,7 @@ const str = (v: unknown) => (typeof v === 'string' && v ? v : undefined)
 
 export async function listDevices(signal?: AbortSignal): Promise<Device[]> {
   const j = await call<{ data?: unknown[] }>('', { signal })
-  return (Array.isArray(j.data) ? j.data : []).map((d: any): Device => ({ id: String(d?.id ?? ''), name: str(d?.name) ?? 'Laptop', online: d?.online === true, platform: str(d?.platform) })).filter(d => d.id)
+  return (Array.isArray(j.data) ? j.data : []).map((d: any): Device => ({ id: String(d?.id ?? ''), name: str(d?.name) ?? 'Laptop', online: d?.online === true, platform: str(d?.platform), capabilities: Array.isArray(d?.capabilities) ? d.capabilities.map(String) : [] })).filter(d => d.id)
 }
 export async function createPairCode(): Promise<{ code: string; expiresAt?: number }> {
   const j = await call<{ code?: string; expires_at?: string | number }>('/pair', { method: 'POST', body: {} })
@@ -44,11 +44,22 @@ export async function createPairCode(): Promise<{ code: string; expiresAt?: numb
   return { code: j.code, expiresAt: Number.isFinite(t) ? t : undefined }
 }
 export const revokeDevice = (id: string) => call(`/${encodeURIComponent(id)}/revoke`, { method: 'POST', body: {} })
-async function request<T>(id: string, method: string, params: Record<string, unknown> = {}, signal?: AbortSignal): Promise<T> {
+export async function deviceRequest<T>(id: string, method: string, params: Record<string, unknown> = {}, signal?: AbortSignal): Promise<T> {
   return (await call<{ result?: T }>(`/${encodeURIComponent(id)}/request`, { method: 'POST', body: { method, params }, signal })).result as T
 }
+/** Opens the relay's SSE passthrough for one device method; the caller parses frames (see agent/api.ts). */
+export async function deviceStream(id: string, body: Record<string, unknown>, signal?: AbortSignal): Promise<Response> {
+  let r: Response
+  try { r = await fetch(`${DEVICES}/${encodeURIComponent(id)}/stream`, { method: 'POST', headers: { ...headers(true), accept: 'text/event-stream' }, body: JSON.stringify(body), signal }) }
+  catch (e) { throw new LaptopError((e as Error)?.name === 'AbortError' ? 'aborted' : 'network') }
+  if (!r.ok || !r.body) {
+    let code = 'device_error'; try { const j = await r.json(); if (typeof j?.error?.code === 'string') code = j.error.code.toLowerCase() } catch { /* empty body */ }
+    throw new LaptopError(r.status === 401 ? 'auth' : code, r.status)
+  }
+  return r
+}
 export async function listModels(id: string, signal?: AbortSignal): Promise<LaptopModel[]> {
-  const [rows, rt] = await Promise.all([request<any[]>(id, 'models.list', {}, signal), request<any>(id, 'runtime.status', {}, signal).catch(() => ({}))])
+  const [rows, rt] = await Promise.all([deviceRequest<any[]>(id, 'models.list', {}, signal), deviceRequest<any>(id, 'runtime.status', {}, signal).catch(() => ({}))])
   const loaded = new Set<string>(rt?.loadedModels ?? (rt?.activeModel ? [rt.activeModel] : []))
   return (Array.isArray(rows) ? rows : []).filter(m => m && (m.id || m.name)).map((m): LaptopModel => { const mid = String(m.id ?? m.name); return { id: mid, name: String(m.name ?? mid), runtime: String(m.runtime ?? 'device'), loaded: loaded.has(mid) } })
 }
@@ -63,9 +74,9 @@ async function* streamLaptop(body: Record<string, unknown>, signal?: AbortSignal
   try {
     const found = (await listModels(ref.deviceId, signal)).find(m => m.id === ref.model)
     if (!found) throw new LaptopError('model_missing')
-    if (!found.loaded) await request(ref.deviceId, 'model.load', { model: ref.model, runtime: ref.runtime }, signal)   // a big model can take a while
+    if (!found.loaded) await deviceRequest(ref.deviceId, 'model.load', { model: ref.model, runtime: ref.runtime }, signal)   // a big model can take a while
   } catch (e) { throw kindOf(e) }
-  const cancel = () => { void request(ref.deviceId, 'chat.cancel', { id: requestId }).catch(() => {}) }
+  const cancel = () => { void deviceRequest(ref.deviceId, 'chat.cancel', { id: requestId }).catch(() => {}) }
   signal?.addEventListener('abort', cancel, { once: true })
   const messages = (Array.isArray(body.messages) ? body.messages : []).map((m: any) => ({ role: m.role === 'assistant' || m.role === 'system' ? m.role : 'user', content: textOf(m.content) })).filter(m => m.content)
   let r: Response
