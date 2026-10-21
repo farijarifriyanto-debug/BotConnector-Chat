@@ -39,10 +39,10 @@ export function Composer({ busy, model, webAvailable, onSend, onStop, image, fil
       options.push({ text: t('attachCamera'), action: () => { void att.addCamera().then(r => { if (r === 'denied') setNote(t('camDenied')) }) } })
     }
     if (files?.available) {
-      options.push({ text: t('attachFile') + ' (lokal)', action: () => { void att.addDocument(false) } })
+      options.push({ text: t('attachFile'), action: () => { void att.addDocument(false) } })
       // Explicit user action also constitutes consent for nonsensitive cloud processing.
       // Default remains local; the backend independently enforces the cloud limit.
-      options.push({ text: 'Dokumen Cloud (tidak sensitif, maksimal 20 MB)', action: () => { void att.addDocument(true) } })
+      options.push({ text: t('attachFileCloud'), action: () => { void att.addDocument(true) } })
     }
     if (Platform.OS === 'ios') {
       ActionSheetIOS.showActionSheetWithOptions({

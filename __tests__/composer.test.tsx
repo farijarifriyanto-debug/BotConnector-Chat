@@ -3,6 +3,7 @@ import { act, fireEvent, render, waitFor } from '@testing-library/react-native'
 import React from 'react'
 import { ActionSheetIOS } from 'react-native'
 import { Composer } from '../src/components/Composer'
+import { STRINGS } from '../src/i18n/strings'
 
 jest.setTimeout(30000)
 const mockUpload = jest.fn(), mockStatus = jest.fn(), mockPickDoc = jest.fn(), mockPickPhotos = jest.fn()
@@ -23,6 +24,7 @@ describe('Composer attachments', () => {
     await fireEvent.changeText(r.getByTestId('composer-input'), 'ringkas')
     await fireEvent.press(r.getByTestId('pill-attach'))
     await waitFor(() => expect(r.getByTestId('att-laporan.pdf')).toBeTruthy())
+    expect(mockUpload.mock.calls[0][2]).toBe(false)                                          // plain File option: no cloud processing consent
     await waitFor(() => expect(mockStatus).toHaveBeenCalled(), { timeout: 8000 })
     expect(r.getByTestId('send-go').props.accessibilityState.disabled).toBe(true)          // the service is still processing it
     await act(async () => { finish() })
@@ -30,6 +32,18 @@ describe('Composer attachments', () => {
     await fireEvent.press(r.getByTestId('send-go'))
     expect(onSend).toHaveBeenCalledWith('ringkas', { web: false, research: false, image: false }, [expect.objectContaining({ kind: 'file', name: 'laporan.pdf', fileId: 'file_bc_1', status: 'ready' })])
     expect(JSON.stringify(onSend.mock.calls[0][2])).not.toContain('file:///x.pdf')           // no local path leaves the composer
+  })
+
+  it('attach sheet: localized local/cloud document options, and the cloud choice reaches the upload', async () => {
+    mockPickDoc.mockResolvedValue({ id: 'a1', kind: 'file', name: 'laporan.pdf', mime: 'application/pdf', size: 10, sourceUri: 'file:///x.pdf', status: 'uploading', progress: 0 })
+    mockUpload.mockResolvedValue({ id: 'file_bc_1', status: 'ready' })
+    let sheetOptions: string[] = []
+    jest.spyOn(ActionSheetIOS, 'showActionSheetWithOptions').mockImplementation(((o: { options: string[] }, cb: (i: number) => void) => { sheetOptions = o.options; cb(3) }) as never)
+    const r = await render(<Composer busy={false} model={model(false)} webAvailable onSend={() => {}} onStop={() => {}} files={{ available: true }} />)
+    await fireEvent.press(r.getByTestId('pill-attach'))
+    await waitFor(() => expect(mockUpload).toHaveBeenCalled())
+    expect(sheetOptions).toEqual([STRINGS.en.attachPhoto, STRINGS.en.attachCamera, STRINGS.en.attachFile, STRINGS.en.attachFileCloud, STRINGS.en.cancel])
+    expect(mockUpload.mock.calls[0][2]).toBe(true)                                           // cloud option: explicit nonsensitive consent
   })
 
   it('keeps send disabled for photos until a model that can see images is chosen', async () => {
