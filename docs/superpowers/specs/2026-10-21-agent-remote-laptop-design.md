@@ -293,14 +293,14 @@ questions. Resolutions:
   the deployed relay artifact and its update procedure. If either pipeline cannot be
   verified, the feature does not ship.
 
-**Open — owner decision required (see conversation):**
-- **O1 / doc Q1 — account-api & production scope**: `/v1/client/devices/{id}/request|stream`
-  behavior (method allowlist? SSE buffering? timeout caps?) must be inspected in the
-  production backend, and changes there (plus nginx stream timeouts) are likely needed.
-  Needs owner authorization for production VPS work under the standing VPS rules
-  (audit + backup + canary + rollback), and a concurrency policy for hour-long streams.
-- **O2 / doc Q4 — updating already-paired devices**: the launcher checks for Device CLI
-  updates only at start, so existing paired computers lack `agent.*` until restarted. MVP
-  plan A: honest `agent_unsupported` error + guidance (accept this as the primary first-run
-  experience). Plan B: add a relay-driven "restart to update" nudge (extra relay+launcher
-  work). Owner chooses.
+**Resolved by owner (2026-10-21):**
+- **O1 / doc Q1 — account-api & production scope**: owner authorized production VPS work
+  under the standing rules (audit + backup + canary + rollback). Builder must still inspect
+  `/v1/client/devices/{id}/request|stream` behavior in the production backend first
+  (method allowlist? SSE buffering? timeout caps?) and sequence server-side acceptance of
+  `agent.*` BEFORE any Device CLI/app release. **Concurrency policy (owner decision): max 2
+  concurrent agent streams per account, global cap ~20 streams on the VPS**; enforce in the
+  relay/account-api layer with a clear `agent_capacity` error the app localizes.
+- **O2 / doc Q4 — updating already-paired devices**: owner chose **Plan A** — honest
+  `agent_unsupported` error + guidance ("update the app on your computer" with steps) as
+  the MVP first-run experience. No relay-driven restart nudge in MVP (candidate for 1B).
