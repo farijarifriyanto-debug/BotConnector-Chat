@@ -18,6 +18,47 @@ versions.each { |v| a = v['attributes']; puts "  #{a['platform']} #{a['versionSt
 ver = versions.find { |v| %w[PREPARE_FOR_SUBMISSION DEVELOPER_REJECTED REJECTED METADATA_REJECTED].include?(v['attributes']['appStoreState']) }
 puts ver ? "\neditable version: #{ver['attributes']['versionString']} (#{ver['attributes']['appStoreState']})" : "\nno editable version yet (create 2.0.0 in App Store Connect, or ask me to create it)"
 
+# Why is a submitted version still waiting? Build/compliance/review-detail/localization snapshot + the review queue itself.
+sub = versions.find { |v| %w[WAITING_FOR_REVIEW IN_REVIEW PENDING_DEVELOPER_RELEASE].include?(v['attributes']['appStoreState']) }
+if sub
+  sid = sub['id']
+  puts "\n== submitted version #{sub['attributes']['versionString']} (#{sub['attributes']['appStoreState']})"
+  b = ASC.list("/v1/appStoreVersions/#{sid}/build").first
+  if b
+    ba = b['attributes']
+    puts "  build: #{ba['version']} uploaded=#{ba['uploadedDate']} processing=#{ba['processingState']} expired=#{ba['expired']} nonExemptEncryption=#{ba['usesNonExemptEncryption'].inspect} minOs=#{ba['minOsVersion']}"
+  else
+    puts '  build: NONE ATTACHED (this blocks the queue)'
+  end
+  rd = ASC.list("/v1/appStoreVersions/#{sid}/appStoreReviewDetail")
+  r = rd.is_a?(Array) ? rd.first : rd
+  if r
+    ra = r['attributes']
+    puts "  review detail: contact name=#{yn.(ra['contactFirstName'])} phone=#{yn.(ra['contactPhone'])} email=#{yn.(ra['contactEmail'])} demoRequired=#{ra['demoAccountRequired']} demoUser=#{yn.(ra['demoAccountName'])} demoPass=#{yn.(ra['demoAccountPassword'])} notes=#{yn.(ra['notes'])}"
+  else
+    puts '  review detail: none'
+  end
+  ASC.list("/v1/appStoreVersions/#{sid}/appStoreVersionLocalizations").each do |l|
+    la = l['attributes']
+    puts "  #{la['locale']}: description=#{yn.(la['description'])} keywords=#{yn.(la['keywords'])} whatsNew=#{yn.(la['whatsNew'])} support=#{yn.(la['supportUrl'])}"
+    ASC.list("/v1/appStoreVersionLocalizations/#{l['id']}/appScreenshotSets").each do |s|
+      shots = ASC.list("/v1/appScreenshotSets/#{s['id']}/appScreenshots")
+      st = shots.map { |x| x.dig('attributes', 'assetDeliveryState', 'state') }.tally
+      puts "     screenshots #{s['attributes']['screenshotDisplayType']}: #{shots.size} #{st}"
+    end
+  end
+end
+
+puts "\n== review submissions (queue)"
+ASC.list("/v1/apps/#{app['id']}/reviewSubmissions?limit=5").each do |rs|
+  ra = rs['attributes']
+  puts "  submission state=#{ra['state']} platform=#{ra['platform']} submitted=#{ra['submittedDate']} cancelled=#{ra['cancelledDate']}"
+  ASC.list("/v1/reviewSubmissions/#{rs['id']}/items").each do |it|
+    rel = (it['relationships'] || {}).find { |_, v| v.is_a?(Hash) && v['data'] }
+    puts "    item state=#{it.dig('attributes', 'state').inspect} #{rel ? "#{rel[0]}=#{rel[1]['data']['id']}" : 'rel=?'}"
+  end
+end
+
 if ver
   vid = ver['id']
   b = ASC.list("/v1/appStoreVersions/#{vid}/build")
