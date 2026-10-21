@@ -1,6 +1,8 @@
 import React from 'react'
 import { ActivityIndicator, Image, Linking, Pressable, View } from 'react-native'
+import { AppleButton } from '../components/AppleButton'
 import { Text } from '../components/Text'
+import type { Key } from '../i18n/strings'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useT } from '../hooks/useT'
 import { legalUrl } from '../lib/links'
@@ -8,10 +10,17 @@ import { useAuth } from '../store/auth'
 import { useSettings } from '../store/settings'
 import { useTheme } from '../theme/theme'
 
+/** Message for a Sign in with Apple failure kept in useAuth.error ('apple_<reason>'); null for other errors. */
+export function appleErrorKey(error: string): Key | null {
+  if (!error.startsWith('apple_')) return null
+  return error === 'apple_exists' ? 'appleErrExists' : error === 'apple_no_email' ? 'appleErrNoEmail'
+    : error === 'apple_unavailable' || error === 'apple_network' ? 'loginUnavailable' : 'appleErrFailed'
+}
+
 export function LoginScreen() {
   const th = useTheme(), t = useT(), busy = useAuth(a => a.busy), error = useAuth(a => a.error)
   const lang = useSettings(x => x.lang)
-  const msg = error ? t(error === 'unavailable' || error === 'network' ? 'loginUnavailable' : 'loginFailed') : null
+  const msg = error ? t(appleErrorKey(error) ?? (error === 'unavailable' || error === 'network' ? 'loginUnavailable' : 'loginFailed')) : null
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: th.bg }}>
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 28 }}>
@@ -22,6 +31,7 @@ export function LoginScreen() {
         <Pressable testID="login-button" onPress={() => void useAuth.getState().login()} disabled={busy} accessibilityRole="button" style={{ marginTop: 24, alignSelf: 'stretch', padding: 15, borderRadius: 14, backgroundColor: th.accent, alignItems: 'center', opacity: busy ? 0.6 : 1 }}>
           {busy ? <ActivityIndicator color={th.accentInk} /> : <Text style={{ color: th.accentInk, fontSize: 16, fontWeight: '700' }}>{t('loginButton')}</Text>}
         </Pressable>
+        <View style={{ marginTop: 10, alignSelf: 'stretch' }}><AppleButton disabled={busy} onPress={() => void useAuth.getState().loginWithApple()} /></View>
         <Pressable testID="guest-button" onPress={() => useAuth.getState().continueAsGuest()} accessibilityRole="button" style={{ marginTop: 10, alignSelf: 'stretch', padding: 14, borderRadius: 14, borderWidth: 1, borderColor: th.lineStrong, alignItems: 'center' }}><Text style={{ color: th.ink, fontSize: 15, fontWeight: '600' }}>{t('guestBtn')}</Text></Pressable>
         <Text style={{ color: th.muted, fontSize: 12.5, lineHeight: 18, textAlign: 'center', marginTop: 10 }}>{t('guestNote')}</Text>
         <View style={{ flexDirection: 'row', gap: 18, marginTop: 14 }}>

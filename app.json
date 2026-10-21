@@ -10,6 +10,7 @@
     "ios": {
       "bundleIdentifier": "id.botconnector.app",
       "supportsTablet": true,
+      "usesAppleSignIn": true,
       "buildNumber": "102",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,

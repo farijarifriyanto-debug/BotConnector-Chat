@@ -2,6 +2,7 @@ import { StatusBar } from 'expo-status-bar'
 import React, { useEffect, useState } from 'react'
 import { ActivityIndicator, AppState, View } from 'react-native'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
+import { AppleSignupSheet } from './src/components/AppleSignupSheet'
 import { ChatScreen } from './src/screens/ChatScreen'
 import { LoginScreen } from './src/screens/LoginScreen'
 import { OnboardingScreen, seenOnboarding } from './src/screens/OnboardingScreen'
@@ -25,6 +26,7 @@ export default function App() {
       <StatusBar style={th.dark ? 'light' : 'dark'} />
       {status === 'loading' ? <View style={{ flex: 1, backgroundColor: th.bg, alignItems: 'center', justifyContent: 'center' }}><ActivityIndicator color={th.accent} /></View>
         : (status === 'signedIn' || status === 'guest') ? (intro ? <OnboardingScreen onDone={() => setIntro(false)} /> : <ChatScreen />) : <LoginScreen />}
+      <AppleSignupSheet />
     </SafeAreaProvider>
   )
 }
