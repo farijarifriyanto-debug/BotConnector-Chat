@@ -1,4 +1,4 @@
-// Native modules the unit tests cannot load; imported first by every UI test.
+﻿// Native modules the unit tests cannot load; imported first by every UI test.
 jest.mock('expo-sqlite/kv-store', () => { const m = new Map<string, string>(); return { __esModule: true, default: { getItemSync: (k: string) => m.get(k) ?? null, setItemSync: (k: string, v: string) => { m.set(k, v) }, getItem: async (k: string) => m.get(k) ?? null, setItem: async (k: string, v: string) => { m.set(k, v) } } } })
 jest.mock('expo-localization', () => ({ getLocales: () => [{ languageCode: 'en' }] }))
 jest.mock('expo-clipboard', () => ({ setStringAsync: jest.fn(async () => true) }))
@@ -12,5 +12,6 @@ jest.mock('expo-apple-authentication', () => ({
   AppleAuthenticationScope: { FULL_NAME: 0, EMAIL: 1 }, AppleAuthenticationButtonType: { SIGN_IN: 0, CONTINUE: 1 }, AppleAuthenticationButtonStyle: { WHITE: 0, BLACK: 2 },
   AppleAuthenticationButton: (p: { testID?: string; onPress: () => void }) => { const { Pressable } = require('react-native'); return require('react').createElement(Pressable, { testID: p.testID, onPress: p.onPress, accessibilityRole: 'button' }) },
 }))
+jest.mock('expo-notifications', () => ({ getPermissionsAsync: jest.fn(async () => ({ granted: true })), requestPermissionsAsync: jest.fn(async () => ({ granted: true })), scheduleNotificationAsync: jest.fn(async () => 'n1'), addNotificationResponseReceivedListener: jest.fn(() => ({ remove: jest.fn() })) }))
 jest.mock('react-native-webview', () => ({ WebView: () => null }))
 export {}

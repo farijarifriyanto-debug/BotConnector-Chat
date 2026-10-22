@@ -89,7 +89,10 @@ export function AgentSessionSheet({ visible, onClose }: { visible: boolean; onCl
       <KeyboardAvoidingView behavior="padding" style={{ flex: 1, backgroundColor: th.bg }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16 }}>
           <Text style={{ color: th.ink, fontSize: 18, fontWeight: '700' }}>{t('agent')}</Text>
-          <Pressable onPress={onClose} hitSlop={12} accessibilityLabel={t('agentClose')} testID="agent-session-close"><Icon name="Close" color={th.ink} /></Pressable>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+            <Pressable onPress={() => useAgent.getState().openPicker()} hitSlop={12} accessibilityLabel={t('agentSessions')} testID="agent-sessions"><Icon name="Panel" color={th.ink} /></Pressable>
+            <Pressable onPress={onClose} hitSlop={12} accessibilityLabel={t('agentClose')} testID="agent-session-close"><Icon name="Close" color={th.ink} /></Pressable>
+          </View>
         </View>
         <ScrollView testID="agent-session" contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 16 }}>
           <Text style={{ color: th.muted2, fontSize: 12, lineHeight: 17 }}>{t('agentPrivacy')}</Text>

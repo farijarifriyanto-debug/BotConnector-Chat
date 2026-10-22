@@ -1,7 +1,10 @@
 import Storage from 'expo-sqlite/kv-store'
 import { create } from 'zustand'
 import { agentApprove, agentCancel, agentPrompt, agentSession, agentStart, readAgentStream } from './api'
+import { notifyApproval } from './notify'
 import { appendUser, baselineToView, emptyView, reduceFrame } from './reduce'
+import { t } from '../i18n/strings'
+import { useSettings } from '../store/settings'
 import type { AgentApprovalAnswer, AgentView } from './types'
 
 export const AGENT_SESSION_KEY = 'bc.agent.session.v1'
@@ -10,6 +13,7 @@ const MAX_FAILURES = 3
 const ATTACH_WAIT_MS = 2_000
 
 interface Target { deviceId: string; sessionId: string; cwd: string | null }
+export type AgentSheetState = 'closed' | 'picker' | 'session'
 
 interface AgentState {
   deviceId: string | null
@@ -18,6 +22,10 @@ interface AgentState {
   view: AgentView
   attached: boolean
   busy: boolean
+  /** which agent sheet the root renders; a notification tap can open 'session' from anywhere */
+  sheet: AgentSheetState
+  /** last session this device remembered, offered as "continue" in the picker */
+  resume: Target | null
   attach(deviceId: string, sessionId: string, cwd?: string | null): Promise<void>
   start(deviceId: string, cwd: string): Promise<string>
   send(text: string): Promise<boolean>
@@ -25,10 +33,14 @@ interface AgentState {
   cancelTurn(): Promise<void>
   detach(): void
   restore(): Promise<void>
+  openPicker(): void
+  openSession(target: Target): Promise<void>
+  closeSheet(): void
 }
 
 let run = 0
 let controller: AbortController | null = null
+let notifiedRequestId: string | null = null
 const sleep = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms))
 const stopLoop = () => { run += 1; try { controller?.abort() } catch { /* already closed */ } controller = null }
 const codeOf = (error: unknown): string => {
@@ -72,6 +84,18 @@ async function loop(get: () => AgentState, set: (partial: Partial<AgentState> | 
         if (token !== run) return
         failures = 0
         set((s: AgentState) => ({ view: reduceFrame(s.view, frame) }))
+        const pending = get().view.pending
+        if (pending && pending.requestId !== notifiedRequestId && get().sheet !== 'session') {
+          notifiedRequestId = pending.requestId
+          void notifyApproval({
+            title: t(useSettings.getState().lang, 'agentNotifyTitle'),
+            body: t(useSettings.getState().lang, 'agentNotifyBody', {
+              tool: pending.tool || 'tool',
+              target: pending.target || '',
+            }),
+            requestId: pending.requestId,
+          }).catch(() => {})
+        }
         markFirstFrame()
       }
       if (token !== run) return
@@ -102,10 +126,12 @@ export const useAgent = create<AgentState>((set, get) => ({
   view: emptyView,
   attached: false,
   busy: false,
+  sheet: 'closed',
+  resume: readPersisted(),
 
   async attach(deviceId, sessionId, cwd = null) {
     stopLoop()
-    set({ deviceId, sessionId, cwd, view: emptyView, attached: true, busy: false })
+    set({ deviceId, sessionId, cwd, view: emptyView, attached: true, busy: false, resume: { deviceId, sessionId, cwd } })
     persist({ deviceId, sessionId, cwd })
     await new Promise<void>(resolve => {
       const done = () => resolve()
@@ -174,5 +200,18 @@ export const useAgent = create<AgentState>((set, get) => ({
     const target = readPersisted()
     if (!target) return
     await get().attach(target.deviceId, target.sessionId, target.cwd)
+  },
+
+  openPicker() {
+    set({ sheet: 'picker', resume: readPersisted() })
+  },
+
+  async openSession(target) {
+    set({ sheet: 'session' })
+    await get().attach(target.deviceId, target.sessionId, target.cwd)
+  },
+
+  closeSheet() {
+    set({ sheet: 'closed' })
   },
 }))

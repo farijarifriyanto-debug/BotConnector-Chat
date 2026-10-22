@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { ActivityIndicator, Modal, Pressable, ScrollView, View } from 'react-native'
 import { agentSessions, agentStart, agentWorkspaces } from '../agent/api'
 import { useLaptop } from '../laptop/store'
+import { useAgent } from '../agent/store'
 import { useT } from '../hooks/useT'
 import { useTheme } from '../theme/theme'
 import { Icon } from './Icons'
@@ -15,6 +16,8 @@ const codeOf = (e: unknown): string => { const c = (e as { code?: string })?.cod
 /** Pick a paired computer, then an existing agent session or a new one in a folder. */
 export function AgentSheet({ visible, onClose, onOpenSession }: { visible: boolean; onClose: () => void; onOpenSession: (target: AgentTarget) => void }) {
   const th = useTheme(), t = useT(), { entries } = useLaptop()
+  const resume = useAgent(s => s.resume)
+  const currentDevice = useAgent(s => s.deviceId)
   const [deviceId, setDeviceId] = useState<string | null>(null)
   const [sessions, setSessions] = useState<{ id: string; preview?: string }[]>([])
   const [workspaces, setWorkspaces] = useState<{ path: string; name?: string }[]>([])
@@ -27,6 +30,12 @@ export function AgentSheet({ visible, onClose, onOpenSession }: { visible: boole
     setDeviceId(null); setSessions([]); setWorkspaces([]); setPicking(false); setError(null)
     void useLaptop.getState().refresh()
   }, [visible])
+
+  // Coming back from a session ("Sesi" button) reopens that computer's list.
+  useEffect(() => {
+    if (!visible || !currentDevice || deviceId) return
+    void openDevice(currentDevice)
+  }, [visible, currentDevice, deviceId])
 
   const capable = (d: { online: boolean; capabilities?: string[] }) => d.online && Array.isArray(d.capabilities) && d.capabilities.includes('agent.start')
   const fail = (e: unknown) => setError(codeOf(e))
@@ -64,6 +73,21 @@ export function AgentSheet({ visible, onClose, onOpenSession }: { visible: boole
         <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 40 }}>
           <Text style={{ color: th.muted, fontSize: 13, lineHeight: 19 }}>{t('agentNote')}</Text>
           {label(t('agentDevices'))}
+          {!!resume && entries.some(e => e.device.id === resume.deviceId && capable(e.device)) && !deviceId && (
+            <Pressable
+              testID="agent-resume"
+              onPress={() => onOpenSession({ deviceId: resume.deviceId, sessionId: resume.sessionId, cwd: resume.cwd })}
+              accessibilityRole="button"
+              style={{ ...rowStyle, borderColor: th.accentStrong }}
+            >
+              <Icon name="Refresh" size={18} color={th.accentStrong} />
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: th.ink, fontWeight: '700', fontSize: 14 }}>{t('agentResumeLast')}</Text>
+                <Text numberOfLines={1} style={{ color: th.muted2, fontSize: 12 }}>{resume.sessionId}</Text>
+              </View>
+              <Icon name="Chevron" size={16} color={th.muted} />
+            </Pressable>
+          )}
           {entries.length === 0 && <Text testID="agent-no-devices" style={{ color: th.muted }}>{t('agentNoDevices')}</Text>}
           {entries.map(({ device }) => {
             const ok = capable(device)

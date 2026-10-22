@@ -1,4 +1,4 @@
-import './helpers/mocks'
+﻿import './helpers/mocks'
 import React from 'react'
 import { fireEvent, render } from '@testing-library/react-native'
 import { AgentSessionSheet } from '../src/components/AgentSessionSheet'
@@ -64,5 +64,13 @@ describe('agent session screen', () => {
     useAgent.setState({ ...base, view: { ...emptyView, error: 'agent_runtime_missing' } })
     const r = await render(<AgentSessionSheet visible onClose={() => {}} />)
     expect(r.getByText(/npm i -g @botconnector\/bccli/)).toBeTruthy()
+  })
+
+  it('opens the session list from the header', async () => {
+    const openPicker = jest.fn()
+    useAgent.setState({ ...base, openPicker, view: emptyView })
+    const r = await render(<AgentSessionSheet visible onClose={() => {}} />)
+    await fireEvent.press(r.getByTestId('agent-sessions'))
+    expect(openPicker).toHaveBeenCalled()
   })
 })

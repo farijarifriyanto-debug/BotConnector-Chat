@@ -4,6 +4,7 @@ import { fireEvent, render, waitFor } from '@testing-library/react-native'
 import { AgentSheet } from '../src/components/AgentSheet'
 import { useLaptop } from '../src/laptop/store'
 import { SettingsSheet } from '../src/components/SettingsSheet'
+import { useAgent } from '../src/agent/store'
 import { useAuth } from '../src/store/auth'
 jest.mock('expo-secure-store', () => ({ getItemAsync: jest.fn(), setItemAsync: jest.fn(), deleteItemAsync: jest.fn() }))
 jest.mock('expo-sqlite', () => ({ openDatabaseAsync: jest.fn() }))
@@ -18,6 +19,7 @@ const api = jest.requireMock('../src/agent/api')
 
 beforeEach(() => {
   jest.clearAllMocks()
+  useAgent.setState({ sheet: 'closed', resume: null })
   useLaptop.setState({
     loading: false,
     error: null,
@@ -77,11 +79,12 @@ describe('agent picker', () => {
     const r = await render(<SettingsSheet visible onClose={() => {}} />)
     expect(r.getByTestId('open-agent')).toBeTruthy()
     await fireEvent.press(r.getByTestId('open-agent'))
-    expect(await r.findByTestId('agent-close')).toBeTruthy()
+    expect(useAgent.getState().sheet).toBe('picker')
 
     r.unmount()
     useAuth.setState({ status: 'guest' } as never)
     const g = await render(<SettingsSheet visible onClose={() => {}} />)
     expect(g.queryByTestId('open-agent')).toBeNull()
   })
+
 })
