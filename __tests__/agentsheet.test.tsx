@@ -3,6 +3,12 @@ import React from 'react'
 import { fireEvent, render, waitFor } from '@testing-library/react-native'
 import { AgentSheet } from '../src/components/AgentSheet'
 import { useLaptop } from '../src/laptop/store'
+import { SettingsSheet } from '../src/components/SettingsSheet'
+import { useAuth } from '../src/store/auth'
+jest.mock('expo-secure-store', () => ({ getItemAsync: jest.fn(), setItemAsync: jest.fn(), deleteItemAsync: jest.fn() }))
+jest.mock('expo-sqlite', () => ({ openDatabaseAsync: jest.fn() }))
+jest.mock('expo-web-browser', () => ({ openAuthSessionAsync: jest.fn() }))
+jest.setTimeout(30000)
 
 jest.mock('../src/agent/api', () => ({
   agentCapabilities: jest.fn(), agentSessions: jest.fn(), agentWorkspaces: jest.fn(), agentStart: jest.fn(),
@@ -64,5 +70,18 @@ describe('agent picker', () => {
     await fireEvent.press(await r.findByTestId('agent-new'))
     await fireEvent.press(await r.findByTestId('agent-workspace-demo'))
     expect(await r.findByText(/Two agent sessions/)).toBeTruthy()
+  })
+
+  it('settings entry is only for signed-in users and opens the picker', async () => {
+    useAuth.setState({ status: 'signedIn' } as never)
+    const r = await render(<SettingsSheet visible onClose={() => {}} />)
+    expect(r.getByTestId('open-agent')).toBeTruthy()
+    await fireEvent.press(r.getByTestId('open-agent'))
+    expect(await r.findByTestId('agent-close')).toBeTruthy()
+
+    r.unmount()
+    useAuth.setState({ status: 'guest' } as never)
+    const g = await render(<SettingsSheet visible onClose={() => {}} />)
+    expect(g.queryByTestId('open-agent')).toBeNull()
   })
 })
