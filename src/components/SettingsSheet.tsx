@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+﻿import React, { useEffect, useState } from 'react'
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, ScrollView, View } from 'react-native'
 import { Text, TextInput } from './Text'
 import { useT } from '../hooks/useT'
@@ -14,6 +14,7 @@ import { AppleButton } from './AppleButton'
 import { Icon } from './Icons'
 import { LanguageSheet } from './LanguageSheet'
 import { LaptopSheet } from './LaptopSheet'
+import { useAgent } from '../agent/store'
 import { LocalModelsSheet } from './LocalModelsSheet'
 import { PersonalizationSheet } from './PersonalizationSheet'
 import { ProvidersSheet } from './ProvidersSheet'
@@ -122,6 +123,7 @@ export function SettingsSheet({ visible, onClose }: { visible: boolean; onClose:
               <Pressable testID="open-search" onPress={() => setSearch(true)} accessibilityRole="button" style={{ marginTop: 10, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: th.lineStrong, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}><Text style={{ color: th.ink, fontWeight: '600' }}>{t('srchTitle')}</Text><Icon name="Chevron" size={16} color={th.muted} /></Pressable>
               <Pressable testID="open-providers" onPress={() => setProviders(true)} accessibilityRole="button" style={{ marginTop: 10, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: th.lineStrong, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}><Text style={{ color: th.ink, fontWeight: '600' }}>{t('provTitle')}</Text><Icon name="Chevron" size={16} color={th.muted} /></Pressable>
               {!guest && <Pressable testID="open-laptop" onPress={() => setLaptop(true)} accessibilityRole="button" style={{ marginTop: 10, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: th.lineStrong, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}><Text style={{ color: th.ink, fontWeight: '600' }}>{t('laptop')}</Text><Icon name="Chevron" size={16} color={th.muted} /></Pressable>}
+              {!guest && <Pressable testID="open-agent" onPress={() => useAgent.getState().openPicker()} accessibilityRole="button" style={{ marginTop: 10, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: th.lineStrong, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}><Text style={{ color: th.ink, fontWeight: '600' }}>{t('agent')}</Text><Icon name="Chevron" size={16} color={th.muted} /></Pressable>}
               <Pressable testID="open-local" onPress={() => setLocal(true)} accessibilityRole="button" style={{ marginTop: 10, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: th.lineStrong, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}><Text style={{ color: th.ink, fontWeight: '600' }}>{t('locManage')}</Text><Icon name="Chevron" size={16} color={th.muted} /></Pressable>
               {!guest && <SyncSection />}
               {label(t('legalTitle'))}

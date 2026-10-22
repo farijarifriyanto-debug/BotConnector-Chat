@@ -1,6 +1,6 @@
 import './helpers/mocks'
 import { streamCompletion } from '../src/api/api'
-import { configureLaptop, laptopId, parseLaptopId } from '../src/laptop/api'
+import { configureLaptop, laptopId, parseLaptopId, listDevices, deviceStream } from '../src/laptop/api'
 
 jest.mock('expo/fetch', () => ({ fetch: jest.fn() }))
 const mockFetch = jest.requireMock('expo/fetch').fetch as jest.Mock
@@ -34,5 +34,21 @@ describe('laptop (BotConnector Local) transport', () => {
     mockFetch.mockImplementation(async (url: string, init: { body?: string }) => json({ result: JSON.parse(init.body!).method === 'models.list' ? [] : {} }))
     await expect((async () => { for await (const _ of streamCompletion({ model: laptopId('dev1', 'ollama', 'gone'), messages: [] })) { /* none */ } })()).rejects.toMatchObject({ kind: 'unavailable' })
     expect(mockFetch.mock.calls.every(c => String(c[0]).includes('/v1/client/devices/'))).toBe(true)
+  })
+
+  it('surfaces the capabilities the laptop advertised, and defaults to none', async () => {
+    mockFetch.mockResolvedValueOnce(json({ data: [
+      { id: 'd1', name: 'Laptop', online: true, capabilities: ['agent.start', 'agent.stream'] },
+      { id: 'd2', name: 'Old laptop', online: false },
+    ] }))
+    const rows = await listDevices()
+    expect(rows[0].capabilities).toEqual(['agent.start', 'agent.stream'])
+    expect(rows[1].capabilities).toEqual([])
+  })
+
+  it('deviceStream sets SSE headers and maps a device error code', async () => {
+    mockFetch.mockResolvedValueOnce({ ok: false, status: 429, json: async () => ({ error: { code: 'agent_capacity' } }) })
+    await expect(deviceStream('d1', { method: 'agent.stream', params: { sessionId: 's1' } })).rejects.toMatchObject({ code: 'agent_capacity', status: 429 })
+    expect(mockFetch.mock.calls[0][1].headers.accept).toBe('text/event-stream')
   })
 })
