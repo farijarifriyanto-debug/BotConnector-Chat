@@ -3,13 +3,11 @@ import Storage from 'expo-sqlite/kv-store'
 import { AGENT_SESSION_KEY, useAgent } from '../src/agent/store'
 import { emptyView } from '../src/agent/reduce'
 
-jest.mock('../src/agent/notify', () => ({ notifyApproval: jest.fn(async () => true) }))
 jest.mock('../src/agent/api', () => ({
   agentSession: jest.fn(), agentStart: jest.fn(), agentPrompt: jest.fn(),
   agentApprove: jest.fn(), agentCancel: jest.fn(), readAgentStream: jest.fn(),
 }))
 const api = jest.requireMock('../src/agent/api')
-const notify = jest.requireMock('../src/agent/notify')
 
 const live = (frames: unknown[], end = false) => (async function* () {
   for (const f of frames) yield f
@@ -121,23 +119,20 @@ describe('agent session store', () => {
     useAgent.getState().detach()
   })
 
-  it('notifies once per approval request, and stays silent while the session screen is open', async () => {
+  it('flags attention when an approval arrives while the session sheet is closed, and clears it when opened', async () => {
     api.agentSession.mockResolvedValue({ id: 's1', messages: [] })
     api.readAgentStream.mockReturnValue(live([
       { event: { item: { type: 'approval_request', requestId: 'r1', tool: 'edit', target: 'a.ts' } } },
       { event: { item: { type: 'approval_request', requestId: 'r1', tool: 'edit', target: 'a.ts' } } },
     ]))
+    useAgent.setState({ sheet: 'closed', attention: false })
     await useAgent.getState().attach('d1', 's1', null)
     await new Promise(r => setTimeout(r, 10))
-    expect(notify.notifyApproval).toHaveBeenCalledTimes(1)
-    expect(notify.notifyApproval.mock.calls[0][0]).toMatchObject({ requestId: 'r1' })
-
-    notify.notifyApproval.mockClear()
-    useAgent.setState({ sheet: 'session', view: { ...emptyView, pending: null } })
+    expect(useAgent.getState().attention).toBe(true)
+    useAgent.setState({ sheet: 'session', attention: false })
     api.readAgentStream.mockReturnValue(live([{ event: { item: { type: 'approval_request', requestId: 'r2', tool: 'bash' } } }]))
     await useAgent.getState().attach('d1', 's2', null)
     await new Promise(r => setTimeout(r, 10))
-    expect(notify.notifyApproval).not.toHaveBeenCalled()
+    expect(useAgent.getState().attention).toBe(false)
     useAgent.getState().detach()
-  })
-})
+  })})

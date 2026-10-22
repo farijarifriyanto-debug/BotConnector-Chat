@@ -1,10 +1,7 @@
-import Storage from 'expo-sqlite/kv-store'
+﻿import Storage from 'expo-sqlite/kv-store'
 import { create } from 'zustand'
 import { agentApprove, agentCancel, agentPrompt, agentSession, agentStart, readAgentStream } from './api'
-import { notifyApproval } from './notify'
 import { appendUser, baselineToView, emptyView, reduceFrame } from './reduce'
-import { t } from '../i18n/strings'
-import { useSettings } from '../store/settings'
 import type { AgentApprovalAnswer, AgentView } from './types'
 
 export const AGENT_SESSION_KEY = 'bc.agent.session.v1'
@@ -24,8 +21,10 @@ interface AgentState {
   busy: boolean
   /** which agent sheet the root renders; a notification tap can open 'session' from anywhere */
   sheet: AgentSheetState
-  /** last session this device remembered, offered as "continue" in the picker */
+  /** last session this device remembered, offered as `continue` in the picker */
   resume: Target | null
+  /** an approval arrived while the session sheet was closed */
+  attention: boolean
   attach(deviceId: string, sessionId: string, cwd?: string | null): Promise<void>
   start(deviceId: string, cwd: string): Promise<string>
   send(text: string): Promise<boolean>
@@ -85,16 +84,10 @@ async function loop(get: () => AgentState, set: (partial: Partial<AgentState> | 
         failures = 0
         set((s: AgentState) => ({ view: reduceFrame(s.view, frame) }))
         const pending = get().view.pending
-        if (pending && pending.requestId !== notifiedRequestId && get().sheet !== 'session') {
+        if (pending && pending.requestId !== notifiedRequestId) {
           notifiedRequestId = pending.requestId
-          void notifyApproval({
-            title: t(useSettings.getState().lang, 'agentNotifyTitle'),
-            body: t(useSettings.getState().lang, 'agentNotifyBody', {
-              tool: pending.tool || 'tool',
-              target: pending.target || '',
-            }),
-            requestId: pending.requestId,
-          }).catch(() => {})
+          // The phone may be on another screen: flag it so the root shows an attention banner.
+          if (get().sheet !== 'session') set({ attention: true })
         }
         markFirstFrame()
       }
@@ -128,6 +121,7 @@ export const useAgent = create<AgentState>((set, get) => ({
   busy: false,
   sheet: 'closed',
   resume: readPersisted(),
+  attention: false,
 
   async attach(deviceId, sessionId, cwd = null) {
     stopLoop()
@@ -169,7 +163,7 @@ export const useAgent = create<AgentState>((set, get) => ({
     set({ busy: true })
     try {
       await agentApprove(deviceId, sessionId, pending.requestId, answer)
-      set((s: AgentState) => ({ view: { ...s.view, pending: null, turn: 'running' } }))
+      set((s: AgentState) => ({ view: { ...s.view, pending: null, turn: 'running' }, attention: false }))
     } catch (error) {
       set((s: AgentState) => ({ view: { ...s.view, error: codeOf(error) } }))
     } finally {
@@ -207,7 +201,7 @@ export const useAgent = create<AgentState>((set, get) => ({
   },
 
   async openSession(target) {
-    set({ sheet: 'session' })
+    set({ sheet: 'session', attention: false })
     await get().attach(target.deviceId, target.sessionId, target.cwd)
   },
 

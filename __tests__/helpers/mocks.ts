@@ -12,6 +12,5 @@ jest.mock('expo-apple-authentication', () => ({
   AppleAuthenticationScope: { FULL_NAME: 0, EMAIL: 1 }, AppleAuthenticationButtonType: { SIGN_IN: 0, CONTINUE: 1 }, AppleAuthenticationButtonStyle: { WHITE: 0, BLACK: 2 },
   AppleAuthenticationButton: (p: { testID?: string; onPress: () => void }) => { const { Pressable } = require('react-native'); return require('react').createElement(Pressable, { testID: p.testID, onPress: p.onPress, accessibilityRole: 'button' }) },
 }))
-jest.mock('expo-notifications', () => ({ getPermissionsAsync: jest.fn(async () => ({ granted: true })), requestPermissionsAsync: jest.fn(async () => ({ granted: true })), scheduleNotificationAsync: jest.fn(async () => 'n1'), addNotificationResponseReceivedListener: jest.fn(() => ({ remove: jest.fn() })) }))
 jest.mock('react-native-webview', () => ({ WebView: () => null }))
 export {}
