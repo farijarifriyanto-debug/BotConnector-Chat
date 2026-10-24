@@ -13,6 +13,7 @@ import type { DeleteFailure } from '../auth/session'
 import { AppleButton } from './AppleButton'
 import { Icon } from './Icons'
 import { LanguageSheet } from './LanguageSheet'
+import { AgentSheet } from './AgentSheet'
 import { LaptopSheet } from './LaptopSheet'
 import { LocalModelsSheet } from './LocalModelsSheet'
 import { PersonalizationSheet } from './PersonalizationSheet'
@@ -29,7 +30,7 @@ const cap = (x: string) => x.charAt(0).toUpperCase() + x.slice(1)
 export function SettingsSheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const th = useTheme(), t = useT(), s = useSettings(), account = useAuth(a => a.account), guest = useAuth(a => a.status === 'guest')
   const apple = useAuth(a => a.apple), appleLinked = useAuth(a => a.appleLinked), [linkMsg, setLinkMsg] = useState<string | null>(null)
-  const [providers, setProviders] = useState(false), [local, setLocal] = useState(false), [personal, setPersonal] = useState(false), [laptop, setLaptop] = useState(false), [langOpen, setLangOpen] = useState(false), [usage, setUsage] = useState(false), [search, setSearch] = useState(false), [deleting, setDeleting] = useState(false), [pw, setPw] = useState(''), [phrase, setPhrase] = useState(''), [busy, setBusy] = useState(false), [err, setErr] = useState<DeleteError | null>(null)
+  const [providers, setProviders] = useState(false), [local, setLocal] = useState(false), [personal, setPersonal] = useState(false), [laptop, setLaptop] = useState(false), [agentOpen, setAgentOpen] = useState(false), [langOpen, setLangOpen] = useState(false), [usage, setUsage] = useState(false), [search, setSearch] = useState(false), [deleting, setDeleting] = useState(false), [pw, setPw] = useState(''), [phrase, setPhrase] = useState(''), [busy, setBusy] = useState(false), [err, setErr] = useState<DeleteError | null>(null)
   const viaApple = appleLinked === true   // Apple HIG: an Apple account is never asked for a password; Apple confirms it is the owner
   const canDelete = !busy && phrase.trim() === DELETE_PHRASE && (viaApple || !!pw)
   const scene = useShot(x => x.scene)
@@ -122,6 +123,7 @@ export function SettingsSheet({ visible, onClose }: { visible: boolean; onClose:
               <Pressable testID="open-search" onPress={() => setSearch(true)} accessibilityRole="button" style={{ marginTop: 10, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: th.lineStrong, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}><Text style={{ color: th.ink, fontWeight: '600' }}>{t('srchTitle')}</Text><Icon name="Chevron" size={16} color={th.muted} /></Pressable>
               <Pressable testID="open-providers" onPress={() => setProviders(true)} accessibilityRole="button" style={{ marginTop: 10, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: th.lineStrong, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}><Text style={{ color: th.ink, fontWeight: '600' }}>{t('provTitle')}</Text><Icon name="Chevron" size={16} color={th.muted} /></Pressable>
               {!guest && <Pressable testID="open-laptop" onPress={() => setLaptop(true)} accessibilityRole="button" style={{ marginTop: 10, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: th.lineStrong, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}><Text style={{ color: th.ink, fontWeight: '600' }}>{t('laptop')}</Text><Icon name="Chevron" size={16} color={th.muted} /></Pressable>}
+              {!guest && <Pressable testID="open-agent" onPress={() => setAgentOpen(true)} accessibilityRole="button" style={{ marginTop: 10, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: th.lineStrong, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}><Text style={{ color: th.ink, fontWeight: '600' }}>{t('agent')}</Text><Icon name="Chevron" size={16} color={th.muted} /></Pressable>}
               <Pressable testID="open-local" onPress={() => setLocal(true)} accessibilityRole="button" style={{ marginTop: 10, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: th.lineStrong, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}><Text style={{ color: th.ink, fontWeight: '600' }}>{t('locManage')}</Text><Icon name="Chevron" size={16} color={th.muted} /></Pressable>
               {!guest && <SyncSection />}
               {label(t('legalTitle'))}
@@ -140,6 +142,7 @@ export function SettingsSheet({ visible, onClose }: { visible: boolean; onClose:
       <LanguageSheet visible={langOpen} onClose={() => setLangOpen(false)} />
       {!guest && <UsageSheet visible={usage} onClose={() => setUsage(false)} />}
       <LaptopSheet visible={laptop} onClose={() => setLaptop(false)} onUsed={onClose} />
+      {!guest && <AgentSheet visible={agentOpen} onClose={() => setAgentOpen(false)} />}
       <PersonalizationSheet visible={personal} onClose={() => setPersonal(false)} />
       <ProvidersSheet visible={providers} onClose={() => setProviders(false)} />
       <LocalModelsSheet visible={local} onClose={() => setLocal(false)} onUsed={onClose} />
