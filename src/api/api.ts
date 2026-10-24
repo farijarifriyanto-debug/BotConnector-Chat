@@ -268,3 +268,21 @@ async function* streamOnce(body: Record<string, unknown>, signal?: AbortSignal):
     }
   } finally { try { reader.releaseLock?.() } catch { /* a read was still pending (stalled stream): the reader was cancelled above */ } }
 }
+
+/** Voice input: sends the recorded clip and returns what the person said. */
+export async function transcribeAudio(req: { audioBase64: string; mime?: string; language?: string }, signal?: AbortSignal): Promise<{ text: string; durationSeconds: number | null }> {
+  const timeout = new AbortController(); const timer = setTimeout(() => timeout.abort(), 180_000)
+  const onAbort = () => timeout.abort(); signal?.addEventListener('abort', onAbort)
+  try {
+    const j = await postJson<{ text?: string; duration_seconds?: number | null }>('/v1/audio/transcriptions', {
+      audio_base64: req.audioBase64,
+      ...(req.mime ? { mime: req.mime } : {}),
+      ...(req.language ? { language: req.language } : {}),
+    }, timeout.signal)
+    if (typeof j?.text !== 'string' || !j.text.trim()) throw new ChatError('unavailable')
+    return { text: j.text, durationSeconds: typeof j.duration_seconds === 'number' ? j.duration_seconds : null }
+  } catch (e) {
+    if ((e as Error)?.name === 'AbortError') throw new ChatError('aborted')
+    throw e
+  } finally { clearTimeout(timer); signal?.removeEventListener('abort', onAbort) }
+}
