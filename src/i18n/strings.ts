@@ -74,6 +74,7 @@ const en = {
   dAcctApple: 'Confirm with Apple', dAcctAppleNote: 'This account uses Sign in with Apple, so no password is needed. Apple will ask you to confirm it is you.', dAcctAppleMismatch: 'That Apple ID does not belong to this account.',
   dAcctReauthNote: 'Signed up with Google or GitHub, or do not know your password? Type the phrase above, then confirm by signing in again.', dAcctReauth: 'Confirm by signing in again',
   dAcctReauthFailed: 'Signing in again did not complete, so nothing was deleted. Please try again.', dAcctReauthOther: 'You signed in to a different account, so nothing was deleted. Sign in with the account you want to delete.',
+  msgMeta: 'Names and times', msgMetaOn: 'Show', msgMetaOff: 'Hide', thinkingLive: 'Thinking… {t}s', thoughtDone: 'Thought for {t}s', latency: '{t}s',
 } as const
 
 export type Key = keyof typeof en
@@ -149,6 +150,7 @@ const id: Record<Key, string> = {
   dAcctApple: 'Konfirmasi dengan Apple', dAcctAppleNote: 'Akun ini memakai Sign in with Apple, jadi tidak perlu password. Apple akan meminta Anda memastikan ini memang Anda.', dAcctAppleMismatch: 'Apple ID itu bukan milik akun ini.',
   dAcctReauthNote: 'Daftar lewat Google atau GitHub, atau lupa password? Ketik frasa di atas, lalu konfirmasi dengan masuk ulang.', dAcctReauth: 'Konfirmasi dengan masuk ulang',
   dAcctReauthFailed: 'Masuk ulang tidak selesai, jadi tidak ada yang dihapus. Silakan coba lagi.', dAcctReauthOther: 'Anda masuk ke akun lain, jadi tidak ada yang dihapus. Masuk dengan akun yang ingin dihapus.',
+  msgMeta: 'Nama dan waktu', msgMetaOn: 'Tampilkan', msgMetaOff: 'Sembunyikan', thinkingLive: 'Berpikir… {t} dtk', thoughtDone: 'Berpikir {t} dtk', latency: '{t} dtk',
 }
 export const STRINGS: Record<Lang, Partial<Record<Key, string>>> & { en: Record<Key, string> } = { en: en as Record<Key, string>, id, ...PACKS } as never
 void LANG_CODES

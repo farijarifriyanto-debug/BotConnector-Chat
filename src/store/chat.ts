@@ -78,6 +78,15 @@ export const useChat = create<ChatState>((set, get) => {
       cur = { ...cur, messages: cur.messages.map(x => (x.id === aId ? { ...x, ...patch } : x)) }
       if (now) { if (timer) clearTimeout(timer); flush() } else if (!timer) timer = setTimeout(flush, 60)   // at most ~16 repaints a second while streaming
     }
+    // "Thought for 5.2s": the clock starts at the first reasoning token and stops as soon as the answer text begins.
+    let reasoningAt = 0, reasoningMs = 0
+    const noteReasoning = (r: string) => {
+      if (!reasoningAt) { reasoningAt = Date.now(); update({ reasoning: r, reasoningAt }) } else update({ reasoning: r })
+    }
+    const noteText = (c: string) => {
+      if (reasoningAt && !reasoningMs && c) { reasoningMs = Math.max(1, Date.now() - reasoningAt); update({ reasoningMs }) }
+      update({ content: c })
+    }
     try {
       const question = [...history].reverse().find(x => x.role === 'user')?.content.trim() ?? ''
       if (opts.image) {
@@ -90,11 +99,11 @@ export const useChat = create<ChatState>((set, get) => {
       } else if (opts.research && caps?.web !== false) {
         const planner = isPrivate(m) ? m : models.find(x => x.access === 'free' && x.available && !x.reasoning) ?? m   // a local or custom model plans its own research; its questions never go to a cloud model
         const res = await research({ question, history: toApiMessages('', history.slice(0, -1), false), system: composedSystem(base, convs), writer: m, planner, signal,
-          onProgress: p => set({ status: { research: p } }), onText: c => update({ content: c }), onReasoning: r => update({ reasoning: r }) })
+          onProgress: p => set({ status: { research: p } }), onText: c => noteText(c), onReasoning: r => noteReasoning(r) })
         update({ content: res.content, reasoning: res.reasoning || undefined, sources: res.sources, searched: res.queries, research: { searches: res.searches, pages: res.pages }, ms: Date.now() - t0 }, true)
       } else {
         const res = await runAssistant({ model: m, messages: toApiMessages(composedSystem(base, convs), history, m.vision), web: opts.web && caps?.web !== false, fileIds: isPrivate(m) ? [] : fileIdsOf(history), signal,
-          onText: c => update({ content: c }), onReasoning: r => update({ reasoning: r }), onStatus: s => set({ status: s }) })
+          onText: c => noteText(c), onReasoning: r => noteReasoning(r), onStatus: s => set({ status: s }) })
         update({ content: res.content, reasoning: res.reasoning || undefined, sources: res.sources.length ? res.sources : undefined, searched: res.queries.length ? res.queries : undefined, ms: Date.now() - t0 }, true)
       }
       const firstQ = history.filter(x => x.role === 'user')

@@ -47,6 +47,10 @@ export interface Msg {
   /** what the bubble shows when `content` is a long generated prompt (writing tools, OCR) */
   shown?: string
   reasoning?: string
+  /** when the first reasoning token arrived (drives the live "thinking" counter) */
+  reasoningAt?: number
+  /** how long the model reasoned before the answer started, in ms */
+  reasoningMs?: number
   attachments?: Attachment[]
   sources?: Source[]
   searched?: string[]

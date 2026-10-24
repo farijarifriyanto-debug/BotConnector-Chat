@@ -10,16 +10,33 @@ import { imageUri } from '../lib/images'
 import { plainText } from '../lib/speech'
 import type { Progress } from '../lib/research'
 import { ChatError, type Msg } from '../lib/types'
+import { useAuth } from '../store/auth'
 import { useRatings } from '../store/ratings'
 import { useSettings } from '../store/settings'
 import type { RunStatus } from '../store/chat'
-import { useTheme } from '../theme/theme'
+import { useTheme, type Theme } from '../theme/theme'
 import { Icon } from './Icons'
 import { Markdown } from './Markdown'
 
 const domain = (u: string) => { try { return new URL(u).hostname.replace(/^www\./, '') } catch { return u } }
 const PHASES = ['plan', 'search', 'read', 'check', 'write'] as const
 const PHASE_KEY = { plan: 'researchPlan', search: 'researchSearch', read: 'researchRead', check: 'researchCheck', write: 'researchWrite' } as const
+
+/** The same stamp the reference app prints next to a message: 2026-10-24 14:30:07. */
+export function stamp(ts: number): string {
+  const d = new Date(ts), p = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`
+}
+/** Seconds with one decimal, comma for Indonesian (5,2 dtk). */
+export function secondsLabel(ms: number, lang: Lang): string {
+  const s = (Math.max(0, ms) / 1000).toFixed(1)
+  return lang === 'id' ? s.replace('.', ',') : s
+}
+const initialOf = (name: string) => (name.trim()[0] ?? '?').toUpperCase()
+
+function Avatar({ children, th, testID }: { children: React.ReactNode; th: Theme; testID?: string }) {
+  return <View testID={testID} style={{ width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: th.surface3, overflow: 'hidden' }}>{children}</View>
+}
 
 /** Live progress of a Deep research run: finished steps ticked, the current one with what it is doing. */
 export function ResearchCard({ p }: { p: Progress }) {
@@ -44,14 +61,57 @@ export function errorLine(code: string, lang: Lang, t: ReturnType<typeof useT>):
   return errorText(lang, new ChatError(k as ChatError['kind'], { retryAfterSeconds: s ? Number(s) : undefined }))
 }
 
+/** Name + time above a message, with the user's avatar on the right and the answer's mark on the left. */
+function Meta({ msg, th, user }: { msg: Msg; th: Theme; user: boolean }) {
+  const t = useT(), account = useAuth(s => s.account)
+  const who = user ? (account?.display_name?.trim() || account?.email?.split('@')[0] || t('you')) : (msg.model || t('assistant'))
+  return (
+    <View testID={user ? 'meta-user' : 'meta-assistant'} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, justifyContent: user ? 'flex-end' : 'flex-start', marginBottom: 8 }}>
+      {user && <View style={{ alignItems: 'flex-end', flexShrink: 1 }}><Text numberOfLines={1} style={{ color: th.muted, fontSize: 13, fontWeight: '500' }}>{who}</Text><Text testID="msg-time" style={{ color: th.muted2, fontSize: 11, marginTop: 2 }}>{stamp(msg.createdAt)}</Text></View>}
+      {user
+        ? <Avatar th={th} testID="avatar-user"><Text style={{ color: th.accentStrong, fontSize: 13, fontWeight: '700' }}>{initialOf(who)}</Text></Avatar>
+        : <Avatar th={th} testID="avatar-assistant"><Image source={require('../../assets/bico/bico-mark.png')} style={{ width: 22, height: 22 }} resizeMode="contain" accessibilityIgnoresInvertColors /></Avatar>}
+      {!user && <View style={{ flexShrink: 1 }}><Text testID="assistant-name" numberOfLines={1} style={{ color: th.muted, fontSize: 13, fontWeight: '500' }}>{who}</Text><Text testID="msg-time" style={{ color: th.muted2, fontSize: 11, marginTop: 2 }}>{stamp(msg.createdAt)}</Text></View>}
+    </View>
+  )
+}
+
+/** Reasoning is collapsed to one line once the answer starts, with how long the model thought. */
+function ReasoningCard({ msg, streaming }: { msg: Msg; streaming: boolean }) {
+  const th = useTheme(), t = useT(), lang = useSettings(s => s.lang)
+  const [open, setOpen] = useState(false), [now, setNow] = useState(() => Date.now())
+  const live = streaming && !msg.content && !msg.reasoningMs
+  useEffect(() => {
+    if (!live) return
+    const id = setInterval(() => setNow(Date.now()), 500)
+    return () => clearInterval(id)
+  }, [live])
+  const ms = msg.reasoningMs ?? (msg.reasoningAt ? Math.max(0, now - msg.reasoningAt) : 0)
+  const text = live ? t('thinkingLive', { t: secondsLabel(ms, lang) }) : ms ? t('thoughtDone', { t: secondsLabel(ms, lang) }) : t('thought')
+  const expanded = open || live
+  return (
+    <Pressable testID="reasoning-toggle" onPress={() => setOpen(v => !v)} accessibilityRole="button" accessibilityState={{ expanded }} accessibilityLabel={text}
+      style={{ borderWidth: 1, borderStyle: 'dashed', borderColor: th.lineStrong, borderRadius: 12, padding: 10, marginBottom: 8 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+        <Text testID="reasoning-label" style={{ color: th.muted, fontWeight: '600', fontSize: 13, flexShrink: 1 }}>{text}</Text>
+        <Icon name={expanded ? 'ChevL' : 'ChevR'} size={14} color={th.muted2} />
+      </View>
+      {expanded && <Text style={{ color: th.muted, fontSize: 13, marginTop: 6 }}>{msg.reasoning}</Text>}
+    </Pressable>
+  )
+}
+
 interface Props { msg: Msg; streaming: boolean; status: RunStatus | null; isLastAssistant: boolean; canAct: boolean; onRegenerate: () => void; onReport?: () => void }
 
 function MessageViewBase({ msg, streaming, status, isLastAssistant, canAct, onRegenerate, onReport }: Props) {
-  const th = useTheme(), t = useT(), lang = useSettings(s => s.lang)
-  const [speaking, setSpeaking] = useState(false), [copied, setCopied] = useState(false), [thinking, setThinking] = useState(false)
+  const th = useTheme(), t = useT(), lang = useSettings(s => s.lang), meta = useSettings(s => s.msgMeta)
+  const [speaking, setSpeaking] = useState(false), [copied, setCopied] = useState(false)
+  const liked = useRatings(r => !!r.up[msg.id]), disliked = useRatings(r => !!r.down[msg.id])
+  useEffect(() => () => { if (speaking) void Speech.stop() }, [speaking])
   if (msg.role === 'user') return (
-    <View style={{ alignItems: 'flex-end', marginVertical: 8, paddingHorizontal: 16 }} accessibilityLabel={t('you')}>
-      <View style={{ maxWidth: '88%', backgroundColor: th.accentSoft, borderWidth: 1, borderColor: th.line, borderRadius: 18, borderBottomRightRadius: 6, paddingHorizontal: 14, paddingVertical: 10 }}>
+    <View style={{ alignItems: 'flex-end', marginVertical: 12, paddingHorizontal: 16 }} accessibilityLabel={t('you')}>
+      {meta && <Meta msg={msg} th={th} user />}
+      <View style={{ maxWidth: '75%', backgroundColor: th.accentSoft, borderWidth: 1, borderColor: th.line, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 12 }}>
         {!!msg.attachments?.length && (
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: msg.content ? 8 : 0 }}>
             {msg.attachments.map((a, i) => a.kind === 'image' && a.dataUrl
@@ -62,23 +122,18 @@ function MessageViewBase({ msg, streaming, status, isLastAssistant, canAct, onRe
       </View>
     </View>
   )
-  const liked = useRatings(r => !!r.up[msg.id]), disliked = useRatings(r => !!r.down[msg.id])
   const speak = () => {
     if (speaking) { void Speech.stop(); setSpeaking(false); return }
     const text = plainText(msg.content); if (!text) return
     setSpeaking(true)
     Speech.speak(text, { language: bcp47(lang), onDone: () => setSpeaking(false), onStopped: () => setSpeaking(false), onError: () => setSpeaking(false) })
   }
-  useEffect(() => () => { if (speaking) void Speech.stop() }, [speaking])
   const copy = async () => { await Clipboard.setStringAsync(msg.content || msg.image?.prompt || ''); setCopied(true); setTimeout(() => setCopied(false), 1500) }
   const showTyping = streaming && !msg.content && !status && !msg.reasoning
   return (
-    <View style={{ marginVertical: 10, paddingHorizontal: 16 }} accessibilityLabel={t('assistant')}>
-      {!!msg.reasoning && (
-        <Pressable onPress={() => setThinking(v => !v)} style={{ borderWidth: 1, borderStyle: 'dashed', borderColor: th.lineStrong, borderRadius: 12, padding: 10, marginBottom: 8 }}>
-          <Text style={{ color: th.muted, fontWeight: '600', fontSize: 13 }}>{streaming && !msg.content ? t('thinking') + '…' : t('thought')}</Text>
-          {(thinking || (streaming && !msg.content)) && <Text style={{ color: th.muted, fontSize: 13, marginTop: 6 }}>{msg.reasoning}</Text>}
-        </Pressable>)}
+    <View style={{ marginVertical: 12, paddingHorizontal: 20 }} accessibilityLabel={t('assistant')}>
+      {meta && <Meta msg={msg} th={th} user={false} />}
+      {!!msg.reasoning && <ReasoningCard msg={msg} streaming={streaming} />}
       {status?.research && <View style={{ marginBottom: 8 }}><ResearchCard p={status.research} /></View>}
       {!!status && !status.research && (status.searching || status.reading) && (
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: th.surface3, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6, alignSelf: 'flex-start', marginBottom: 8, maxWidth: '100%' }}>
@@ -109,7 +164,7 @@ function MessageViewBase({ msg, streaming, status, isLastAssistant, canAct, onRe
           {isLastAssistant && canAct && <Pressable onPress={onRegenerate} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('regenerate')} style={{ flexDirection: 'row', alignItems: 'center', gap: 5, padding: 6 }}><Icon name="Refresh" size={16} color={th.muted} /><Text style={{ color: th.muted, fontSize: 12.5 }}>{t('regenerate')}</Text></Pressable>}
           <Pressable testID="rate-up" onPress={() => useRatings.getState().toggleUp(msg.id)} hitSlop={8} accessibilityRole="button" accessibilityState={{ selected: liked }} accessibilityLabel={t('rateUp')} style={{ padding: 6 }}><Icon name="ThumbUp" size={16} color={liked ? th.accentStrong : th.muted} strokeWidth={liked ? 2.5 : 1.8} /></Pressable>
           {!!onReport && <Pressable testID="report-open" onPress={onReport} hitSlop={8} accessibilityRole="button" accessibilityState={{ selected: disliked }} accessibilityLabel={t('rpOpen')} style={{ padding: 6 }}><Icon name="ThumbDown" size={16} color={disliked ? th.danger : th.muted} strokeWidth={disliked ? 2.5 : 1.8} /></Pressable>}
-          {!!msg.model && <Text numberOfLines={1} style={{ color: th.muted2, fontSize: 12, flexShrink: 1, marginLeft: 4 }}>{msg.model}</Text>}
+          {!!msg.ms && <Text testID="msg-latency" style={{ color: th.muted2, fontSize: 12, marginLeft: 4 }}>{t('latency', { t: secondsLabel(msg.ms, lang) })}</Text>}
         </View>)}
       {!streaming && !msg.content && !!msg.error && isLastAssistant && canAct && (
         <Pressable onPress={onRegenerate} accessibilityRole="button" style={{ flexDirection: 'row', alignItems: 'center', gap: 5, padding: 6, marginTop: 4 }}><Icon name="Refresh" size={16} color={th.muted} /><Text style={{ color: th.muted, fontSize: 13 }}>{t('regenerate')}</Text></Pressable>)}
