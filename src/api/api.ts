@@ -85,6 +85,23 @@ export async function fetchModels(): Promise<ChatModel[]> {
 
 // ---------- image generation ----------
 export interface ImageModel { id: string; name: string; access: Access; sizes: string[]; refs: boolean }
+/** Everything the media catalog lists, with its modality, so each screen can offer only its own kind. */
+export interface MediaModel { id: string; name: string; modality: string; access: Access; refs: boolean }
+export async function fetchMediaModels(): Promise<MediaModel[]> {
+  const j = await getJson<{ data?: any[] }>('/v1/media/models')
+  return (j.data ?? []).filter(m => m && typeof m.id === 'string')
+    .map((m): MediaModel => ({
+      id: String(m.id),
+      name: String(m.name || prettyId(String(m.id))),
+      modality: String(m.botconnector_modality || 'image'),
+      access: accessOf(m.botconnector_access),
+      refs: m.supports_reference_images === true,
+    }))
+}
+/** Voice output models: the same catalog, audio modality only. */
+export async function fetchVoiceModels(): Promise<MediaModel[]> {
+  return (await fetchMediaModels()).filter(m => m.modality === 'audio').sort((a, b) => a.name.localeCompare(b.name))
+}
 export async function fetchImageModels(): Promise<ImageModel[]> {
   const j = await getJson<{ data?: any[] }>('/v1/media/models')
   return (j.data ?? []).filter(m => m && typeof m.id === 'string' && m.botconnector_modality === 'image')
