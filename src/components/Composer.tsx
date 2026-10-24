@@ -20,6 +20,8 @@ interface Props {
   researchAvailable?: boolean
   /** the model button in the action row opens the model list, like the reference app's composer */
   onPickModel?: () => void
+  /** shown when web search is not available yet: tapping it leads to the search settings instead of doing nothing */
+  onWebUnavailable?: () => void
   /** reasoning on/off for models that can think */
   think?: boolean
   onThinkChange?: (on: boolean) => void
@@ -34,7 +36,7 @@ interface Props {
  * icon buttons, and whatever no longer fits collected under "+". Send becomes stop while an
  * answer streams, and a message typed in the meantime waits its turn instead of disappearing.
  */
-export function Composer({ busy, model, webAvailable, onSend, onStop, image, files, researchAvailable = true, onPickModel, think = true, onThinkChange, queued, onQueue, onCancelQueue }: Props) {
+export function Composer({ busy, model, webAvailable, onSend, onStop, image, files, researchAvailable = true, onPickModel, onWebUnavailable, think = true, onThinkChange, queued, onQueue, onCancelQueue }: Props) {
   const th = useTheme(), t = useT(), att = useAttachments()
   const [text, setText] = useState(''), [web, setWeb] = useState(false), [research, setResearch] = useState(false), [img, setImg] = useState(false), [note, setNote] = useState<string | null>(null)
   const [rowW, setRowW] = useState(0), [more, setMore] = useState(false)
@@ -90,6 +92,7 @@ export function Composer({ busy, model, webAvailable, onSend, onStop, image, fil
 
   // What fits next to the model button, attach and send; the rest waits under "+".
   const actions = [
+    ...(!webAvailable && onWebUnavailable ? [{ id: 'web' as const, label: t('web'), icon: 'Globe' as const, on: false, toggle: onWebUnavailable }] : []),
     ...(webAvailable ? [{ id: 'web' as const, label: t('web'), icon: 'Globe' as const, on: web, toggle: () => setWeb(v => !v) }] : []),
     ...(webAvailable && researchAvailable ? [{ id: 'research' as const, label: t('researchPill'), icon: 'Research' as const, on: research, toggle: () => { setResearch(v => !v); setImg(false) } }] : []),
     ...(image?.available ? [{ id: 'image' as const, label: t('imgPill'), icon: 'Image' as const, on: img, toggle: () => { setImg(v => !v); setResearch(false) } }] : []),

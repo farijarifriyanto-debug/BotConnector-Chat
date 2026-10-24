@@ -116,4 +116,18 @@ describe('Composer attachments', () => {
     await fireEvent.press(r.getByTestId('queued-cancel'))
     expect(onCancelQueue).toHaveBeenCalled()
   })
+
+  it('keeps the web button visible when search is not available, leading to the settings', async () => {
+    const onWebUnavailable = jest.fn()
+    const r = await render(<Composer busy={false} model={model(false)} webAvailable={false} onSend={() => {}} onStop={() => {}} onWebUnavailable={onWebUnavailable} />)
+    const globe = r.getByTestId('pill-web')
+    expect(globe.props.accessibilityState.selected).toBe(false)
+    await fireEvent.press(globe)
+    expect(onWebUnavailable).toHaveBeenCalledTimes(1)
+  })
+
+  it('hides the web button only when the screen offers nothing to do about it', async () => {
+    const r = await render(<Composer busy={false} model={model(false)} webAvailable={false} onSend={() => {}} onStop={() => {}} />)
+    expect(r.queryByTestId('pill-web')).toBeNull()
+  })
 })
