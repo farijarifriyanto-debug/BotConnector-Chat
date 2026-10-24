@@ -1,11 +1,12 @@
 import { streamCompletion, webFetch, webSearch, type ToolCallDelta } from '../api/api'
 import type { ChatModel, Source } from './types'
+import type { ToolDef } from './toolSchema'
 
 export interface ApiMessage { role: 'system' | 'user' | 'assistant' | 'tool'; content: unknown; tool_calls?: unknown[]; tool_call_id?: string }
 
 export const MAX_TOOL_ROUNDS = 5
 
-export const TOOLS = [
+export const TOOLS: ToolDef[] = [
   { type: 'function', function: { name: 'web_search', description: 'Search the internet for current or factual information (news, prices, recent events, anything you are not sure about). Returns titles, links and snippets.', parameters: { type: 'object', properties: { query: { type: 'string', description: 'Search query' } }, required: ['query'] } } },
   { type: 'function', function: { name: 'read_url', description: 'Open a web page and read its text. Use after web_search when a result needs a closer look.', parameters: { type: 'object', properties: { url: { type: 'string', description: 'Full http(s) URL' } }, required: ['url'] } } },
 ]
@@ -15,6 +16,8 @@ export interface RunOptions {
   messages: ApiMessage[]
   web: boolean
   fileIds: string[]
+  /** the tool definitions to offer; the chat store passes the built-in ones with the person's wording applied */
+  tools?: ToolDef[]
   signal?: AbortSignal
   onText: (text: string) => void
   onReasoning: (text: string) => void
@@ -64,7 +67,7 @@ export async function runAssistant(o: RunOptions): Promise<RunResult> {
     let roundText = '', finish = ''
     const body: Record<string, unknown> = { model: o.model.id, messages }
     if (o.fileIds.length) body.botconnector_file_ids = o.fileIds.slice(0, 10)
-    if (useTools && round < MAX_TOOL_ROUNDS) body.tools = TOOLS
+    if (useTools && round < MAX_TOOL_ROUNDS) body.tools = o.tools ?? TOOLS
     for await (const d of streamCompletion(body, o.signal)) {
       if (d.reasoning) { reasoning += d.reasoning; o.onReasoning(reasoning) }
       if (d.content) { roundText += d.content; content += d.content; o.onText(content) }
