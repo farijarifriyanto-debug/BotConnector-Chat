@@ -20,6 +20,16 @@ import { useSearch } from './search'
 import { instructionBlock } from './instructions'
 import { activeBooks } from './worldbook'
 import { activatedEntries, applyLore } from '../lib/worldbook'
+import Clipboard from 'expo-clipboard'
+import { DEVICE_TOOLS, MEMORY_TOOLS, runLocalTool, type LocalContext } from '../lib/tools/local'
+
+/** Memory, clipboard and time reach the phone through this, so the tool code never imports a store. */
+const localContext: LocalContext = {
+  memory: () => useChat.getState().convs.find(c => c.id === MEMORY_ID)?.memory ?? [],
+  saveMemory: next => useChat.getState().saveMemory({ memory: next }),
+  clipboardRead: () => Clipboard.getStringAsync(),
+  clipboardWrite: async text => { await Clipboard.setStringAsync(text)  },
+}
 import { useSettings } from './settings'
 
 const TITLE_PROMPT = 'Write a short title (at most 6 words) for this conversation, in the same language as the user. No quotes, no trailing punctuation. Reply with the title only.'
@@ -108,7 +118,14 @@ export const useChat = create<ChatState>((set, get) => {
         update({ content: res.content, reasoning: res.reasoning || undefined, sources: res.sources, searched: res.queries, research: { searches: res.searches, pages: res.pages }, ms: Date.now() - t0 }, true)
       } else {
         const messages = toApiMessages(composedSystem(base, convs, instructionBlock()), history, m.vision)
-        const res = await runAssistant({ model: m, messages: applyLore(messages, activatedEntries(activeBooks(), messages)), tools: applyOverrides(TOOLS, useToolSchema.getState().tools), web: opts.web && caps?.web !== false, fileIds: isPrivate(m) ? [] : fileIdsOf(history), signal,
+        const webOn = opts.web && caps?.web !== false
+        const settings = useSettings.getState(), overrides = useToolSchema.getState().tools
+        const tools = [
+          ...(webOn ? applyOverrides(TOOLS, overrides) : []),
+          ...(settings.toolsMemory ? applyOverrides(MEMORY_TOOLS, overrides) : []),
+          ...(settings.toolsDevice ? applyOverrides(DEVICE_TOOLS, overrides) : []),
+        ]
+        const res = await runAssistant({ model: m, messages: applyLore(messages, activatedEntries(activeBooks(), messages)), tools, onTool: (name, args) => runLocalTool(name, args, localContext), web: webOn, fileIds: isPrivate(m) ? [] : fileIdsOf(history), signal,
           onText: c => noteText(c), onReasoning: r => noteReasoning(r), onStatus: s => set({ status: s }) })
         update({ content: res.content, reasoning: res.reasoning || undefined, sources: res.sources.length ? res.sources : undefined, searched: res.queries.length ? res.queries : undefined, ms: Date.now() - t0 }, true)
       }

@@ -18,6 +18,8 @@ export interface RunOptions {
   fileIds: string[]
   /** the tool definitions to offer; the chat store passes the built-in ones with the person's wording applied */
   tools?: ToolDef[]
+  /** runs a tool that is not web_search/read_url (memory, device) and returns the text the model reads */
+  onTool?: (name: string, args: Record<string, unknown>) => Promise<string>
   signal?: AbortSignal
   onText: (text: string) => void
   onReasoning: (text: string) => void
@@ -48,7 +50,7 @@ export async function runAssistant(o: RunOptions): Promise<RunResult> {
   const messages = [...o.messages]
   const sources: Source[] = [], queries: string[] = []
   let content = '', reasoning = ''
-  const useTools = o.web && o.model.tools
+  const useTools = o.model.tools && (o.tools ?? TOOLS).length > 0
 
   if (o.web) {   // the user switched web search on: always search first with their question (a model left to decide may just ask for details), then answer from the results; tool-capable models may search more
     const q = lastUserText(messages)
@@ -90,6 +92,8 @@ export async function runAssistant(o: RunOptions): Promise<RunResult> {
           o.onStatus({ reading: args.url })
           const page = await webFetch(args.url, o.signal); addSources(sources, [{ title: page.title, url: args.url }])
           result = clip(page.text, 9000) || 'The page has no readable text.'
+        } else if (o.onTool) {
+          result = await o.onTool(c.name, args as Record<string, unknown>)
         } else result = 'Invalid tool call.'
       } catch (e) {
         if ((e as { kind?: string })?.kind === 'aborted') throw e

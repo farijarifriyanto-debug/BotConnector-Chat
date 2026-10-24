@@ -25,6 +25,17 @@ describe('Tool Descriptions sheet', () => {
     expect(r.queryByTestId('tool-modified-web_search')).toBeNull()
   })
 
+  it('lists the Memory and Device tools under their own groups', async () => {
+    const r = await render(<ToolDescriptionsSheet visible onClose={() => {}} />)
+    expect(r.getByText('Search')).toBeTruthy()
+    expect(r.getByText('Memory')).toBeTruthy()
+    expect(r.getByText('Device tools')).toBeTruthy()
+    for (const name of ['memory_read', 'memory_update', 'memory_edit', 'memory_delete', 'get_time_info', 'clipboard_tool', 'calculate']) {
+      expect(r.getByTestId(`tool-${name}`)).toBeTruthy()
+    }
+    expect(r.getByTestId('tool-param-calculate-expression')).toBeTruthy()
+  })
+
   it('marks a changed tool and keeps the wording after typing settles', async () => {
     const r = await render(<ToolDescriptionsSheet visible onClose={() => {}} />)
     await fireEvent.changeText(r.getByTestId('tool-desc-web_search'), 'Cari di internet untuk berita terbaru.')
