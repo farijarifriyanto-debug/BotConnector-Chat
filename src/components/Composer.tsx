@@ -59,14 +59,18 @@ export function Composer({ busy, model, webAvailable, onSend, onStop, image, fil
       ])
     }
   }
-  const pill = (on: boolean) => ({ flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6, paddingHorizontal: on ? 12 : 9, height: 34, minWidth: 34, justifyContent: 'center' as const, borderRadius: 17, borderWidth: 1, borderColor: on ? th.accent : th.lineStrong, backgroundColor: on ? th.accentSoft : th.surface })
+  const pill = (on: boolean) => ({ flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6, paddingHorizontal: on ? 12 : 8, height: 32, minWidth: 32, justifyContent: 'center' as const, borderRadius: 16, borderWidth: 1, borderColor: on ? th.accent : th.lineStrong, backgroundColor: on ? th.accentSoft : th.surface })
+  /** The reference app's composer is a translucent, hairline-bordered box of radius 20 over a blur we cannot do in RN without a native module. */
+  const boxFill = th.dark ? 'rgba(23,27,33,0.80)' : 'rgba(255,255,255,0.86)'
+  const boxLine = th.dark ? 'rgba(243,246,244,0.10)' : 'rgba(134,147,141,0.35)'
+  const offFill = th.dark ? 'rgba(243,246,244,0.12)' : 'rgba(15,26,21,0.12)'
   const warn = hasPhotos && !model?.vision ? t('attachNeedsModel') : !att.ready && !att.hasFailed ? t('fileWait') : note
   return (
     <View style={{ paddingHorizontal: 12, paddingTop: 8, paddingBottom: 10, backgroundColor: th.bg, width: '100%', maxWidth: 760, alignSelf: 'center' }}>
       {img && <Pressable onPress={image?.onPick} accessibilityRole="button"><Text style={{ color: th.muted, fontSize: 12, textAlign: 'center', marginBottom: 6 }}>{t('imgOneShot')} · {t('imgModelRow', { m: image?.modelName ?? '' })} ›</Text></Pressable>}
       {research && <Text accessibilityRole="text" style={{ color: th.muted, fontSize: 12, textAlign: 'center', marginBottom: 6 }}>{t('researchNote')}</Text>}
       {!!warn && !img && <Text accessibilityRole="alert" style={{ color: th.muted, fontSize: 12, textAlign: 'center', marginBottom: 6 }}>{warn}</Text>}
-      <View style={{ borderWidth: 1, borderColor: th.lineStrong, borderRadius: 22, backgroundColor: th.surface, paddingHorizontal: 14, paddingTop: 10, paddingBottom: 8 }}>
+      <View style={{ borderWidth: 1, borderColor: boxLine, borderRadius: 20, backgroundColor: boxFill, paddingHorizontal: 14, paddingTop: 10, paddingBottom: 8 }}>
         {att.items.length > 0 && !img && (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingBottom: 8 }}>
             {att.items.map(a => (
@@ -80,15 +84,15 @@ export function Composer({ busy, model, webAvailable, onSend, onStop, image, fil
         <TextInput testID="composer-input" value={text} onChangeText={setText} multiline placeholder={t(img ? 'imgPlaceholder' : research ? 'researchPlaceholder' : hasPhotos ? 'placeholderFile' : 'placeholder')} placeholderTextColor={th.muted2}
           style={{ color: th.ink, fontSize: 16, lineHeight: 22, maxHeight: 150, minHeight: 24, paddingTop: 0, paddingBottom: 6 }} />
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          {!!onPickModel && <Pressable testID="pill-model" accessibilityRole="button" accessibilityLabel={model ? `${t('menuModel')}: ${model.name}` : t('menuModel')} onPress={onPickModel} style={{ width: 34, height: 34, borderRadius: 17, borderWidth: 1, borderColor: th.lineStrong, backgroundColor: th.surface, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>{model ? <ModelIcon model={model} size={26} /> : <Icon name="Boxes" size={18} color={th.muted} />}</Pressable>}
+          {!!onPickModel && <Pressable testID="pill-model" accessibilityRole="button" accessibilityLabel={model ? `${t('menuModel')}: ${model.name}` : t('menuModel')} onPress={onPickModel} style={{ width: 30, height: 30, borderRadius: 15, borderWidth: 1, borderColor: th.lineStrong, backgroundColor: th.surface, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>{model ? <ModelIcon model={model} size={24} /> : <Icon name="Boxes" size={18} color={th.muted} />}</Pressable>}
           {!img && <Pressable testID="pill-attach" accessibilityRole="button" accessibilityLabel={t('attach')} onPress={openAttach} style={pill(false)}><Icon name="Plus" size={18} color={th.muted} /></Pressable>}
-          {webAvailable && <Pressable testID="pill-web" accessibilityRole="button" accessibilityLabel={t('web')} accessibilityState={{ selected: web }} onPress={() => setWeb(v => !v)} style={pill(web)}><Icon name="Globe" size={16} color={web ? th.accentStrong : th.muted} />{web && <Text style={{ color: th.accentStrong, fontSize: 13, fontWeight: '600' }}>{t('web')}</Text>}</Pressable>}
-          {webAvailable && researchAvailable && <Pressable testID="pill-research" accessibilityRole="button" accessibilityLabel={t('researchPill')} accessibilityState={{ selected: research }} onPress={() => { setResearch(v => !v); setImg(false) }} style={pill(research)}><Icon name="Research" size={16} color={research ? th.accentStrong : th.muted} />{research && <Text style={{ color: th.accentStrong, fontSize: 13, fontWeight: '600' }}>{t('researchPill')}</Text>}</Pressable>}
-          {image?.available && <Pressable testID="pill-image" accessibilityRole="button" accessibilityLabel={t('imgPill')} accessibilityState={{ selected: img }} onPress={() => { setImg(v => !v); setResearch(false) }} style={pill(img)}><Icon name="Image" size={16} color={img ? th.accentStrong : th.muted} />{img && <Text style={{ color: th.accentStrong, fontSize: 13, fontWeight: '600' }}>{t('imgPill')}</Text>}</Pressable>}
+          {webAvailable && <Pressable testID="pill-web" accessibilityRole="button" accessibilityLabel={t('web')} accessibilityState={{ selected: web }} onPress={() => setWeb(v => !v)} style={pill(web)}><Icon name="Globe" size={18} color={web ? th.accentStrong : th.muted} />{web && <Text style={{ color: th.accentStrong, fontSize: 13, fontWeight: '600' }}>{t('web')}</Text>}</Pressable>}
+          {webAvailable && researchAvailable && <Pressable testID="pill-research" accessibilityRole="button" accessibilityLabel={t('researchPill')} accessibilityState={{ selected: research }} onPress={() => { setResearch(v => !v); setImg(false) }} style={pill(research)}><Icon name="Research" size={18} color={research ? th.accentStrong : th.muted} />{research && <Text style={{ color: th.accentStrong, fontSize: 13, fontWeight: '600' }}>{t('researchPill')}</Text>}</Pressable>}
+          {image?.available && <Pressable testID="pill-image" accessibilityRole="button" accessibilityLabel={t('imgPill')} accessibilityState={{ selected: img }} onPress={() => { setImg(v => !v); setResearch(false) }} style={pill(img)}><Icon name="Image" size={18} color={img ? th.accentStrong : th.muted} />{img && <Text style={{ color: th.accentStrong, fontSize: 13, fontWeight: '600' }}>{t('imgPill')}</Text>}</Pressable>}
           <View style={{ flex: 1 }} />
           {busy
-            ? <Pressable testID="send-stop" accessibilityRole="button" accessibilityLabel={t('stop')} onPress={onStop} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: th.accent, alignItems: 'center', justifyContent: 'center' }}><Icon name="Stop" size={16} color={th.accentInk} /></Pressable>
-            : <Pressable testID="send-go" accessibilityRole="button" accessibilityLabel={t('send')} accessibilityState={{ disabled: !can }} disabled={!can} onPress={submit} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: can ? th.accent : th.surface3, alignItems: 'center', justifyContent: 'center' }}><Icon name="Send" size={18} color={can ? th.accentInk : th.muted2} /></Pressable>}
+            ? <Pressable testID="send-stop" accessibilityRole="button" accessibilityLabel={t('stop')} onPress={onStop} style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: th.accent, alignItems: 'center', justifyContent: 'center' }}><Icon name="Stop" size={15} color={th.accentInk} /></Pressable>
+            : <Pressable testID="send-go" accessibilityRole="button" accessibilityLabel={t('send')} accessibilityState={{ disabled: !can }} disabled={!can} onPress={submit} style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: can ? th.accent : offFill, alignItems: 'center', justifyContent: 'center' }}><Icon name="Send" size={18} color={can ? th.accentInk : th.muted2} /></Pressable>}
         </View>
       </View>
     </View>
