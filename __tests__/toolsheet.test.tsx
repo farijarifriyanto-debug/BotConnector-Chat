@@ -30,7 +30,7 @@ describe('Tool Descriptions sheet', () => {
     expect(r.getByText('Search')).toBeTruthy()
     expect(r.getByText('Memory')).toBeTruthy()
     expect(r.getByText('Device tools')).toBeTruthy()
-    for (const name of ['memory_read', 'memory_update', 'memory_edit', 'memory_delete', 'get_time_info', 'clipboard_tool', 'calculate']) {
+    for (const name of ['memory_read', 'memory_update', 'memory_edit', 'memory_delete', 'memory_search_profile', 'chat_search', 'get_time_info', 'clipboard_tool', 'text_to_speech', 'calculate']) {
       expect(r.getByTestId(`tool-${name}`)).toBeTruthy()
     }
     expect(r.getByTestId('tool-param-calculate-expression')).toBeTruthy()

@@ -7,7 +7,7 @@ import { applyOverrides } from '../lib/toolSchema'
 import { useToolSchema } from './toolSchema'
 import { deleteImagesOf, saveImage } from '../lib/images'
 import { defaultSize } from '../lib/modelPicker'
-import { MEMORY_ID, composedSystem, fileIdsOf, newConv, newId, titleFrom, toApiMessages } from '../lib/conv'
+import { MEMORY_ID, composedSystem, fileIdsOf, isChat, newConv, newId, titleFrom, toApiMessages } from '../lib/conv'
 import { research, ResearchError, type Progress } from '../lib/research'
 import { ChatError, type Attachment, type ChatModel, type Conv, type Msg } from '../lib/types'
 import '../local/engine'
@@ -21,12 +21,35 @@ import { instructionBlock } from './instructions'
 import { activeBooks } from './worldbook'
 import { activatedEntries, applyLore } from '../lib/worldbook'
 import Clipboard from 'expo-clipboard'
-import { DEVICE_TOOLS, MEMORY_TOOLS, runLocalTool, type LocalContext } from '../lib/tools/local'
+import * as Speech from 'expo-speech'
+import { bcp47 } from '../i18n/langs'
+import { DEVICE_TOOLS, MEMORY_TOOLS, runLocalTool, type ChatHit, type LocalContext } from '../lib/tools/local'
 
 /** Memory, clipboard and time reach the phone through this, so the tool code never imports a store. */
 const localContext: LocalContext = {
   memory: () => useChat.getState().convs.find(c => c.id === MEMORY_ID)?.memory ?? [],
   saveMemory: next => useChat.getState().saveMemory({ memory: next }),
+  speak: text => Speech.speak(text, { language: bcp47(useSettings.getState().lang) }),
+  searchChats: (query, limit, only) => {
+    const { convs, activeId } = useChat.getState()
+    const keywords = query.toLowerCase().split(/\s+/).filter(Boolean)
+    if (!keywords.length) return []
+    const hits: ChatHit[] = []
+    for (const c of convs) {
+      if (!isChat(c)) continue
+      if (only ? c.id !== only : c.id === activeId) continue
+      const snippets: string[] = []
+      for (const m of c.messages) {
+        const text = m.content ?? '', low = text.toLowerCase()
+        if (!keywords.every(k => low.includes(k))) continue
+        const at = low.indexOf(keywords[0])
+        snippets.push(text.slice(Math.max(0, at - 80), Math.min(text.length, at + 160)).replace(/\s+/g, ' ').trim())
+        if (snippets.length >= 3) break
+      }
+      if (snippets.length) hits.push({ conversationId: c.id, title: c.title, updatedAt: c.updatedAt, snippets })
+    }
+    return hits.sort((a, b) => b.updatedAt - a.updatedAt).slice(0, limit)
+  },
   clipboardRead: () => Clipboard.getStringAsync(),
   clipboardWrite: async text => { await Clipboard.setStringAsync(text)  },
 }
@@ -122,7 +145,8 @@ export const useChat = create<ChatState>((set, get) => {
         const settings = useSettings.getState(), overrides = useToolSchema.getState().tools
         const tools = [
           ...(webOn ? applyOverrides(TOOLS, overrides) : []),
-          ...(settings.toolsMemory ? applyOverrides(MEMORY_TOOLS, overrides) : []),
+          ...(settings.toolsMemory ? applyOverrides(MEMORY_TOOLS.filter(d => d.function.name !== 'chat_search'), overrides) : []),
+          ...(settings.toolsRecall ? applyOverrides(MEMORY_TOOLS.filter(d => d.function.name === 'chat_search'), overrides) : []),
           ...(settings.toolsDevice ? applyOverrides(DEVICE_TOOLS, overrides) : []),
         ]
         const res = await runAssistant({ model: m, messages: applyLore(messages, activatedEntries(activeBooks(), messages)), tools, onTool: (name, args) => runLocalTool(name, args, localContext), web: webOn, fileIds: isPrivate(m) ? [] : fileIdsOf(history), signal,

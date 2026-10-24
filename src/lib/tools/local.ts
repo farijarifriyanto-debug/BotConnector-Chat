@@ -15,7 +15,14 @@ export interface LocalContext {
   saveMemory(next: string[]): Promise<void>
   clipboardRead(): Promise<string>
   clipboardWrite(text: string): Promise<void>
+  /** speaks the text with the phone's own voice, like the reference app's text-to-speech tool */
+  speak(text: string): void
+  /** past chats that mention every keyword; the chat store decides which chats may be searched */
+  searchChats(query: string, limit: number, conversationId?: string): ChatHit[]
 }
+
+/** One past conversation that matched chat_search. */
+export interface ChatHit { conversationId: string; title: string; updatedAt: number; snippets: string[] }
 
 export const MEMORY_MAX = 100, MEMORY_ITEM_MAX = 400
 /** Stable id derived from the fact itself: no storage change, and the model gets an id to edit or delete. */
@@ -45,6 +52,21 @@ export const MEMORY_TOOLS: ToolDef[] = [
     parameters: { type: 'object', properties: {
       id: { type: 'string', description: 'Entry id, e.g. mem_a1b2c3d4.' },
     }, required: ['id'] } } },
+  { type: 'function', function: {
+    name: 'memory_search_profile',
+    description: 'Search the long-term memory by keywords. Use when you need a specific fact and the conversation does not already contain it. Every keyword must appear; matching ignores case.',
+    parameters: { type: 'object', properties: {
+      query: { type: 'string', description: 'Keywords separated by spaces.' },
+      limit: { type: 'integer', minimum: 1, maximum: 20, description: 'Maximum number of entries to return. Default 10.' },
+    }, required: ['query'] } } },
+  { type: 'function', function: {
+    name: 'chat_search',
+    description: 'Search message content in past conversations by keywords. Prefer this when recalling an earlier discussion, or when the user says "last time", "earlier", or "we discussed". The current conversation is excluded because it is already in context.',
+    parameters: { type: 'object', properties: {
+      query: { type: 'string', description: 'Keywords separated by spaces.' },
+      limit: { type: 'integer', minimum: 1, maximum: 20, description: 'Maximum number of results. Default 10.' },
+      conversation_id: { type: 'string', description: 'Search only within this conversation. Omit to search every other chat on this phone.' },
+    }, required: ['query'] } } },
 ]
 
 export const DEVICE_TOOLS: ToolDef[] = [
@@ -59,6 +81,12 @@ export const DEVICE_TOOLS: ToolDef[] = [
       action: { type: 'string', enum: ['read', 'write'], description: 'Operation to perform: read or write' },
       text: { type: 'string', description: 'Text to write to the clipboard. Required for write.' },
     }, required: ['action'] } } },
+  { type: 'function', function: {
+    name: 'text_to_speech',
+    description: 'Speak text aloud to the user using the phone\'s text-to-speech. Use when the user asks you to read something aloud, or when audio output is appropriate. The tool returns once playback has been requested; audio may continue in the background. Provide natural, readable text without markdown formatting.',
+    parameters: { type: 'object', properties: {
+      text: { type: 'string', description: 'The text to speak aloud.' },
+    }, required: ['text'] } } },
   { type: 'function', function: {
     name: 'calculate',
     description: 'Evaluate a mathematical expression with decimal arithmetic. Supports + - * / % ^ !, parentheses, sin() cos() tan() (radians), sqrt() ln() abs() floor() ceil() sgn(), log(base, value), constants pi e. Example: "5!", "sin(pi/4)", "log(2, 8)", "floor(3.7)"',
@@ -216,12 +244,38 @@ export async function runLocalTool(name: string, args: Record<string, unknown>, 
       await ctx.saveMemory(next)
       return JSON.stringify({ saved: true, id: memoryId(next[at]) })
     }
+    if (name === 'memory_search_profile') {
+      const query = typeof args.query === 'string' ? args.query.trim() : ''
+      if (!query) return fail('query is required')
+      const limit = Math.min(Math.max(Number(args.limit) || 10, 1), 20)
+      const keywords = query.toLowerCase().split(/\s+/).filter(Boolean)
+      const hits = ctx.memory().filter(text => { const low = text.toLowerCase(); return keywords.every(k => low.includes(k)) })
+      return JSON.stringify({ total: hits.length, entries: hits.slice(0, limit).map(text => ({ id: memoryId(text), content: text })) })
+    }
+    if (name === 'chat_search') {
+      const query = typeof args.query === 'string' ? args.query.trim() : ''
+      if (!query) return fail('query is required')
+      const limit = Math.min(Math.max(Number(args.limit) || 10, 1), 20)
+      const only = typeof args.conversation_id === 'string' && args.conversation_id.trim() ? args.conversation_id.trim() : undefined
+      const hits = ctx.searchChats(query, limit, only)
+      return JSON.stringify({
+        total: hits.length,
+        results: hits.map(h => ({ conversation_id: h.conversationId, title: h.title, updated_at: new Date(h.updatedAt).toISOString(), snippets: h.snippets })),
+      })
+    }
     const id = typeof args.id === 'string' ? args.id.trim() : ''
     const at = ctx.memory().findIndex(text => memoryId(text) === id)
     if (!id || at < 0) return fail('unknown id; call memory_read for the current ids')
     const next = ctx.memory().filter((_, i) => i !== at)
     await ctx.saveMemory(next)
     return JSON.stringify({ removed: true, total: next.length })
+  }
+
+  if (name === 'text_to_speech') {
+    const text = typeof args.text === 'string' ? args.text.trim() : ''
+    if (!text) return fail('text is required')
+    ctx.speak(text)
+    return JSON.stringify({ spoken: true, characters: text.length })
   }
 
   if (name === 'get_time_info') {

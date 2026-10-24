@@ -1,15 +1,19 @@
 import './helpers/mocks'
-import { evaluate, formatNumber, isLocalTool, memoryId, runLocalTool, MEMORY_MAX, MEMORY_ITEM_MAX, type LocalContext } from '../src/lib/tools/local'
+import { evaluate, formatNumber, isLocalTool, memoryId, runLocalTool, MEMORY_MAX, MEMORY_ITEM_MAX, type ChatHit, type LocalContext } from '../src/lib/tools/local'
 
 const setup = (facts: string[] = []) => {
   let memory = [...facts], clip = 'isi papan klip'
+  const spoken: string[] = [], calls: { query: string; limit: number; only?: string }[] = []
+  let chats: ChatHit[] = []
   const ctx: LocalContext = {
     memory: () => memory,
     saveMemory: async next => { memory = next },
     clipboardRead: async () => clip,
     clipboardWrite: async text => { clip = text },
+    speak: text => { spoken.push(text) },
+    searchChats: (query, limit, only) => { calls.push({ query, limit, only }); return chats.slice(0, limit) },
   }
-  return { ctx, facts: () => memory, clip: () => clip }
+  return { ctx, facts: () => memory, clip: () => clip, spoken, calls, setChats: (hits: ChatHit[]) => { chats = hits } }
 }
 const call = async (name: string, args: Record<string, unknown>, ctx: LocalContext) => JSON.parse(await runLocalTool(name, args, ctx))
 
@@ -110,8 +114,43 @@ describe('device tools', () => {
   })
 
   it('knows which names belong to Memory and Device tools', () => {
-    expect(['memory_read', 'memory_update', 'memory_edit', 'memory_delete', 'get_time_info', 'clipboard_tool', 'calculate'].every(isLocalTool)).toBe(true)
+    expect(['memory_read', 'memory_update', 'memory_edit', 'memory_delete', 'memory_search_profile', 'chat_search', 'get_time_info', 'clipboard_tool', 'text_to_speech', 'calculate'].every(isLocalTool)).toBe(true)
     expect(isLocalTool('web_search')).toBe(false)
     expect(isLocalTool('read_url')).toBe(false)
+  })
+})
+
+describe('memory search and past chats', () => {
+  it('finds facts that contain every keyword, ignoring case, and caps the page at 20', async () => {
+    const { ctx } = setup(['Suka KOPI tubruk', 'Suka kopi susu', 'Tinggal di Bandung'])
+    expect((await call('memory_search_profile', { query: 'kopi' }, ctx)).entries).toHaveLength(2)
+    const both = await call('memory_search_profile', { query: 'suka susu' }, ctx)
+    expect(both.total).toBe(1)
+    expect(both.entries[0].content).toBe('Suka kopi susu')
+    expect((await call('memory_search_profile', { query: 'teh' }, ctx)).total).toBe(0)
+    expect(await call('memory_search_profile', { query: '  ' }, ctx)).toHaveProperty('error')
+    const many = setup(Array.from({ length: 40 }, (_, i) => `kopi ${i}`))
+    expect((await call('memory_search_profile', { query: 'kopi', limit: 99 }, many.ctx)).entries).toHaveLength(20)
+    expect((await call('memory_search_profile', { query: 'kopi' }, many.ctx)).entries).toHaveLength(10)
+  })
+
+  it('asks the chat store for past conversations and shapes the answer', async () => {
+    const h = setup()
+    h.setChats([{ conversationId: 'c9', title: 'Rencana VPS', updatedAt: Date.parse('2026-10-20T10:00:00Z'), snippets: ['VPS 8GB Rp50rb'] }])
+    const out = await call('chat_search', { query: 'vps harga', limit: 5 }, h.ctx)
+    expect(h.calls[0]).toEqual({ query: 'vps harga', limit: 5, only: undefined })
+    expect(out.total).toBe(1)
+    expect(out.results[0]).toEqual({ conversation_id: 'c9', title: 'Rencana VPS', updated_at: '2026-10-20T10:00:00.000Z', snippets: ['VPS 8GB Rp50rb'] })
+    await call('chat_search', { query: 'vps', conversation_id: 'c9' }, h.ctx)
+    expect(h.calls[1]).toEqual({ query: 'vps', limit: 10, only: 'c9' })
+    expect(await call('chat_search', { query: '' }, h.ctx)).toHaveProperty('error')
+  })
+
+  it('speaks the text and needs some', async () => {
+    const h = setup()
+    expect(await call('text_to_speech', { text: 'Halo, ini dibacakan.' }, h.ctx)).toEqual({ spoken: true, characters: 20 })
+    expect(h.spoken).toEqual(['Halo, ini dibacakan.'])
+    expect(await call('text_to_speech', { text: '  ' }, h.ctx)).toHaveProperty('error')
+    expect(h.spoken).toHaveLength(1)
   })
 })

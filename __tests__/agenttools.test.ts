@@ -24,7 +24,7 @@ describe('local tool calls', () => {
     const r = await runAssistant(o)
 
     const first = mockStream.mock.calls[0][0] as { tools?: { function: { name: string } }[] }
-    expect(first.tools?.map(t => t.function.name)).toEqual(['memory_read', 'memory_update', 'memory_edit', 'memory_delete'])
+    expect(first.tools?.map(t => t.function.name)).toEqual(['memory_read', 'memory_update', 'memory_edit', 'memory_delete', 'memory_search_profile', 'chat_search'])
     expect(o.onTool).toHaveBeenCalledWith('memory_update', { content: 'Suka kopi' })
 
     const second = mockStream.mock.calls[1][0] as { messages: { role: string; tool_call_id?: string; content: unknown }[] }
