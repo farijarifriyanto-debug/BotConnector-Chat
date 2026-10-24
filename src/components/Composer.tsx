@@ -5,12 +5,15 @@ import { Text, TextInput } from './Text'
 import { useAttachments } from '../hooks/useAttachments'
 import { useT } from '../hooks/useT'
 import { MAX_IMAGES } from '../lib/attachments'
+import { insertPhrase } from '../lib/phrases'
 import type { Attachment, ChatModel } from '../lib/types'
 import { joinVoiceText, transcribeClip, voiceFailure } from '../lib/voice'
+import { usePhrases } from '../store/phrases'
 import { useSettings } from '../store/settings'
 import { useTheme } from '../theme/theme'
 import { Icon } from './Icons'
 import { ModelIcon } from './ModelIcon'
+import { QuickPhrasesSheet } from './QuickPhrasesSheet'
 
 export interface SendFlags { web: boolean; research: boolean; image: boolean; think?: boolean }
 interface Props {
@@ -42,9 +45,10 @@ interface Props {
  * answer streams, and a message typed in the meantime waits its turn instead of disappearing.
  */
 export function Composer({ busy, model, webAvailable, onSend, onStop, image, files, researchAvailable = true, onPickModel, onWebUnavailable, think = true, onThinkChange, queued, onQueue, onCancelQueue, voice }: Props) {
-  const th = useTheme(), t = useT(), att = useAttachments(), lang = useSettings(s => s.lang)
+  const th = useTheme(), t = useT(), att = useAttachments(), lang = useSettings(s => s.lang), phrases = usePhrases(s => s.phrases)
   const [text, setText] = useState(''), [web, setWeb] = useState(false), [research, setResearch] = useState(false), [img, setImg] = useState(false), [note, setNote] = useState<string | null>(null)
-  const [rowW, setRowW] = useState(0), [more, setMore] = useState(false)
+  const [rowW, setRowW] = useState(0), [more, setMore] = useState(false), [quick, setQuick] = useState(false), [manage, setManage] = useState(false)
+  const [sel, setSel] = useState<{ start: number; end: number } | null>(null)
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY)
   const [recording, setRecording] = useState(false), [transcribing, setTranscribing] = useState(false), [recordedMs, setRecordedMs] = useState(0)
   const hasPhotos = att.photoCount > 0
@@ -55,7 +59,7 @@ export function Composer({ busy, model, webAvailable, onSend, onStop, image, fil
   const submit = () => {
     if (!can) return
     onSend(text, flags, img ? [] : att.toMessage())
-    setText(''); setResearch(false); setImg(false); setNote(null); att.clear()   // Deep research and Image are for one message, like the web
+    setText(''); setSel(null); setResearch(false); setImg(false); setNote(null); att.clear()   // Deep research and Image are for one message, like the web
   }
   const queueOrSend = () => {
     if (canQueue) {
@@ -125,10 +129,10 @@ export function Composer({ busy, model, webAvailable, onSend, onStop, image, fil
       const { text: said } = await transcribeClip(uri, { language: /^[a-z]{2,3}$/.test(lang) ? lang : undefined })
       if (!said) { setNote(t('micNoSpeech')); return }
       const next = joinVoiceText(text, said)
-      setText(next)
+      setText(next); setSel({ start: next.length, end: next.length })
       if (sendAfter) {
         onSend(next, flags, img ? [] : att.toMessage())
-        setText(''); setResearch(false); setImg(false); setNote(null); att.clear()
+        setText(''); setSel(null); setResearch(false); setImg(false); setNote(null); att.clear()
       }
     } catch (e) {
       const why = voiceFailure(e)
@@ -190,6 +194,7 @@ export function Composer({ busy, model, webAvailable, onSend, onStop, image, fil
               </View>))}
           </ScrollView>)}
         <TextInput testID="composer-input" value={text} onChangeText={setText} multiline submitBehavior="submit" returnKeyType="send" onSubmitEditing={queueOrSend} placeholder={t(img ? 'imgPlaceholder' : research ? 'researchPlaceholder' : hasPhotos ? 'placeholderFile' : 'placeholder')} placeholderTextColor={th.muted2}
+          onSelectionChange={e => setSel(e.nativeEvent.selection)}
           style={{ color: th.ink, fontSize: 16, lineHeight: 22, maxHeight: 150, minHeight: 24, paddingTop: 0, paddingBottom: 6 }} />
         <View testID="composer-actions" onLayout={e => setRowW(e.nativeEvent.layout.width)} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
           {!recording && !!onPickModel && <Pressable testID="pill-model" accessibilityRole="button" accessibilityLabel={model ? `${t('menuModel')}: ${model.name}` : t('menuModel')} onPress={onPickModel} style={{ width: 30, height: 30, borderRadius: 15, borderWidth: 1, borderColor: th.lineStrong, backgroundColor: th.surface, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>{model ? <ModelIcon model={model} size={24} /> : <Icon name="Boxes" size={18} color={th.muted} />}</Pressable>}
@@ -211,6 +216,10 @@ export function Composer({ busy, model, webAvailable, onSend, onStop, image, fil
             </>
           )}
           <View style={{ flex: 1 }} />
+          {!recording && phrases.length > 0 && !img && (
+            <Pressable testID="pill-quick" accessibilityRole="button" accessibilityLabel={t('qpTooltip')} onPress={() => setQuick(true)} onLongPress={() => setManage(true)} style={pill(false)}>
+              <Icon name="Zap" size={18} color={th.muted} />
+            </Pressable>)}
           {!recording && voice?.available && !img && (
             <Pressable testID="pill-voice" accessibilityRole="button" accessibilityLabel={t('mic')} disabled={busy || transcribing} onPress={() => void startVoice()} style={[pill(false), { opacity: busy || transcribing ? 0.5 : 1 }]}>
               {transcribing ? <ActivityIndicator size="small" color={th.muted} /> : <Icon name="Mic" size={18} color={th.muted} />}
@@ -234,6 +243,26 @@ export function Composer({ busy, model, webAvailable, onSend, onStop, image, fil
           </Pressable>
         </Pressable>
       </Modal>
+
+      <Modal visible={quick} transparent animationType="fade" onRequestClose={() => setQuick(false)}>
+        <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.35)', justifyContent: 'flex-end' }} onPress={() => setQuick(false)} accessibilityLabel={t('close')}>
+          <Pressable onPress={() => {}} style={{ backgroundColor: th.surface, borderTopLeftRadius: 18, borderTopRightRadius: 18, paddingVertical: 10, paddingHorizontal: 12, maxHeight: '60%' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 4, marginBottom: 6 }}>
+              <Text style={{ color: th.muted2, fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('qpTooltip')}</Text>
+              <Pressable testID="qp-manage" onPress={() => { setQuick(false); setManage(true) }} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('qpManage')}><Text style={{ color: th.accentStrong, fontWeight: '700', fontSize: 13 }}>{t('qpManage')}</Text></Pressable>
+            </View>
+            <ScrollView keyboardShouldPersistTaps="handled">
+              {phrases.map(p => (
+                <Pressable key={p.id} testID={`qp-pick-${p.id}`} accessibilityRole="button" accessibilityLabel={p.title} onPress={() => { const r = insertPhrase(text, p.content, sel); setText(r.text); setSel({ start: r.caret, end: r.caret }); setQuick(false) }} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, paddingHorizontal: 6 }}>
+                  <Icon name="Zap" size={18} color={th.accentStrong} />
+                  <View style={{ flex: 1 }}><Text numberOfLines={1} style={{ color: th.ink, fontSize: 15, fontWeight: '600' }}>{p.title}</Text><Text numberOfLines={1} style={{ color: th.muted, fontSize: 12.5, marginTop: 2 }}>{p.content}</Text></View>
+                </Pressable>))}
+            </ScrollView>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      <QuickPhrasesSheet visible={manage} onClose={() => setManage(false)} />
     </View>
   )
 }

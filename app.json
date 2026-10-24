@@ -72,7 +72,8 @@
         {
           "microphonePermission": "BotConnector uses the microphone for voice input."
         }
-      ]
+      ],
+      "expo-asset"
     ]
   }
 }

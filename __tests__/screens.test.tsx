@@ -37,6 +37,15 @@ describe('screens', () => {
     expect(await r.findByTestId('delete-error')).toBeTruthy()
   })
 
+  it('opens quick phrases from settings', async () => {
+    const { useSettings } = require('../src/store/settings')
+    const { usePhrases } = require('../src/store/phrases')
+    useSettings.setState({ lang: 'en' }); usePhrases.setState({ phrases: [] })
+    const r = await render(<SettingsSheet visible onClose={() => {}} />)
+    await fireEvent.press(r.getByTestId('open-quick-phrases'))
+    expect(await r.findByText('No quick phrases yet.')).toBeTruthy()
+  })
+
   it('sidebar lists chats and filters by search', async () => {
     const onOpen = jest.fn()
     const r = await render(wrap(<Sidebar open convs={[conv('a', 'Resep nasi goreng', Date.now()), conv('b', 'Harga beras', Date.now())] as never} activeId={null} onClose={() => {}} onNew={() => {}} onOpen={onOpen} onDelete={() => {}} onSettings={() => {}} onPals={() => {}} />))
