@@ -214,9 +214,20 @@ export const useChat = create<ChatState>((set, get) => {
       set(s => ({ convs: sortConvs([next, ...s.convs.filter(c => c.id !== MEMORY_ID)]) }))   // not "put": this record must never become the open chat
       await putConv(next).catch(() => {})
     },
-    selectModel(id) { useSettings.getState().setModel(id); set(s => ({ modelId: id, draft: s.draft && !s.activeId ? { ...s.draft, model: id } : s.draft })) },
+    selectModel(id) {
+      useSettings.getState().setModel(id)
+      const open = get().activeId
+      set(s => ({
+        modelId: id,
+        draft: s.draft && !s.activeId ? { ...s.draft, model: id } : s.draft,
+        // the chat itself remembers the choice, so the header, the model button and the next request agree
+        convs: open ? s.convs.map(c => (c.id === open ? { ...c, model: id, updatedAt: Date.now() } : c)) : s.convs,
+      }))
+      const conv = open ? get().convs.find(c => c.id === open) : null
+      if (conv) void putConv(conv).catch(() => {})
+    },
     newChat() { if (get().busy) return; set(s => ({ activeId: null, draft: newConv(s.modelId) })) },
-    open(id) { if (!get().busy) set({ activeId: id }) },
+    open(id) { if (!get().busy) { const conv = get().convs.find(c => c.id === id); set({ activeId: id, ...(conv?.model ? { modelId: conv.model } : {}) }) } },
     async remove(id) {
       await deleteImagesOf(get().convs.find(c => c.id === id)?.messages ?? [])
       await deleteConv(id).catch(() => {}); noteDeleted(id)
