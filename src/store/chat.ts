@@ -1,12 +1,15 @@
 import { create } from 'zustand'
-import { fetchCapabilities, fetchImageModels, fetchModels, generateImage, streamCompletion, type Capabilities, type ImageModel } from '../api/api'
+import { fetchCapabilities, fetchImageModels, fetchModels, generateImage, streamCompletion, webFetch, type Capabilities, type ImageModel } from '../api/api'
 import { deleteConv, listConvs, putConv } from '../db/convs'
 import { noteDeleted, registerReload, scheduleSync, useSync } from '../sync/store'
-import { runAssistant } from '../lib/agent'
+import { runAssistant, TOOLS } from '../lib/agent'
+import { applyOverrides } from '../lib/toolSchema'
+import { useToolSchema } from './toolSchema'
 import { deleteImagesOf, saveImage } from '../lib/images'
 import { defaultSize } from '../lib/modelPicker'
-import { MEMORY_ID, composedSystem, fileIdsOf, newConv, newId, titleFrom, toApiMessages } from '../lib/conv'
+import { MEMORY_ID, composedSystem, fileIdsOf, isChat, newConv, newId, titleFrom, toApiMessages, blankRecord, projectFileIds } from '../lib/conv'
 import { research, ResearchError, type Progress } from '../lib/research'
+import { buildPrompt, languageName } from '../lib/translate'
 import { ChatError, type Attachment, type ChatModel, type Conv, type Msg } from '../lib/types'
 import '../local/engine'
 import '../laptop/api'
@@ -14,18 +17,56 @@ import { laptopModels, useLaptop } from '../laptop/store'
 import { localModels, useLocal } from '../local/store'
 import { useAuth } from './auth'
 import { customModels } from './providers'
-import { useSearch } from './search'
+import { readByok, useSearch } from './search'
+import { instructionBlock } from './instructions'
+import { activeBooks } from './worldbook'
+import { activatedEntries, applyLore } from '../lib/worldbook'
+import Clipboard from 'expo-clipboard'
+import * as Speech from 'expo-speech'
+import { bcp47 } from '../i18n/langs'
+import { DEVICE_TOOLS, MEMORY_TOOLS, runLocalTool, type ChatHit, type LocalContext } from '../lib/tools/local'
+
+/** Memory, clipboard and time reach the phone through this, so the tool code never imports a store. */
+const localContext: LocalContext = {
+  memory: () => useChat.getState().convs.find(c => c.id === MEMORY_ID)?.memory ?? [],
+  saveMemory: next => useChat.getState().saveMemory({ memory: next }),
+  speak: text => Speech.speak(text, { language: bcp47(useSettings.getState().lang) }),
+  searchChats: (query, limit, only) => {
+    const { convs, activeId } = useChat.getState()
+    const keywords = query.toLowerCase().split(/\s+/).filter(Boolean)
+    if (!keywords.length) return []
+    const hits: ChatHit[] = []
+    for (const c of convs) {
+      if (!isChat(c)) continue
+      if (only ? c.id !== only : c.id === activeId) continue
+      const snippets: string[] = []
+      for (const m of c.messages) {
+        const text = m.content ?? '', low = text.toLowerCase()
+        if (!keywords.every(k => low.includes(k))) continue
+        const at = low.indexOf(keywords[0])
+        snippets.push(text.slice(Math.max(0, at - 80), Math.min(text.length, at + 160)).replace(/\s+/g, ' ').trim())
+        if (snippets.length >= 3) break
+      }
+      if (snippets.length) hits.push({ conversationId: c.id, title: c.title, updatedAt: c.updatedAt, snippets })
+    }
+    return hits.sort((a, b) => b.updatedAt - a.updatedAt).slice(0, limit)
+  },
+  clipboardRead: () => Clipboard.getStringAsync(),
+  clipboardWrite: async text => { await Clipboard.setStringAsync(text)  },
+}
 import { useSettings } from './settings'
 
 const TITLE_PROMPT = 'Write a short title (at most 6 words) for this conversation, in the same language as the user. No quotes, no trailing punctuation. Reply with the title only.'
 export interface RunStatus { searching?: string; reading?: string; research?: Progress }
-export interface SendOptions { web: boolean; research: boolean; image?: boolean; /** picture size the user chose in the Image Studio (must be one the model offers) */ size?: string }
+export interface SendOptions { web: boolean; research: boolean; image?: boolean; /** false = ask the model not to reason (sent as reasoning_effort: none) */ think?: boolean; /** picture size the user chose in the Image Studio (must be one the model offers) */ size?: string }
 type ModelsState = 'idle' | 'loading' | 'ready' | 'error' | 'auth'
 
 interface ChatState {
   convs: Conv[]; activeId: string | null; draft: Conv | null
   models: ChatModel[]; modelId: string; imageModels: ImageModel[]; imageModelId: string; modelsState: ModelsState; caps: Capabilities | null
   busy: boolean; status: RunStatus | null
+  /** a message typed while an answer was still streaming; sent as soon as it ends */
+  queued: { text: string; opts: SendOptions; attachments: Attachment[] } | null
   init(): Promise<void>; loadModels(): Promise<void>; syncCustom(): void; selectImageModel(id: string): void
   startWith(system: string): void
   updateConv(id: string, patch: Partial<Pick<Conv, 'title' | 'system' | 'pinned'>>): Promise<void>
@@ -34,9 +75,21 @@ interface ChatState {
   deletePicture(convId: string, msgId: string): Promise<void>
   selectModel(id: string): void; newChat(): void; open(id: string): void; remove(id: string): Promise<void>; reset(): void
   send(text: string, opts: SendOptions, attachments?: Attachment[]): Promise<void>; regenerate(opts: SendOptions): Promise<void>; stop(): void
+  queue(text: string, opts: SendOptions, attachments?: Attachment[]): void; cancelQueued(): void
+  /** writes a translation of one answer beside it (the original is untouched); '' while it streams */
+  translateMessage(msgId: string, code: string): Promise<{ ok: true } | { ok: false; kind: string }>
+  clearTranslation(msgId: string): void
+  /** project records: a name, its own instructions and documents every bound chat can use */
+  createProject(name: string): string
+  updateProject(id: string, patch: Partial<Pick<Conv, 'title' | 'system' | 'files'>>): Promise<void>
+  removeProject(id: string): Promise<void>
+  /** attaches (or detaches, with null) one chat to a project */
+  bindProject(chatId: string, projectId: string | null): Promise<void>
 }
 
 let controller: AbortController | null = null
+/** one translation run at a time per message, like the reference app's run token */
+const translations = new Map<string, AbortController>()
 
 export const currentConv = (s: Pick<ChatState, 'convs' | 'activeId' | 'draft'>): Conv | null => (s.activeId ? s.convs.find(c => c.id === s.activeId) ?? null : s.draft)
 const sortConvs = (list: Conv[]) => [...list].sort((a, b) => b.updatedAt - a.updatedAt)
@@ -51,6 +104,17 @@ const errorCode = (e: unknown) => {
 export const useChat = create<ChatState>((set, get) => {
   const put = (c: Conv) => { set(s => ({ convs: sortConvs([c, ...s.convs.filter(x => x.id !== c.id)]), activeId: c.id, draft: s.draft?.id === c.id ? null : s.draft })) }
   const replace = (c: Conv) => set(s => ({ convs: s.convs.map(x => (x.id === c.id ? c : x)) }))
+  /** Writes (or clears, with undefined) the translation of one message wherever that message lives. */
+  const setTranslation = (msgId: string, translation?: string) => {
+    const s = get()
+    const touch = (c: Conv): Conv | null => (c.messages.some(m => m.id === msgId) ? { ...c, messages: c.messages.map(m => (m.id === msgId ? { ...m, translation } : m)), updatedAt: Date.now() } : null)
+    let changed: Conv | null = null
+    const convs = s.convs.map(c => { const n = touch(c); if (n) changed = n; return n ?? c })
+    let draft = s.draft
+    if (!changed && draft) { const n = touch(draft); if (n) { changed = n; draft = n } }
+    set({ convs, draft })
+    if (changed) void putConv(changed).catch(() => {})
+  }
 
   async function autoTitle(id: string, initial: string, q: string, a: string) {
     const { models } = get(); const fm = models.find(x => x.access === 'free' && x.available && !x.reasoning); if (!fm) return
@@ -78,6 +142,15 @@ export const useChat = create<ChatState>((set, get) => {
       cur = { ...cur, messages: cur.messages.map(x => (x.id === aId ? { ...x, ...patch } : x)) }
       if (now) { if (timer) clearTimeout(timer); flush() } else if (!timer) timer = setTimeout(flush, 60)   // at most ~16 repaints a second while streaming
     }
+    // "Thought for 5.2s": the clock starts at the first reasoning token and stops as soon as the answer text begins.
+    let reasoningAt = 0, reasoningMs = 0
+    const noteReasoning = (r: string) => {
+      if (!reasoningAt) { reasoningAt = Date.now(); update({ reasoning: r, reasoningAt }) } else update({ reasoning: r })
+    }
+    const noteText = (c: string) => {
+      if (reasoningAt && !reasoningMs && c) { reasoningMs = Math.max(1, Date.now() - reasoningAt); update({ reasoningMs }) }
+      update({ content: c })
+    }
     try {
       const question = [...history].reverse().find(x => x.role === 'user')?.content.trim() ?? ''
       if (opts.image) {
@@ -89,13 +162,27 @@ export const useChat = create<ChatState>((set, get) => {
         update({ content: '', attachments: [{ kind: 'image', name: 'image', mime: g.mime, size: file.size, uri: file.uri }], image: { prompt: question, modelId: im.id, model: im.name, size, ...(g.left !== undefined ? { left: String(g.left) } : {}) }, model: im.name, ms: Date.now() - t0 }, true)
       } else if (opts.research && caps?.web !== false) {
         const planner = isPrivate(m) ? m : models.find(x => x.access === 'free' && x.available && !x.reasoning) ?? m   // a local or custom model plans its own research; its questions never go to a cloud model
-        const res = await research({ question, history: toApiMessages('', history.slice(0, -1), false), system: composedSystem(base, convs), writer: m, planner, signal,
-          onProgress: p => set({ status: { research: p } }), onText: c => update({ content: c }), onReasoning: r => update({ reasoning: r }) })
+        const res = await research({ question, history: toApiMessages('', history.slice(0, -1), false), system: composedSystem(base, convs, instructionBlock()), writer: m, planner, signal,
+          onProgress: p => set({ status: { research: p } }), onText: c => noteText(c), onReasoning: r => noteReasoning(r) })
         update({ content: res.content, reasoning: res.reasoning || undefined, sources: res.sources, searched: res.queries, research: { searches: res.searches, pages: res.pages }, ms: Date.now() - t0 }, true)
       } else {
-        const res = await runAssistant({ model: m, messages: toApiMessages(composedSystem(base, convs), history, m.vision), web: opts.web && caps?.web !== false, fileIds: isPrivate(m) ? [] : fileIdsOf(history), signal,
-          onText: c => update({ content: c }), onReasoning: r => update({ reasoning: r }), onStatus: s => set({ status: s }) })
-        update({ content: res.content, reasoning: res.reasoning || undefined, sources: res.sources.length ? res.sources : undefined, searched: res.queries.length ? res.queries : undefined, ms: Date.now() - t0 }, true)
+        const messages = toApiMessages(composedSystem(base, convs, instructionBlock()), history, m.vision)
+        const webOn = opts.web && caps?.web !== false
+        const settings = useSettings.getState(), overrides = useToolSchema.getState().tools
+        const fetchMode = useSearch.getState().webFetch
+        const tools = [
+          ...(webOn ? applyOverrides(TOOLS, overrides) : []),
+          ...(settings.toolsMemory ? applyOverrides(MEMORY_TOOLS.filter(d => d.function.name !== 'chat_search'), overrides) : []),
+          ...(settings.toolsRecall ? applyOverrides(MEMORY_TOOLS.filter(d => d.function.name === 'chat_search'), overrides) : []),
+          ...(settings.toolsDevice ? applyOverrides(DEVICE_TOOLS, overrides) : []),
+        ]
+        const res = await runAssistant({ model: m, messages: applyLore(messages, activatedEntries(activeBooks(), messages)), tools, onTool: (name, args) => runLocalTool(name, args, localContext), web: webOn, think: opts.think !== false, fileIds: isPrivate(m) ? [] : fileIdsOf(history, projectFileIds(base, convs)), signal,
+          fetchMode,
+          fetchPage: fetchMode === 'follow' ? async (url, signal) => (await readByok(url, signal)) ?? webFetch(url, signal) : webFetch,
+          onText: c => noteText(c), onReasoning: r => noteReasoning(r), onStatus: s => set({ status: s }) })
+        update({ content: res.content, reasoning: res.reasoning || undefined, sources: res.sources.length ? res.sources : undefined, searched: res.queries.length ? res.queries : undefined, ms: Date.now() - t0,
+          ...(res.usage ? { promptTokens: res.usage.input, completionTokens: res.usage.output, ...(res.usage.cached ? { cachedTokens: res.usage.cached } : {}), totalTokens: res.usage.total } : {}),
+          ...(res.cost ? { costMicros: res.cost.micros, costCurrency: res.cost.currency } : {}) }, true)
       }
       const firstQ = history.filter(x => x.role === 'user')
       if (!isPrivate(m) && !base.titled && firstQ.length === 1 && cur.messages.at(-1)?.content && base.title === titleFrom(firstQ[0].content)) void autoTitle(base.id, base.title, firstQ[0].content, cur.messages.at(-1)!.content)
@@ -107,11 +194,14 @@ export const useChat = create<ChatState>((set, get) => {
       const done = { ...cur, updatedAt: Date.now() }; replace(done)
       await putConv(done).catch(() => {})
       scheduleSync()
+      // A message typed while this answer was streaming goes out now, once, and never after a stop.
+      const waiting = get().queued
+      if (waiting && !signal.aborted) { set({ queued: null }); void get().send(waiting.text, waiting.opts, waiting.attachments) }
     }
   }
 
   return {
-    convs: [], activeId: null, draft: null, models: [], modelId: '', imageModels: [], imageModelId: '', modelsState: 'idle', caps: null, busy: false, status: null,
+    convs: [], activeId: null, draft: null, models: [], modelId: '', imageModels: [], imageModelId: '', modelsState: 'idle', caps: null, busy: false, status: null, queued: null,
     async init() { void useSearch.getState().load(); registerReload(async () => { if (!get().busy) set({ convs: sortConvs(await listConvs()) }) }); scheduleSync(800); void get().loadModels(); if (useAuth.getState().session) void useLaptop.getState().refresh(); try { set({ convs: await listConvs() }) } catch { /* an unreadable database starts empty */ } },
     async loadModels() {
       if (!useAuth.getState().session) {   // no BotConnector account: only the user's own providers and on-device models; nothing is asked from BotConnector
@@ -152,9 +242,20 @@ export const useChat = create<ChatState>((set, get) => {
       set(s => ({ convs: sortConvs([next, ...s.convs.filter(c => c.id !== MEMORY_ID)]) }))   // not "put": this record must never become the open chat
       await putConv(next).catch(() => {})
     },
-    selectModel(id) { useSettings.getState().setModel(id); set(s => ({ modelId: id, draft: s.draft && !s.activeId ? { ...s.draft, model: id } : s.draft })) },
+    selectModel(id) {
+      useSettings.getState().setModel(id)
+      const open = get().activeId
+      set(s => ({
+        modelId: id,
+        draft: s.draft && !s.activeId ? { ...s.draft, model: id } : s.draft,
+        // the chat itself remembers the choice, so the header, the model button and the next request agree
+        convs: open ? s.convs.map(c => (c.id === open ? { ...c, model: id, updatedAt: Date.now() } : c)) : s.convs,
+      }))
+      const conv = open ? get().convs.find(c => c.id === open) : null
+      if (conv) void putConv(conv).catch(() => {})
+    },
     newChat() { if (get().busy) return; set(s => ({ activeId: null, draft: newConv(s.modelId) })) },
-    open(id) { if (!get().busy) set({ activeId: id }) },
+    open(id) { if (!get().busy) { const conv = get().convs.find(c => c.id === id); set({ activeId: id, ...(conv?.model ? { modelId: conv.model } : {}) }) } },
     async remove(id) {
       await deleteImagesOf(get().convs.find(c => c.id === id)?.messages ?? [])
       await deleteConv(id).catch(() => {}); noteDeleted(id)
@@ -183,6 +284,62 @@ export const useChat = create<ChatState>((set, get) => {
       const next = { ...conv, messages, updatedAt: Date.now() }; replace(next); await putConv(next).catch(() => {}); scheduleSync()
     },
     stop() { controller?.abort() },
+    queue(text, opts, attachments) { if (get().busy) set({ queued: { text, opts, attachments: attachments ?? [] } }) },
+    cancelQueued() { set({ queued: null }) },
+    async translateMessage(msgId, code) {
+      const s = get(), conv = currentConv(s), msg = conv?.messages.find(m => m.id === msgId)
+      if (!conv || !msg || !msg.content.trim()) return { ok: false as const, kind: 'unavailable' }
+      const model = s.models.find(x => x.id === conv.model) ?? s.models.find(x => x.id === s.modelId)
+      translations.get(msgId)?.abort()
+      const ctrl = new AbortController(); translations.set(msgId, ctrl)
+      setTranslation(msgId, '')   // the card says "Translating…" until the first words arrive
+      let out = ''
+      try {
+        for await (const d of streamCompletion({ model: model?.id ?? conv.model, messages: [{ role: 'user', content: buildPrompt('', languageName(code), msg.content) }], reasoning_effort: 'none' }, ctrl.signal)) {
+          if (d.content) { out += d.content; setTranslation(msgId, out) }
+        }
+        const done = out.trim()
+        setTranslation(msgId, done || undefined)
+        return done ? { ok: true as const } : { ok: false as const, kind: 'unavailable' }
+      } catch (e) {
+        if (ctrl.signal.aborted) return { ok: false as const, kind: 'aborted' }
+        setTranslation(msgId, undefined)
+        return { ok: false as const, kind: e instanceof ChatError ? e.kind : 'network' }
+      } finally {
+        if (translations.get(msgId) === ctrl) translations.delete(msgId)
+      }
+    },
+    clearTranslation(msgId) {
+      translations.get(msgId)?.abort(); translations.delete(msgId)
+      setTranslation(msgId, undefined)
+    },
+    createProject(name) {
+      const rec: Conv = { ...blankRecord('project', newId(), name.trim().slice(0, 80)), files: [] }
+      set(s => ({ convs: sortConvs([rec, ...s.convs]) }))
+      void putConv(rec).catch(() => {})
+      return rec.id
+    },
+    async updateProject(id, patch) {
+      const cur = get().convs.find(c => c.id === id && c.kind === 'project')
+      if (!cur) return
+      const next = { ...cur, ...patch, updatedAt: Date.now() }
+      replace(next)
+      await putConv(next).catch(() => {})
+    },
+    async removeProject(id) {
+      const cur = get().convs.find(c => c.id === id && c.kind === 'project')
+      if (!cur) return
+      await deleteConv(id).catch(() => {})
+      set(s => ({ convs: s.convs.filter(c => c.id !== id) }))   // chats keep a dangling id and simply lose the files, like the reference app
+    },
+    async bindProject(chatId, projectId) {
+      const s = get(), conv = s.convs.find(c => c.id === chatId) ?? (s.draft?.id === chatId ? s.draft : null)
+      if (!conv) return
+      const next: Conv = { ...conv, projectId: projectId ?? undefined, updatedAt: Date.now() }
+      if (s.draft?.id === chatId) { set({ draft: next }); return }
+      replace(next)
+      await putConv(next).catch(() => {})
+    },
   }
 })
 

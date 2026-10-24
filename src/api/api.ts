@@ -48,9 +48,9 @@ export async function getJson<T>(path: string, signal?: AbortSignal): Promise<T>
   return (await r.json().catch(() => ({}))) as T
 }
 
-export async function postJson<T>(path: string, body: unknown, signal?: AbortSignal): Promise<T> {
+export async function postJson<T>(path: string, body: unknown, signal?: AbortSignal, extraHeaders: Record<string, string> = {}): Promise<T> {
   let r: Response
-  try { r = await fetch(`${API_BASE}${path}`, { method: 'POST', headers: headers(JSON_POST), body: JSON.stringify(body), signal }) }
+  try { r = await fetch(`${API_BASE}${path}`, { method: 'POST', headers: headers({ ...JSON_POST, ...extraHeaders }), body: JSON.stringify(body), signal }) }
   catch (e) { throw (e as Error)?.name === 'AbortError' ? new ChatError('aborted') : new ChatError('network') }
   if (!r.ok) throw await failure(r)
   return (await r.json().catch(() => ({}))) as T
@@ -85,6 +85,23 @@ export async function fetchModels(): Promise<ChatModel[]> {
 
 // ---------- image generation ----------
 export interface ImageModel { id: string; name: string; access: Access; sizes: string[]; refs: boolean }
+/** Everything the media catalog lists, with its modality, so each screen can offer only its own kind. */
+export interface MediaModel { id: string; name: string; modality: string; access: Access; refs: boolean }
+export async function fetchMediaModels(): Promise<MediaModel[]> {
+  const j = await getJson<{ data?: any[] }>('/v1/media/models')
+  return (j.data ?? []).filter(m => m && typeof m.id === 'string')
+    .map((m): MediaModel => ({
+      id: String(m.id),
+      name: String(m.name || prettyId(String(m.id))),
+      modality: String(m.botconnector_modality || 'image'),
+      access: accessOf(m.botconnector_access),
+      refs: m.supports_reference_images === true,
+    }))
+}
+/** Voice output models: the same catalog, audio modality only. */
+export async function fetchVoiceModels(): Promise<MediaModel[]> {
+  return (await fetchMediaModels()).filter(m => m.modality === 'audio').sort((a, b) => a.name.localeCompare(b.name))
+}
 export async function fetchImageModels(): Promise<ImageModel[]> {
   const j = await getJson<{ data?: any[] }>('/v1/media/models')
   return (j.data ?? []).filter(m => m && typeof m.id === 'string' && m.botconnector_modality === 'image')
@@ -166,18 +183,35 @@ export async function webSearch(query: string, signal?: AbortSignal): Promise<Se
 }
 export async function webFetch(url: string, signal?: AbortSignal): Promise<{ title: string; text: string }> {
   const j = await withRetry(() => postJson<any>('/v1/web/fetch', { url }, signal), signal)
-  return { title: String(j?.title || url).slice(0, 200), text: String(j?.content ?? j?.text ?? j?.markdown ?? '').slice(0, 12000) }
+  // The tool hands out 10.000 characters at a time and continues with start_index, so the whole
+  // page has to survive here; clipping at a few thousand would silently end every long page.
+  return { title: String(j?.title || url).slice(0, 200), text: String(j?.content ?? j?.text ?? j?.markdown ?? '').slice(0, 200000) }
 }
 
 // ---------- streaming completions ----------
 export interface ToolCallDelta { index: number; id?: string; name?: string; args?: string }
-export interface Delta { content?: string; reasoning?: string; toolCalls?: ToolCallDelta[]; finish?: string }
+export interface TokenUsage { input: number; output: number; cached?: number; reasoning?: number; total?: number }
+export interface Delta { content?: string; reasoning?: string; toolCalls?: ToolCallDelta[]; finish?: string; usage?: TokenUsage; cost?: { micros: number; currency: string } }
+
+/** The provider's token report (requested with stream_options.include_usage); null when the chunk has none. */
+export function parseUsage(raw: any): TokenUsage | null {
+  if (!raw || typeof raw !== 'object') return null
+  const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : 0)
+  const input = num(raw.prompt_tokens ?? raw.input_tokens), output = num(raw.completion_tokens ?? raw.output_tokens)
+  const cached = num(raw.prompt_tokens_details?.cached_tokens ?? raw.input_tokens_details?.cached_tokens)
+  const reasoning = num(raw.completion_tokens_details?.reasoning_tokens ?? raw.output_tokens_details?.reasoning_tokens)
+  if (!input && !output && !cached && !reasoning) return null
+  return { input, output, ...(cached ? { cached } : {}), ...(reasoning ? { reasoning } : {}), total: num(raw.total_tokens) || input + output }
+}
 
 /** Parses one SSE data payload into the parts the UI cares about (OpenAI-compatible chunk). */
 export function parseChunk(payload: string): Delta | null {
   let j: any
   try { j = JSON.parse(payload) } catch { return null }
-  const choice = j?.choices?.[0]; if (!choice) return null
+  const usage = parseUsage(j?.usage)
+  const cost = typeof j?.botconnector?.cost_micros === 'number' ? { micros: j.botconnector.cost_micros, currency: String(j.botconnector.currency || 'USD') } : undefined
+  const choice = j?.choices?.[0]
+  if (!choice) return usage || cost ? { ...(usage ? { usage } : {}), ...(cost ? { cost } : {}) } : null   // the final usage frame has no choices
   const d = choice.delta ?? choice.message ?? {}
   const out: Delta = {}
   if (typeof d.content === 'string' && d.content) out.content = d.content
@@ -185,6 +219,8 @@ export function parseChunk(payload: string): Delta | null {
   if (typeof reasoning === 'string' && reasoning) out.reasoning = reasoning
   if (Array.isArray(d.tool_calls)) out.toolCalls = d.tool_calls.map((t: any, i: number) => ({ index: Number.isInteger(t?.index) ? t.index : i, id: t?.id, name: t?.function?.name, args: t?.function?.arguments }))
   if (typeof choice.finish_reason === 'string') out.finish = choice.finish_reason
+  if (usage) out.usage = usage
+  if (cost) out.cost = cost
   return out
 }
 
@@ -263,8 +299,87 @@ async function* streamOnce(body: Record<string, unknown>, signal?: AbortSignal):
       for (const p of payloads) {
         const d = parseChunk(p); if (!d) continue
         const stuck = padGuard(d, pads); if (stuck) { void reader.cancel?.().catch?.(() => {}); yield { finish: 'length' }; return }
-        if (d.content !== undefined || d.reasoning !== undefined || d.toolCalls || d.finish) yield d
+        if (d.content !== undefined || d.reasoning !== undefined || d.toolCalls || d.finish || d.usage || d.cost) yield d
       }
     }
   } finally { try { reader.releaseLock?.() } catch { /* a read was still pending (stalled stream): the reader was cancelled above */ } }
 }
+
+/** Voice input: sends the recorded clip and returns what the person said. */
+export async function transcribeAudio(req: { audioBase64: string; mime?: string; format?: string; language?: string }, signal?: AbortSignal): Promise<{ text: string; durationSeconds: number | null }> {
+  const timeout = new AbortController(); const timer = setTimeout(() => timeout.abort(), 180_000)
+  const onAbort = () => timeout.abort(); signal?.addEventListener('abort', onAbort)
+  try {
+    const j = await postJson<{ text?: string; duration_seconds?: number | null }>('/v1/audio/transcriptions', {
+      audio_base64: req.audioBase64,
+      ...(req.mime ? { mime: req.mime } : {}),
+      ...(req.format ? { format: req.format } : {}),
+      ...(req.language ? { language: req.language } : {}),
+    }, timeout.signal)
+    if (typeof j?.text !== 'string' || !j.text.trim()) throw new ChatError('unavailable')
+    return { text: j.text, durationSeconds: typeof j.duration_seconds === 'number' ? j.duration_seconds : null }
+  } catch (e) {
+    if ((e as Error)?.name === 'AbortError') throw new ChatError('aborted')
+    throw e
+  } finally { clearTimeout(timer); signal?.removeEventListener('abort', onAbort) }
+}
+
+// ---------- video ----------
+export interface VideoModel { id: string; name: string; access: Access; durationSeconds: number; resolution: string; textToVideo: boolean; requiresImage: boolean; guestTrial: boolean }
+/** The video models the job route accepts, with the limits it enforces. */
+export async function fetchVideoModels(): Promise<VideoModel[]> {
+  const j = await getJson<{ data?: any[] }>('/v1/studio-video/models')
+  return (j.data ?? []).filter(m => m && typeof m.id === 'string')
+    .map((m): VideoModel => ({
+      id: String(m.id),
+      name: String(m.name || prettyId(String(m.id))),
+      access: accessOf(m.botconnector_access),
+      durationSeconds: Number(m.duration_seconds) > 0 ? Number(m.duration_seconds) : 5,
+      resolution: String(m.resolution || '720p'),
+      textToVideo: m.supports_text_to_video !== false,
+      requiresImage: m.requires_image === true,
+      guestTrial: m.guest_trial === true,
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name))
+}
+
+export interface VideoQuote { micros: number; token: string; expiresAt: string; durationSeconds: number; aspect: string }
+/** Price for one clip. The token goes back with the job so a changed price is refused. */
+export async function quoteVideo(req: { model: string; aspect: string; sourceSha256?: string }): Promise<VideoQuote> {
+  const j = await postJson<any>('/v1/studio-video/quote', {
+    model: req.model, aspect_ratio: req.aspect,
+    ...(req.sourceSha256 ? { source_sha256: req.sourceSha256 } : {}),
+  })
+  const micros = Number(j?.customer_estimate_micros), token = j?.quote_token
+  if (!Number.isFinite(micros) || micros < 0 || typeof token !== 'string' || !token) throw new ChatError('unavailable')
+  return { micros, token, expiresAt: String(j?.quote_expires_at || ''), durationSeconds: Number(j?.duration_seconds) || 5, aspect: String(j?.aspect_ratio || req.aspect) }
+}
+
+export interface VideoJob { id: string; status: string; error?: string }
+const jobOf = (j: any): VideoJob | null => {
+  const job = j?.job && typeof j.job === 'object' ? j.job : j
+  const id = typeof job?.id === 'string' ? job.id : typeof job?.job_id === 'string' ? job.job_id : ''
+  const status = typeof job?.status === 'string' ? job.status : ''
+  if (!id || !status) return null
+  return { id, status, ...(typeof job.error_code === 'string' ? { error: job.error_code } : {}) }
+}
+
+export async function submitVideo(req: { model: string; prompt: string; aspect: string; quoteToken: string; idempotencyKey: string; sourceBase64?: string; sourceMime?: string; sourceSha256?: string }): Promise<VideoJob> {
+  const j = await postJson<any>('/v1/studio-video/jobs', {
+    model: req.model, prompt: req.prompt, aspect_ratio: req.aspect, idempotency_key: req.idempotencyKey,
+    ...(req.sourceBase64 ? { source_base64: req.sourceBase64, source_mime: req.sourceMime || 'image/jpeg', source_sha256: req.sourceSha256 } : {}),
+  }, undefined, { 'x-botconnector-media-quote': req.quoteToken })
+  const job = jobOf(j)
+  if (!job) throw new ChatError('unavailable')
+  return job
+}
+
+export async function fetchVideoJob(id: string): Promise<VideoJob> {
+  const job = jobOf(await getJson<any>(`/v1/studio-video/jobs/${encodeURIComponent(id)}`))
+  if (!job) throw new ChatError('unavailable')
+  return job
+}
+
+/** Where the finished clip plays; the player must send the same authorization header. */
+export const videoContentUrl = (id: string): string => `${API_BASE}/v1/studio-video/jobs/${encodeURIComponent(id)}/content`
+export const videoHeaders = (): Record<string, string> => headers({ accept: 'video/mp4' })

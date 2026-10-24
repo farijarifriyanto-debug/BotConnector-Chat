@@ -17,18 +17,28 @@ const CHIPS: { id: ModelFilter; key: 'fAll' | 'fFree' | 'fCloud' | 'fLocal' | 'f
 
 interface Props {
   visible: boolean; models: ChatModel[]; selected: string; onSelect: (id: string) => void; onClose: () => void
+  /** which kind this screen offers: chat only, pictures only, or voices only (the reference keeps them apart too) */
+  mode?: 'chat' | 'image' | 'voice' | 'video'
+  /** voices, when the screen is the voice one */
+  voiceModels?: { id: string; name: string; access: Access }[]; selectedVoice?: string; onSelectVoice?: (id: string) => void
   /** picture models: shown under the Image filter (and in "All"); picking one calls onSelectImage */
   imageModels?: ImageModel[]; selectedImage?: string; onSelectImage?: (id: string) => void
   state?: 'idle' | 'loading' | 'ready' | 'error' | 'auth'; onRetry?: () => void
 }
 
-export function ModelSheet({ visible, models, selected, onSelect, onClose, imageModels = [], selectedImage = '', onSelectImage, state = 'ready', onRetry }: Props) {
+export function ModelSheet({ visible, models, selected, onSelect, onClose, mode = 'chat', voiceModels = [], selectedVoice = '', onSelectVoice, imageModels = [], selectedImage = '', onSelectImage, state = 'ready', onRetry }: Props) {
   const th = useTheme(), t = useT()
   const [filter, setFilter] = useState<ModelFilter>('all'), [query, setQuery] = useState('')
-  const all = useMemo(() => [...models, ...(onSelectImage ? imageModels.map(imageAsModel) : [])], [models, imageModels, onSelectImage])
+  // Only the kind this screen is about: chat models in a chat, pictures in the image screen, voices in the voice one.
+  const all = useMemo(() => {
+    if (mode === 'image') return imageModels.length ? imageModels.map(imageAsModel) : models
+    if (mode === 'voice') return voiceModels.map(m => ({ id: m.id, name: m.name, access: m.access, vision: false, tools: false, reasoning: false, available: true } as ChatModel))
+    return models
+  }, [mode, models, imageModels, voiceModels])
   const shown = useMemo(() => filterModels(all, filter, query), [all, filter, query])
   const count = (f: ModelFilter) => filterModels(all, f, '').length
   const groups = useMemo(() => {
+    if (mode !== 'chat') return [{ id: mode, title: mode === 'image' ? t('fImage') : mode === 'video' ? t('vidTitle') : t('voiceTitle'), list: shown }].filter(g => g.list.length)
     const chat = shown.filter(m => !m.image)
     return [
       ...GROUPS.map(g => ({ id: g.access as string, title: t(g.key), list: chat.filter(m => m.access === g.access) })),
@@ -38,7 +48,7 @@ export function ModelSheet({ visible, models, selected, onSelect, onClose, image
     ].filter(g => g.list.length)
   }, [shown, t])
   const close = () => { setQuery(''); setFilter('all'); onClose() }
-  const pick = (m: ChatModel) => { if (m.image) onSelectImage?.(m.id); else onSelect(m.id); close() }
+  const pick = (m: ChatModel) => { if (mode === 'image' || m.image) onSelectImage?.(m.id); else if (mode === 'voice') onSelectVoice?.(m.id); else onSelect(m.id); close() }
   const detail = (m: ChatModel) => !m.available ? t(m.reason === 'no_payg_balance' ? 'needBalance' : 'notAvailable')
     : [m.context ? t('ctx', { n: Math.round(m.context / 1000) }) : '', m.vision ? t('vision') : '', m.tools ? t('tools') : '', m.reasoning ? t('reasoning') : '', m.image && m.refs ? t('imgRefBadge') : ''].filter(Boolean).join(' · ')
   const badgeColor = (a: Access) => (a === 'free' ? [th.free, th.freeBg] : a === 'plan' || a === 'family' ? [th.plan, th.planBg] : a === 'payg' ? [th.payg, th.paygBg] : [th.muted, th.surface3])
@@ -55,7 +65,7 @@ export function ModelSheet({ visible, models, selected, onSelect, onClose, image
           {!!query && <Pressable onPress={() => setQuery('')} hitSlop={10} accessibilityRole="button" accessibilityLabel={t('remove')}><Icon name="Close" size={15} color={th.muted} /></Pressable>}
         </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }} contentContainerStyle={{ gap: 8, paddingHorizontal: 16, paddingVertical: 10 }} keyboardShouldPersistTaps="handled">
-          {CHIPS.filter(c => c.id === 'all' || count(c.id) > 0).map(c => { const on = filter === c.id; return (
+          {mode === 'chat' && CHIPS.filter(c => c.id === 'all' || count(c.id) > 0).map(c => { const on = filter === c.id; return (
             <Pressable key={c.id} testID={`filter-${c.id}`} accessibilityRole="button" accessibilityState={{ selected: on }} onPress={() => setFilter(c.id)} style={{ height: 32, paddingHorizontal: 14, justifyContent: 'center', borderRadius: 16, borderWidth: 1, borderColor: on ? th.accent : th.lineStrong, backgroundColor: on ? th.accentSoft : th.surface }}>
               <Text style={{ color: on ? th.accentStrong : th.ink, fontSize: 13, fontWeight: '600' }}>{t(c.key)}</Text>
             </Pressable>) })}
@@ -69,7 +79,8 @@ export function ModelSheet({ visible, models, selected, onSelect, onClose, image
             <View key={g.id} style={{ marginBottom: 12 }}>
               <Text style={{ color: th.muted2, fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>{g.title}</Text>
               {g.list.map(m => {
-                const on = m.image ? m.id === selectedImage : m.id === selected, [fg, bg] = badgeColor(m.access), d = detail(m)
+                const chosen = mode === 'image' ? selectedImage : mode === 'voice' ? selectedVoice : selected
+                const on = m.image ? m.id === selectedImage : m.id === chosen, [fg, bg] = badgeColor(m.access), d = detail(m)
                 return (
                   <Pressable key={(m.image ? 'img:' : '') + m.id} testID={`model-${m.id}`} disabled={!m.available} accessibilityRole="button" accessibilityLabel={`${m.name}. ${t(BADGE[m.access])}${d ? '. ' + d : ''}`} accessibilityState={{ selected: on, disabled: !m.available }} onPress={() => pick(m)}
                     style={{ flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 48, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 12, backgroundColor: on ? th.accentSoft : th.surface, borderWidth: 1, borderColor: on ? th.accent : th.line, marginBottom: 6, opacity: m.available ? 1 : 0.5 }}>

@@ -7,19 +7,38 @@ import { errorText, type Lang } from '../i18n/strings'
 import { bcp47 } from '../i18n/langs'
 import { useT } from '../hooks/useT'
 import { imageUri } from '../lib/images'
+import { resolveCitations } from '../lib/cite'
 import { plainText } from '../lib/speech'
 import type { Progress } from '../lib/research'
 import { ChatError, type Msg } from '../lib/types'
+import { useAuth } from '../store/auth'
 import { useRatings } from '../store/ratings'
 import { useSettings } from '../store/settings'
 import type { RunStatus } from '../store/chat'
-import { useTheme } from '../theme/theme'
+import { useTheme, type Theme } from '../theme/theme'
 import { Icon } from './Icons'
 import { Markdown } from './Markdown'
+import { TranslateSheet } from './TranslateSheet'
 
 const domain = (u: string) => { try { return new URL(u).hostname.replace(/^www\./, '') } catch { return u } }
 const PHASES = ['plan', 'search', 'read', 'check', 'write'] as const
 const PHASE_KEY = { plan: 'researchPlan', search: 'researchSearch', read: 'researchRead', check: 'researchCheck', write: 'researchWrite' } as const
+
+/** The same stamp the reference app prints next to a message: 2026-10-24 14:30:07. */
+export function stamp(ts: number): string {
+  const d = new Date(ts), p = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`
+}
+/** Seconds with one decimal, comma for Indonesian (5,2 dtk). */
+export function secondsLabel(ms: number, lang: Lang): string {
+  const s = (Math.max(0, ms) / 1000).toFixed(1)
+  return lang === 'id' ? s.replace('.', ',') : s
+}
+const initialOf = (name: string) => (name.trim()[0] ?? '?').toUpperCase()
+
+function Avatar({ children, th, testID }: { children: React.ReactNode; th: Theme; testID?: string }) {
+  return <View testID={testID} style={{ width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: th.surface3, overflow: 'hidden' }}>{children}</View>
+}
 
 /** Live progress of a Deep research run: finished steps ticked, the current one with what it is doing. */
 export function ResearchCard({ p }: { p: Progress }) {
@@ -44,14 +63,63 @@ export function errorLine(code: string, lang: Lang, t: ReturnType<typeof useT>):
   return errorText(lang, new ChatError(k as ChatError['kind'], { retryAfterSeconds: s ? Number(s) : undefined }))
 }
 
-interface Props { msg: Msg; streaming: boolean; status: RunStatus | null; isLastAssistant: boolean; canAct: boolean; onRegenerate: () => void; onReport?: () => void }
+/** Name + time above a message, with the user's avatar on the right and the answer's mark on the left. */
+function Meta({ msg, th, user }: { msg: Msg; th: Theme; user: boolean }) {
+  const t = useT(), account = useAuth(s => s.account)
+  const who = user ? (account?.display_name?.trim() || account?.email?.split('@')[0] || t('you')) : (msg.model || t('assistant'))
+  return (
+    <View testID={user ? 'meta-user' : 'meta-assistant'} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, justifyContent: user ? 'flex-end' : 'flex-start', marginBottom: 8 }}>
+      {user && <View style={{ alignItems: 'flex-end', flexShrink: 1 }}><Text numberOfLines={1} style={{ color: th.muted, fontSize: 13, fontWeight: '500' }}>{who}</Text><Text testID="msg-time" style={{ color: th.muted2, fontSize: 11, marginTop: 2 }}>{stamp(msg.createdAt)}</Text></View>}
+      {user
+        ? <Avatar th={th} testID="avatar-user"><Text style={{ color: th.accentStrong, fontSize: 13, fontWeight: '700' }}>{initialOf(who)}</Text></Avatar>
+        : <Avatar th={th} testID="avatar-assistant"><Image source={require('../../assets/bico/bico-mark.png')} style={{ width: 22, height: 22 }} resizeMode="contain" accessibilityIgnoresInvertColors /></Avatar>}
+      {!user && <View style={{ flexShrink: 1 }}><Text testID="assistant-name" numberOfLines={1} style={{ color: th.muted, fontSize: 13, fontWeight: '500' }}>{who}</Text><Text testID="msg-time" style={{ color: th.muted2, fontSize: 11, marginTop: 2 }}>{stamp(msg.createdAt)}</Text></View>}
+    </View>
+  )
+}
 
-function MessageViewBase({ msg, streaming, status, isLastAssistant, canAct, onRegenerate, onReport }: Props) {
+/** Reasoning is collapsed to one line once the answer starts, with how long the model thought. */
+function ReasoningCard({ msg, streaming }: { msg: Msg; streaming: boolean }) {
   const th = useTheme(), t = useT(), lang = useSettings(s => s.lang)
-  const [speaking, setSpeaking] = useState(false), [copied, setCopied] = useState(false), [thinking, setThinking] = useState(false)
+  const [open, setOpen] = useState(false), [now, setNow] = useState(() => Date.now())
+  const live = streaming && !msg.content && !msg.reasoningMs
+  useEffect(() => {
+    if (!live) return
+    const id = setInterval(() => setNow(Date.now()), 500)
+    return () => clearInterval(id)
+  }, [live])
+  const ms = msg.reasoningMs ?? (msg.reasoningAt ? Math.max(0, now - msg.reasoningAt) : 0)
+  const text = live ? t('thinkingLive', { t: secondsLabel(ms, lang) }) : ms ? t('thoughtDone', { t: secondsLabel(ms, lang) }) : t('thought')
+  const expanded = open || live
+  return (
+    <Pressable testID="reasoning-toggle" onPress={() => setOpen(v => !v)} accessibilityRole="button" accessibilityState={{ expanded }} accessibilityLabel={text}
+      style={{ borderWidth: 1, borderStyle: 'dashed', borderColor: th.lineStrong, borderRadius: 12, padding: 10, marginBottom: 8 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+        <Text testID="reasoning-label" style={{ color: th.muted, fontWeight: '600', fontSize: 13, flexShrink: 1 }}>{text}</Text>
+        <Icon name={expanded ? 'ChevL' : 'ChevR'} size={14} color={th.muted2} />
+      </View>
+      {expanded && <Text style={{ color: th.muted, fontSize: 13, marginTop: 6 }}>{msg.reasoning}</Text>}
+    </Pressable>
+  )
+}
+
+interface Props { msg: Msg; streaming: boolean; status: RunStatus | null; isLastAssistant: boolean; canAct: boolean; onRegenerate: () => void; onReport?: () => void; onTranslate?: (code: string) => Promise<{ ok: boolean }>; onClearTranslation?: () => void }
+
+function MessageViewBase({ msg, streaming, status, isLastAssistant, canAct, onRegenerate, onReport, onTranslate, onClearTranslation }: Props) {
+  const th = useTheme(), t = useT(), lang = useSettings(s => s.lang), meta = useSettings(s => s.msgMeta)
+  const [speaking, setSpeaking] = useState(false), [copied, setCopied] = useState(false)
+  const liked = useRatings(r => !!r.up[msg.id]), disliked = useRatings(r => !!r.down[msg.id])
+  const [trSheet, setTrSheet] = useState(false), [trOpen, setTrOpen] = useState(false), [trNote, setTrNote] = useState<string | null>(null)
+  /** A translation that was already saved is shown collapsed; one written now opens by itself. */
+  const savedInitially = React.useRef(!!msg.translation)
+  useEffect(() => { if (!savedInitially.current && msg.translation !== undefined) setTrOpen(true) }, [msg.translation])
+  /** [cite:id] markers become the source numbers the chips show; ids without a source disappear. */
+  const text = resolveCitations(msg.content, msg.sources)
+  useEffect(() => () => { if (speaking) void Speech.stop() }, [speaking])
   if (msg.role === 'user') return (
-    <View style={{ alignItems: 'flex-end', marginVertical: 8, paddingHorizontal: 16 }} accessibilityLabel={t('you')}>
-      <View style={{ maxWidth: '88%', backgroundColor: th.accentSoft, borderWidth: 1, borderColor: th.line, borderRadius: 18, borderBottomRightRadius: 6, paddingHorizontal: 14, paddingVertical: 10 }}>
+    <View style={{ alignItems: 'flex-end', marginVertical: 12, paddingHorizontal: 16 }} accessibilityLabel={t('you')}>
+      {meta && <Meta msg={msg} th={th} user />}
+      <View style={{ maxWidth: '75%', backgroundColor: th.accentSoft, borderWidth: 1, borderColor: th.line, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 12 }}>
         {!!msg.attachments?.length && (
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: msg.content ? 8 : 0 }}>
             {msg.attachments.map((a, i) => a.kind === 'image' && a.dataUrl
@@ -62,23 +130,18 @@ function MessageViewBase({ msg, streaming, status, isLastAssistant, canAct, onRe
       </View>
     </View>
   )
-  const liked = useRatings(r => !!r.up[msg.id]), disliked = useRatings(r => !!r.down[msg.id])
   const speak = () => {
     if (speaking) { void Speech.stop(); setSpeaking(false); return }
-    const text = plainText(msg.content); if (!text) return
+    const speech = plainText(text); if (!speech) return
     setSpeaking(true)
-    Speech.speak(text, { language: bcp47(lang), onDone: () => setSpeaking(false), onStopped: () => setSpeaking(false), onError: () => setSpeaking(false) })
+    Speech.speak(speech, { language: bcp47(lang), onDone: () => setSpeaking(false), onStopped: () => setSpeaking(false), onError: () => setSpeaking(false) })
   }
-  useEffect(() => () => { if (speaking) void Speech.stop() }, [speaking])
-  const copy = async () => { await Clipboard.setStringAsync(msg.content || msg.image?.prompt || ''); setCopied(true); setTimeout(() => setCopied(false), 1500) }
+  const copy = async () => { await Clipboard.setStringAsync(text || msg.image?.prompt || ''); setCopied(true); setTimeout(() => setCopied(false), 1500) }
   const showTyping = streaming && !msg.content && !status && !msg.reasoning
   return (
-    <View style={{ marginVertical: 10, paddingHorizontal: 16 }} accessibilityLabel={t('assistant')}>
-      {!!msg.reasoning && (
-        <Pressable onPress={() => setThinking(v => !v)} style={{ borderWidth: 1, borderStyle: 'dashed', borderColor: th.lineStrong, borderRadius: 12, padding: 10, marginBottom: 8 }}>
-          <Text style={{ color: th.muted, fontWeight: '600', fontSize: 13 }}>{streaming && !msg.content ? t('thinking') + '…' : t('thought')}</Text>
-          {(thinking || (streaming && !msg.content)) && <Text style={{ color: th.muted, fontSize: 13, marginTop: 6 }}>{msg.reasoning}</Text>}
-        </Pressable>)}
+    <View style={{ marginVertical: 12, paddingHorizontal: 20 }} accessibilityLabel={t('assistant')}>
+      {meta && <Meta msg={msg} th={th} user={false} />}
+      {!!msg.reasoning && <ReasoningCard msg={msg} streaming={streaming} />}
       {status?.research && <View style={{ marginBottom: 8 }}><ResearchCard p={status.research} /></View>}
       {!!status && !status.research && (status.searching || status.reading) && (
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: th.surface3, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6, alignSelf: 'flex-start', marginBottom: 8, maxWidth: '100%' }}>
@@ -86,7 +149,19 @@ function MessageViewBase({ msg, streaming, status, isLastAssistant, canAct, onRe
           <Text numberOfLines={1} style={{ color: th.muted, fontSize: 13, flexShrink: 1 }}>{status.searching ? t('searching', { q: status.searching }) : t('reading', { u: domain(status.reading ?? '') })}</Text>
         </View>)}
       {msg.research && !streaming && <Text style={{ color: th.muted, fontSize: 12, marginBottom: 6 }}>{t('researchLog', { s: msg.research.searches, p: msg.research.pages })}</Text>}
-      {showTyping ? <ActivityIndicator color={th.muted2} style={{ alignSelf: 'flex-start', marginVertical: 8 }} /> : !!msg.content && <Markdown text={msg.content} sources={msg.sources} streaming={streaming} />}
+      {showTyping ? <ActivityIndicator color={th.muted2} style={{ alignSelf: 'flex-start', marginVertical: 8 }} /> : !!msg.content && <Markdown text={text} sources={msg.sources} streaming={streaming} />}
+      {msg.translation !== undefined && (
+        <View testID="translation-card" style={{ marginTop: 10, borderRadius: 16, borderWidth: 1, borderColor: th.lineStrong, backgroundColor: th.accentSoft, padding: 10 }}>
+          <Pressable testID="translation-toggle" onPress={() => setTrOpen(v => !v)} accessibilityRole="button" accessibilityState={{ expanded: trOpen }} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <Icon name="ArrowLeftRight" size={16} color={th.accentStrong} />
+            <Text style={{ color: th.accentStrong, fontWeight: '700', fontSize: 13, flex: 1 }}>{t('translateTitle')}</Text>
+            <Icon name={trOpen ? 'Chevron' : 'ChevR'} size={14} color={th.muted} />
+          </Pressable>
+          {trOpen && (msg.translation
+            ? <View style={{ marginTop: 6 }}><Markdown text={msg.translation} /></View>
+            : <Text style={{ color: th.muted, fontSize: 13, fontStyle: 'italic', marginTop: 6 }}>{t('translating')}</Text>)}
+        </View>)}
+      {!!trNote && <Text accessibilityRole="alert" testID="translate-note" style={{ color: th.danger, fontSize: 13, marginTop: 6 }}>{trNote}</Text>}
       {(msg.attachments ?? []).filter(a => a.kind === 'image' && a.uri && imageUri(a.uri)).map(a => (
         <Pressable key={a.uri} testID="generated-image" accessibilityRole="imagebutton" accessibilityLabel={msg.image?.prompt || t('imgAlt')} onPress={() => void Share.share({ url: imageUri(a.uri!) })} style={{ marginTop: 4, alignSelf: 'flex-start', width: '100%', maxWidth: 420, aspectRatio: 1, borderRadius: 14, overflow: 'hidden', backgroundColor: th.surface3 }}>
           <Image source={{ uri: imageUri(a.uri!) }} style={{ width: '100%', height: '100%' }} resizeMode="contain" accessibilityIgnoresInvertColors />
@@ -105,14 +180,18 @@ function MessageViewBase({ msg, streaming, status, isLastAssistant, canAct, onRe
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6 }}>
           <Pressable onPress={copy} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('copy')} style={{ flexDirection: 'row', alignItems: 'center', gap: 5, padding: 6 }}><Icon name={copied ? 'Check' : 'Copy'} size={16} color={th.muted} /><Text style={{ color: th.muted, fontSize: 12.5 }}>{copied ? t('copied') : t('copy')}</Text></Pressable>
           {!!msg.content && <Pressable onPress={speak} hitSlop={8} accessibilityRole="button" accessibilityLabel={t(speaking ? 'stopReading' : 'readAloud')} testID="read-aloud" style={{ flexDirection: 'row', alignItems: 'center', gap: 5, padding: 6 }}><Icon name={speaking ? 'Stop' : 'Speaker'} size={16} color={th.muted} /></Pressable>}
-          <Pressable onPress={() => void Share.share({ message: msg.content + (msg.sources?.length ? '\n\n' + msg.sources.map((s, i) => `${i + 1}. ${s.title} ${s.url}`).join('\n') : '') })} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('share')} style={{ flexDirection: 'row', alignItems: 'center', gap: 5, padding: 6 }}><Icon name="Share" size={16} color={th.muted} /><Text style={{ color: th.muted, fontSize: 12.5 }}>{t('share')}</Text></Pressable>
+          <Pressable onPress={() => void Share.share({ message: text + (msg.sources?.length ? '\n\n' + msg.sources.map((s, i) => `${i + 1}. ${s.title} ${s.url}`).join('\n') : '') })} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('share')} style={{ flexDirection: 'row', alignItems: 'center', gap: 5, padding: 6 }}><Icon name="Share" size={16} color={th.muted} /><Text style={{ color: th.muted, fontSize: 12.5 }}>{t('share')}</Text></Pressable>
           {isLastAssistant && canAct && <Pressable onPress={onRegenerate} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('regenerate')} style={{ flexDirection: 'row', alignItems: 'center', gap: 5, padding: 6 }}><Icon name="Refresh" size={16} color={th.muted} /><Text style={{ color: th.muted, fontSize: 12.5 }}>{t('regenerate')}</Text></Pressable>}
+          {!!onTranslate && !streaming && !!msg.content && <Pressable testID="translate-open" onPress={() => { setTrNote(null); setTrSheet(true) }} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('translateAction')} style={{ padding: 6 }}><Icon name="ArrowLeftRight" size={16} color={th.muted} /></Pressable>}
           <Pressable testID="rate-up" onPress={() => useRatings.getState().toggleUp(msg.id)} hitSlop={8} accessibilityRole="button" accessibilityState={{ selected: liked }} accessibilityLabel={t('rateUp')} style={{ padding: 6 }}><Icon name="ThumbUp" size={16} color={liked ? th.accentStrong : th.muted} strokeWidth={liked ? 2.5 : 1.8} /></Pressable>
           {!!onReport && <Pressable testID="report-open" onPress={onReport} hitSlop={8} accessibilityRole="button" accessibilityState={{ selected: disliked }} accessibilityLabel={t('rpOpen')} style={{ padding: 6 }}><Icon name="ThumbDown" size={16} color={disliked ? th.danger : th.muted} strokeWidth={disliked ? 2.5 : 1.8} /></Pressable>}
-          {!!msg.model && <Text numberOfLines={1} style={{ color: th.muted2, fontSize: 12, flexShrink: 1, marginLeft: 4 }}>{msg.model}</Text>}
+          {!!msg.ms && <Text testID="msg-latency" style={{ color: th.muted2, fontSize: 12, marginLeft: 4 }}>{t('latency', { t: secondsLabel(msg.ms, lang) })}</Text>}
         </View>)}
       {!streaming && !msg.content && !!msg.error && isLastAssistant && canAct && (
         <Pressable onPress={onRegenerate} accessibilityRole="button" style={{ flexDirection: 'row', alignItems: 'center', gap: 5, padding: 6, marginTop: 4 }}><Icon name="Refresh" size={16} color={th.muted} /><Text style={{ color: th.muted, fontSize: 13 }}>{t('regenerate')}</Text></Pressable>)}
+      {!!onTranslate && (
+        <TranslateSheet visible={trSheet} onClose={() => setTrSheet(false)} canClear={!!msg.translation} onClear={onClearTranslation}
+          onPick={code => { void onTranslate(code).then(r => { if (!r.ok) setTrNote(t('translateFail')) }) }} />)}
     </View>
   )
 }

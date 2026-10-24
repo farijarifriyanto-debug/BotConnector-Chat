@@ -36,9 +36,12 @@ export interface Attachment {
 }
 
 /** A document that belongs to a project: uploaded once, used by every chat in the project. */
-export interface ProjectFile { fileId: string; name: string; mime: string; size: number; status?: 'uploading' | 'processing' | 'ready' | 'failed' }
+export interface ProjectFile { fileId: string; name: string; mime: string; size: number; status?: 'uploading' | 'processing' | 'ready' | 'failed'; /** when it joined the project (the list can sort by it) */ addedAt?: number }
 
-export interface Source { title: string; url: string }
+export interface Source { title: string; url: string; /** short id the model cites with [cite:id] */ id?: string }
+
+/** How the model reads a page it was given: follow the search provider, the app's own reader, or nothing. */
+export type WebFetchMode = 'follow' | 'local' | 'off'
 
 export interface Msg {
   id: string
@@ -47,6 +50,10 @@ export interface Msg {
   /** what the bubble shows when `content` is a long generated prompt (writing tools, OCR) */
   shown?: string
   reasoning?: string
+  /** when the first reasoning token arrived (drives the live "thinking" counter) */
+  reasoningAt?: number
+  /** how long the model reasoned before the answer started, in ms */
+  reasoningMs?: number
   attachments?: Attachment[]
   sources?: Source[]
   searched?: string[]
@@ -60,6 +67,16 @@ export interface Msg {
   local?: { deviceId: string; deviceName: string; model: string; modelName: string; runtime: string }
   /** an image made in chat: how it was asked (the picture itself is the message's attachment) */
   image?: { prompt: string; modelId: string; model: string; size: string; left?: string }
+  /** a translation of the answer, written by the translate action */
+  translation?: string
+  /** the provider's token report for this answer (input/output/cached), like the reference app's message fields */
+  promptTokens?: number
+  completionTokens?: number
+  cachedTokens?: number
+  totalTokens?: number
+  /** what the account was charged for this answer, when the service reports it */
+  costMicros?: number
+  costCurrency?: string
   /** earlier answers to the same question (regenerate); local to this device */
   variants?: Msg[]
 }

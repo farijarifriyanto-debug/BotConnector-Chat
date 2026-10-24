@@ -16,8 +16,16 @@ import { LanguageSheet } from './LanguageSheet'
 import { LaptopSheet } from './LaptopSheet'
 import { LocalModelsSheet } from './LocalModelsSheet'
 import { PersonalizationSheet } from './PersonalizationSheet'
+import { InstructionsSheet } from './InstructionsSheet'
+import { WorldBookSheet } from './WorldBookSheet'
+import { ToolDescriptionsSheet } from './ToolDescriptionsSheet'
 import { ProvidersSheet } from './ProvidersSheet'
 import { SearchSheet } from './SearchSheet'
+import { QuickPhrasesSheet } from './QuickPhrasesSheet'
+import { StatsSheet } from './StatsSheet'
+import { ProjectsSheet } from './ProjectsSheet'
+import { BackupSheet } from './BackupSheet'
+import { TranslateSettingsSheet } from './TranslateSettingsSheet'
 import { SyncSection } from './SyncSection'
 import { UsageSheet } from './UsageSheet'
 
@@ -29,7 +37,7 @@ const cap = (x: string) => x.charAt(0).toUpperCase() + x.slice(1)
 export function SettingsSheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const th = useTheme(), t = useT(), s = useSettings(), account = useAuth(a => a.account), guest = useAuth(a => a.status === 'guest')
   const apple = useAuth(a => a.apple), appleLinked = useAuth(a => a.appleLinked), [linkMsg, setLinkMsg] = useState<string | null>(null)
-  const [providers, setProviders] = useState(false), [local, setLocal] = useState(false), [personal, setPersonal] = useState(false), [laptop, setLaptop] = useState(false), [langOpen, setLangOpen] = useState(false), [usage, setUsage] = useState(false), [search, setSearch] = useState(false), [deleting, setDeleting] = useState(false), [pw, setPw] = useState(''), [phrase, setPhrase] = useState(''), [busy, setBusy] = useState(false), [err, setErr] = useState<DeleteError | null>(null)
+  const [providers, setProviders] = useState(false), [local, setLocal] = useState(false), [personal, setPersonal] = useState(false), [laptop, setLaptop] = useState(false), [langOpen, setLangOpen] = useState(false), [usage, setUsage] = useState(false), [search, setSearch] = useState(false), [instr, setInstr] = useState(false), [lore, setLore] = useState(false), [tools, setTools] = useState(false), [quickPhrases, setQuickPhrases] = useState(false), [stats, setStats] = useState(false), [projects, setProjects] = useState(false), [backup, setBackup] = useState(false), [trSettings, setTrSettings] = useState(false), [deleting, setDeleting] = useState(false), [pw, setPw] = useState(''), [phrase, setPhrase] = useState(''), [busy, setBusy] = useState(false), [err, setErr] = useState<DeleteError | null>(null)
   const viaApple = appleLinked === true   // Apple HIG: an Apple account is never asked for a password; Apple confirms it is the owner
   const canDelete = !busy && phrase.trim() === DELETE_PHRASE && (viaApple || !!pw)
   const scene = useShot(x => x.scene)
@@ -118,7 +126,23 @@ export function SettingsSheet({ visible, onClose }: { visible: boolean; onClose:
               {seg<ThemePref>(s.theme, [{ v: 'auto', label: cap(t('themeAuto').replace(/^.*: /, '')) }, { v: 'light', label: cap(t('themeLight').replace(/^.*: /, '')) }, { v: 'dark', label: cap(t('themeDark').replace(/^.*: /, '')) }], s.setTheme)}
               {label(t('fsTitle'))}
               {seg<number>(s.fontScale, [{ v: 0.9, label: t('fsSmall') }, { v: 1, label: t('fsNormal') }, { v: 1.15, label: t('fsLarge') }, { v: 1.3, label: t('fsXL') }], s.setFontScale)}
+              {label(t('msgMeta'))}
+              {seg<'on' | 'off'>(s.msgMeta ? 'on' : 'off', [{ v: 'on', label: t('msgMetaOn') }, { v: 'off', label: t('msgMetaOff') }], v => s.setMsgMeta(v === 'on'))}
               <Pressable testID="open-personal" onPress={() => setPersonal(true)} accessibilityRole="button" style={{ marginTop: 18, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: th.lineStrong, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}><Text style={{ color: th.ink, fontWeight: '600' }}>{t('personalization')}</Text><Icon name="Chevron" size={16} color={th.muted} /></Pressable>
+              <Pressable testID="open-instructions" onPress={() => setInstr(true)} accessibilityRole="button" style={{ marginTop: 10, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: th.lineStrong, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}><Text style={{ color: th.ink, fontWeight: '600' }}>{t('instrTitle')}</Text><Icon name="Chevron" size={16} color={th.muted} /></Pressable>
+              <Pressable testID="open-worldbook" onPress={() => setLore(true)} accessibilityRole="button" style={{ marginTop: 10, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: th.lineStrong, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}><Text style={{ color: th.ink, fontWeight: '600' }}>{t('loreTitle')}</Text><Icon name="Chevron" size={16} color={th.muted} /></Pressable>
+              <Pressable testID="open-tools" onPress={() => setTools(true)} accessibilityRole="button" style={{ marginTop: 10, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: th.lineStrong, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}><Text style={{ color: th.ink, fontWeight: '600' }}>{t('toolTitle')}</Text><Icon name="Chevron" size={16} color={th.muted} /></Pressable>
+              <Pressable testID="open-quick-phrases" onPress={() => setQuickPhrases(true)} accessibilityRole="button" style={{ marginTop: 10, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: th.lineStrong, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}><Text style={{ color: th.ink, fontWeight: '600' }}>{t('qpTitle')}</Text><Icon name="Chevron" size={16} color={th.muted} /></Pressable>
+              <Pressable testID="open-stats" onPress={() => setStats(true)} accessibilityRole="button" style={{ marginTop: 10, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: th.lineStrong, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}><Text style={{ color: th.ink, fontWeight: '600' }}>{t('statTitle')}</Text><Icon name="Chevron" size={16} color={th.muted} /></Pressable>
+              <Pressable testID="open-projects" onPress={() => setProjects(true)} accessibilityRole="button" style={{ marginTop: 10, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: th.lineStrong, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}><Text style={{ color: th.ink, fontWeight: '600' }}>{t('projTitle')}</Text><Icon name="Chevron" size={16} color={th.muted} /></Pressable>
+              <Pressable testID="open-backup" onPress={() => setBackup(true)} accessibilityRole="button" style={{ marginTop: 10, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: th.lineStrong, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}><Text style={{ color: th.ink, fontWeight: '600' }}>{t('bkTitle')}</Text><Icon name="Chevron" size={16} color={th.muted} /></Pressable>
+              <Pressable testID="open-translate-settings" onPress={() => setTrSettings(true)} accessibilityRole="button" style={{ marginTop: 10, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: th.lineStrong, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}><Text style={{ color: th.ink, fontWeight: '600' }}>{t('trModelLabel')}</Text><Icon name="Chevron" size={16} color={th.muted} /></Pressable>
+              {label(t('toolsMemTitle'))}
+              {seg<'on' | 'off'>(s.toolsMemory ? 'on' : 'off', [{ v: 'on', label: t('msgMetaOn') }, { v: 'off', label: t('msgMetaOff') }], v => s.setToolsMemory(v === 'on'))}
+              {label(t('toolsDevTitle'))}
+              {seg<'on' | 'off'>(s.toolsDevice ? 'on' : 'off', [{ v: 'on', label: t('msgMetaOn') }, { v: 'off', label: t('msgMetaOff') }], v => s.setToolsDevice(v === 'on'))}
+              {label(t('toolsRecallTitle'))}
+              {seg<'on' | 'off'>(s.toolsRecall ? 'on' : 'off', [{ v: 'on', label: t('msgMetaOn') }, { v: 'off', label: t('msgMetaOff') }], v => s.setToolsRecall(v === 'on'))}
               <Pressable testID="open-search" onPress={() => setSearch(true)} accessibilityRole="button" style={{ marginTop: 10, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: th.lineStrong, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}><Text style={{ color: th.ink, fontWeight: '600' }}>{t('srchTitle')}</Text><Icon name="Chevron" size={16} color={th.muted} /></Pressable>
               <Pressable testID="open-providers" onPress={() => setProviders(true)} accessibilityRole="button" style={{ marginTop: 10, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: th.lineStrong, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}><Text style={{ color: th.ink, fontWeight: '600' }}>{t('provTitle')}</Text><Icon name="Chevron" size={16} color={th.muted} /></Pressable>
               {!guest && <Pressable testID="open-laptop" onPress={() => setLaptop(true)} accessibilityRole="button" style={{ marginTop: 10, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: th.lineStrong, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}><Text style={{ color: th.ink, fontWeight: '600' }}>{t('laptop')}</Text><Icon name="Chevron" size={16} color={th.muted} /></Pressable>}
@@ -141,6 +165,14 @@ export function SettingsSheet({ visible, onClose }: { visible: boolean; onClose:
       {!guest && <UsageSheet visible={usage} onClose={() => setUsage(false)} />}
       <LaptopSheet visible={laptop} onClose={() => setLaptop(false)} onUsed={onClose} />
       <PersonalizationSheet visible={personal} onClose={() => setPersonal(false)} />
+      <InstructionsSheet visible={instr} onClose={() => setInstr(false)} />
+      <WorldBookSheet visible={lore} onClose={() => setLore(false)} />
+      <ToolDescriptionsSheet visible={tools} onClose={() => setTools(false)} />
+      <QuickPhrasesSheet visible={quickPhrases} onClose={() => setQuickPhrases(false)} />
+      <StatsSheet visible={stats} onClose={() => setStats(false)} />
+      <ProjectsSheet visible={projects} onClose={() => setProjects(false)} />
+      <BackupSheet visible={backup} onClose={() => setBackup(false)} />
+      <TranslateSettingsSheet visible={trSettings} onClose={() => setTrSettings(false)} />
       <ProvidersSheet visible={providers} onClose={() => setProviders(false)} />
       <LocalModelsSheet visible={local} onClose={() => setLocal(false)} onUsed={onClose} />
     </Modal>

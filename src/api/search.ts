@@ -28,3 +28,23 @@ export async function byokSearch(id: Exclude<SearchProviderId, 'botconnector'>, 
     case 'parallel': { const j = await json('https://api.parallel.ai/v1/search', { method: 'POST', headers: { 'content-type': 'application/json', 'x-api-key': k }, body: JSON.stringify({ objective: query, max_results: max }) }, signal); return shape(j?.results ?? [], 'title', 'url', r => (r.excerpts ?? []).join(' ')) }
   }
 }
+
+/** Providers whose own API can also return the text of a page (not just search results). */
+export const BYOK_READERS: Exclude<SearchProviderId, 'botconnector'>[] = ['tavily', 'exa']
+
+/**
+ * Reads one page through the user's own provider, like the reference app's page-reading setting.
+ * Returns null when that provider cannot read pages or returns nothing usable.
+ */
+export async function byokFetch(id: Exclude<SearchProviderId, 'botconnector'>, key: string, url: string, signal?: AbortSignal): Promise<{ title: string; text: string } | null> {
+  if (!BYOK_READERS.includes(id) || !key.trim()) return null
+  const k = key.trim()
+  if (id === 'tavily') {
+    const j = await json('https://api.tavily.com/extract', { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${k}` }, body: JSON.stringify({ urls: [url], format: 'markdown' }) }, signal)
+    const row = (j?.results ?? []).find((r: any) => r && typeof r.raw_content === 'string' && r.raw_content)
+    return row ? { title: clip(row.title || url, 200), text: String(row.raw_content) } : null
+  }
+  const j = await json('https://api.exa.ai/contents', { method: 'POST', headers: { 'content-type': 'application/json', 'x-api-key': k }, body: JSON.stringify({ urls: [url], text: { maxCharacters: 200000 } }) }, signal)
+  const row = (j?.results ?? [])[0]
+  return row && typeof row.text === 'string' && row.text ? { title: clip(row.title || url, 200), text: String(row.text) } : null
+}
