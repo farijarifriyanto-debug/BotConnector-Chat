@@ -16,13 +16,14 @@ export const isChat = (c: Conv) => !c.kind
 export const blankRecord = (kind: 'project' | 'memory', id: string, title = ''): Conv => { const now = Date.now(); return { id, kind, title, model: '', system: '', web: false, createdAt: now, updatedAt: now, messages: [] } }
 
 /** Everything the user told the AI about themselves and the project, in front of the chat's own instructions. */
-export function composedSystem(conv: Conv, all: Conv[]): string {
+export function composedSystem(conv: Conv, all: Conv[], extra = ''): string {
   const mem = all.find(c => c.kind === 'memory'), proj = conv.projectId ? all.find(c => c.kind === 'project' && c.id === conv.projectId) : undefined
   const parts: string[] = []
   if (mem?.system.trim()) parts.push('The user\'s standing instructions:\n' + mem.system.trim())
   if (mem && mem.useMemory !== false && mem.memory?.length) parts.push('Things the user asked you to remember:\n' + mem.memory.map(x => '- ' + x).join('\n'))
   if (proj && proj.system.trim()) parts.push(`Instructions for the project "${proj.title}":\n` + proj.system.trim())
   if (conv.system.trim()) parts.push(conv.system.trim())
+  if (extra.trim()) parts.push(extra.trim())   // switched-on instruction cards ride at the end, like the reference app
   return parts.join('\n\n')
 }
 
