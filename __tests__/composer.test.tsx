@@ -6,6 +6,12 @@ import { Composer } from '../src/components/Composer'
 import { STRINGS } from '../src/i18n/strings'
 
 jest.setTimeout(30000)
+jest.mock('expo-audio', () => ({
+  RecordingPresets: { HIGH_QUALITY: {} },
+  useAudioRecorder: () => ({ prepareToRecordAsync: jest.fn(async () => {}), record: jest.fn(), stop: jest.fn(async () => {}), uri: null }),
+  requestRecordingPermissionsAsync: jest.fn(async () => ({ granted: false })),
+  setAudioModeAsync: jest.fn(async () => {}),
+}))
 const mockUpload = jest.fn(), mockStatus = jest.fn(), mockPickDoc = jest.fn(), mockPickPhotos = jest.fn()
 jest.mock('../src/api/files', () => ({ uploadFile: (...a: unknown[]) => mockUpload(...a), fileStatus: (...a: unknown[]) => mockStatus(...a), isTerminal: (s: string) => s === 'ready' || s === 'failed' }))
 jest.mock('../src/lib/attachments', () => ({ MAX_IMAGES: 4, pickDocument: () => mockPickDoc(), pickPhotos: () => mockPickPhotos(), takePhoto: jest.fn() }))

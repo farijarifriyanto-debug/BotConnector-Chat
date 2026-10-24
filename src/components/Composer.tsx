@@ -1,10 +1,13 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { ActionSheetIOS, ActivityIndicator, Alert, Image, Modal, Platform, Pressable, ScrollView, View } from 'react-native'
+import { RecordingPresets, requestRecordingPermissionsAsync, setAudioModeAsync, useAudioRecorder } from 'expo-audio'
 import { Text, TextInput } from './Text'
 import { useAttachments } from '../hooks/useAttachments'
 import { useT } from '../hooks/useT'
 import { MAX_IMAGES } from '../lib/attachments'
 import type { Attachment, ChatModel } from '../lib/types'
+import { joinVoiceText, transcribeClip, voiceFailure } from '../lib/voice'
+import { useSettings } from '../store/settings'
 import { useTheme } from '../theme/theme'
 import { Icon } from './Icons'
 import { ModelIcon } from './ModelIcon'
@@ -29,6 +32,8 @@ interface Props {
   queued?: { text: string } | null
   onQueue?: (text: string, o: SendFlags, attachments: Attachment[]) => void
   onCancelQueue?: () => void
+  /** voice input: recorded on the phone, transcribed by BotConnector */
+  voice?: { available: boolean }
 }
 
 /**
@@ -36,10 +41,12 @@ interface Props {
  * icon buttons, and whatever no longer fits collected under "+". Send becomes stop while an
  * answer streams, and a message typed in the meantime waits its turn instead of disappearing.
  */
-export function Composer({ busy, model, webAvailable, onSend, onStop, image, files, researchAvailable = true, onPickModel, onWebUnavailable, think = true, onThinkChange, queued, onQueue, onCancelQueue }: Props) {
-  const th = useTheme(), t = useT(), att = useAttachments()
+export function Composer({ busy, model, webAvailable, onSend, onStop, image, files, researchAvailable = true, onPickModel, onWebUnavailable, think = true, onThinkChange, queued, onQueue, onCancelQueue, voice }: Props) {
+  const th = useTheme(), t = useT(), att = useAttachments(), lang = useSettings(s => s.lang)
   const [text, setText] = useState(''), [web, setWeb] = useState(false), [research, setResearch] = useState(false), [img, setImg] = useState(false), [note, setNote] = useState<string | null>(null)
   const [rowW, setRowW] = useState(0), [more, setMore] = useState(false)
+  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY)
+  const [recording, setRecording] = useState(false), [transcribing, setTranscribing] = useState(false), [recordedMs, setRecordedMs] = useState(0)
   const hasPhotos = att.photoCount > 0
   const blocked = !img && (!att.ready || (hasPhotos && !model?.vision))
   const flags: SendFlags = { web: web || research, research, image: img, think }
@@ -83,6 +90,62 @@ export function Composer({ busy, model, webAvailable, onSend, onStop, image, fil
       ])
     }
   }
+  // The recording clock, like the live hint the reference app shows while the microphone is open.
+  useEffect(() => {
+    if (!recording) return
+    const started = Date.now()
+    setRecordedMs(0)
+    const id = setInterval(() => setRecordedMs(Date.now() - started), 250)
+    return () => clearInterval(id)
+  }, [recording])
+
+  const startVoice = async () => {
+    if (!voice?.available || recording || transcribing || busy) return
+    setNote(null)
+    try {
+      const permission = await requestRecordingPermissionsAsync()
+      if (!permission.granted) { setNote(t('micDenied')); return }
+      await setAudioModeAsync({ playsInSilentMode: true, allowsRecording: true })
+      await recorder.prepareToRecordAsync()
+      recorder.record()
+      setRecording(true)
+    } catch (e) {
+      setNote(t(voiceFailure(e) === 'mic' ? 'micDenied' : 'micFail'))
+    }
+  }
+
+  /** Stops the microphone, transcribes the clip, and puts the words after the draft (or sends them). */
+  const finishVoice = async (sendAfter: boolean) => {
+    if (!recording || transcribing) return
+    setRecording(false); setTranscribing(true)
+    try {
+      await recorder.stop()
+      const uri = recorder.uri
+      if (!uri) throw new Error('no recording')
+      const { text: said } = await transcribeClip(uri, { language: /^[a-z]{2,3}$/.test(lang) ? lang : undefined })
+      if (!said) { setNote(t('micNoSpeech')); return }
+      const next = joinVoiceText(text, said)
+      setText(next)
+      if (sendAfter) {
+        onSend(next, flags, img ? [] : att.toMessage())
+        setText(''); setResearch(false); setImg(false); setNote(null); att.clear()
+      }
+    } catch (e) {
+      const why = voiceFailure(e)
+      setNote(why === 'aborted' ? null : t(why === 'mic' ? 'micDenied' : 'micFail'))
+    } finally {
+      setTranscribing(false)
+      void setAudioModeAsync({ allowsRecording: false }).catch(() => {})
+    }
+  }
+
+  const cancelVoice = async () => {
+    if (!recording) return
+    setRecording(false)
+    try { await recorder.stop() } catch { /* the clip is thrown away */ }
+    void setAudioModeAsync({ allowsRecording: false }).catch(() => {})
+  }
+
   const pill = (on: boolean) => ({ flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, width: 32, height: 32, borderRadius: 16, borderWidth: 1, borderColor: on ? th.accent : th.lineStrong, backgroundColor: on ? th.accentSoft : th.surface })
   /** The reference app's composer is a translucent, hairline-bordered box of radius 20 over a blur we cannot do in RN without a native module. */
   const boxFill = th.dark ? 'rgba(23,27,33,0.80)' : 'rgba(255,255,255,0.86)'
@@ -108,6 +171,7 @@ export function Composer({ busy, model, webAvailable, onSend, onStop, image, fil
       {img && <Pressable onPress={image?.onPick} accessibilityRole="button"><Text style={{ color: th.muted, fontSize: 12, textAlign: 'center', marginBottom: 6 }}>{t('imgOneShot')} — {t('imgModelRow', { m: image?.modelName ?? '' })} ↗</Text></Pressable>}
       {research && <Text accessibilityRole="text" style={{ color: th.muted, fontSize: 12, textAlign: 'center', marginBottom: 6 }}>{t('researchNote')}</Text>}
       {!!warn && !img && <Text accessibilityRole="alert" style={{ color: th.muted, fontSize: 12, textAlign: 'center', marginBottom: 6 }}>{warn}</Text>}
+      {transcribing && <Text testID="voice-transcribing" style={{ color: th.muted, fontSize: 12, textAlign: 'center', marginBottom: 6 }}>{t('micTranscribing')}</Text>}
       {!!queued && (
         <View testID="composer-queued" style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, alignSelf: 'center', backgroundColor: th.surface3, maxWidth: '100%' }}>
           <Text numberOfLines={1} style={{ color: th.muted, fontSize: 12, flexShrink: 1 }}>{t('queuedNote', { s: queued.text.slice(0, 40) })}</Text>
@@ -128,18 +192,32 @@ export function Composer({ busy, model, webAvailable, onSend, onStop, image, fil
         <TextInput testID="composer-input" value={text} onChangeText={setText} multiline submitBehavior="submit" returnKeyType="send" onSubmitEditing={queueOrSend} placeholder={t(img ? 'imgPlaceholder' : research ? 'researchPlaceholder' : hasPhotos ? 'placeholderFile' : 'placeholder')} placeholderTextColor={th.muted2}
           style={{ color: th.ink, fontSize: 16, lineHeight: 22, maxHeight: 150, minHeight: 24, paddingTop: 0, paddingBottom: 6 }} />
         <View testID="composer-actions" onLayout={e => setRowW(e.nativeEvent.layout.width)} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          {!!onPickModel && <Pressable testID="pill-model" accessibilityRole="button" accessibilityLabel={model ? `${t('menuModel')}: ${model.name}` : t('menuModel')} onPress={onPickModel} style={{ width: 30, height: 30, borderRadius: 15, borderWidth: 1, borderColor: th.lineStrong, backgroundColor: th.surface, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>{model ? <ModelIcon model={model} size={24} /> : <Icon name="Boxes" size={18} color={th.muted} />}</Pressable>}
-          {!img && <Pressable testID="pill-attach" accessibilityRole="button" accessibilityLabel={t('attach')} onPress={openAttach} style={pill(false)}><Icon name="Plus" size={18} color={th.muted} /></Pressable>}
-          {actions.slice(0, shownCount).map(a => (
+          {!recording && !!onPickModel && <Pressable testID="pill-model" accessibilityRole="button" accessibilityLabel={model ? `${t('menuModel')}: ${model.name}` : t('menuModel')} onPress={onPickModel} style={{ width: 30, height: 30, borderRadius: 15, borderWidth: 1, borderColor: th.lineStrong, backgroundColor: th.surface, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>{model ? <ModelIcon model={model} size={24} /> : <Icon name="Boxes" size={18} color={th.muted} />}</Pressable>}
+          {!recording && !img && <Pressable testID="pill-attach" accessibilityRole="button" accessibilityLabel={t('attach')} onPress={openAttach} style={pill(false)}><Icon name="Plus" size={18} color={th.muted} /></Pressable>}
+          {!recording && actions.slice(0, shownCount).map(a => (
             <Pressable key={a.id} testID={`pill-${a.id}`} accessibilityRole="button" accessibilityLabel={a.label} accessibilityState={{ selected: a.on }} onPress={a.toggle} style={pill(a.on)}>
               <Icon name={a.icon} size={18} color={a.on ? th.accentStrong : th.muted} />
             </Pressable>))}
-          {hidden.length > 0 && (
+          {!recording && hidden.length > 0 && (
             <Pressable testID="pill-more" accessibilityRole="button" accessibilityLabel={t('moreActions')} onPress={() => setMore(true)} style={pill(false)}><Icon name="Chevron" size={18} color={th.muted} /></Pressable>)}
+          {recording && (
+            <>
+              <Pressable testID="voice-cancel" accessibilityRole="button" accessibilityLabel={t('cancel')} onPress={() => void cancelVoice()} style={pill(false)}><Icon name="Close" size={18} color={th.muted} /></Pressable>
+              <View testID="voice-recording" style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: th.danger }} />
+                <Text numberOfLines={1} style={{ color: th.muted, fontSize: 13, flexShrink: 1 }}>{t('micStop')} · {Math.floor(recordedMs / 1000)}s</Text>
+              </View>
+              <Pressable testID="voice-stop" accessibilityRole="button" accessibilityLabel={t('micStop')} onPress={() => void finishVoice(false)} style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: th.accent, alignItems: 'center', justifyContent: 'center' }}><Icon name="Stop" size={15} color={th.accentInk} /></Pressable>
+            </>
+          )}
           <View style={{ flex: 1 }} />
+          {!recording && voice?.available && !img && (
+            <Pressable testID="pill-voice" accessibilityRole="button" accessibilityLabel={t('mic')} disabled={busy || transcribing} onPress={() => void startVoice()} style={[pill(false), { opacity: busy || transcribing ? 0.5 : 1 }]}>
+              {transcribing ? <ActivityIndicator size="small" color={th.muted} /> : <Icon name="Mic" size={18} color={th.muted} />}
+            </Pressable>)}
           {busy
             ? <Pressable testID="send-stop" accessibilityRole="button" accessibilityLabel={t('stop')} onPress={onStop} style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: th.accent, alignItems: 'center', justifyContent: 'center' }}><Icon name="Stop" size={15} color={th.accentInk} /></Pressable>
-            : <Pressable testID="send-go" accessibilityRole="button" accessibilityLabel={t('send')} accessibilityState={{ disabled: !can }} disabled={!can} onPress={submit} style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: can ? th.accent : offFill, alignItems: 'center', justifyContent: 'center' }}><Icon name="Send" size={18} color={can ? th.accentInk : th.muted2} /></Pressable>}
+            : <Pressable testID="send-go" accessibilityRole="button" accessibilityLabel={t('send')} accessibilityState={{ disabled: !can && !recording }} disabled={!can && !recording} onPress={recording ? () => void finishVoice(true) : submit} style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: can || recording ? th.accent : offFill, alignItems: 'center', justifyContent: 'center' }}><Icon name="Send" size={18} color={can || recording ? th.accentInk : th.muted2} /></Pressable>}
         </View>
       </View>
 

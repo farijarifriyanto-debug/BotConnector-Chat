@@ -289,13 +289,14 @@ async function* streamOnce(body: Record<string, unknown>, signal?: AbortSignal):
 }
 
 /** Voice input: sends the recorded clip and returns what the person said. */
-export async function transcribeAudio(req: { audioBase64: string; mime?: string; language?: string }, signal?: AbortSignal): Promise<{ text: string; durationSeconds: number | null }> {
+export async function transcribeAudio(req: { audioBase64: string; mime?: string; format?: string; language?: string }, signal?: AbortSignal): Promise<{ text: string; durationSeconds: number | null }> {
   const timeout = new AbortController(); const timer = setTimeout(() => timeout.abort(), 180_000)
   const onAbort = () => timeout.abort(); signal?.addEventListener('abort', onAbort)
   try {
     const j = await postJson<{ text?: string; duration_seconds?: number | null }>('/v1/audio/transcriptions', {
       audio_base64: req.audioBase64,
       ...(req.mime ? { mime: req.mime } : {}),
+      ...(req.format ? { format: req.format } : {}),
       ...(req.language ? { language: req.language } : {}),
     }, timeout.signal)
     if (typeof j?.text !== 'string' || !j.text.trim()) throw new ChatError('unavailable')

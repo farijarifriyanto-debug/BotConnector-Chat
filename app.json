@@ -66,6 +66,12 @@
           "entitlementsProfile": "production",
           "forceCxx20": true
         }
+      ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "BotConnector uses the microphone for voice input."
+        }
       ]
     ]
   }
