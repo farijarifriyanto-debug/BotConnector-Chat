@@ -36,7 +36,7 @@ export interface Attachment {
 }
 
 /** A document that belongs to a project: uploaded once, used by every chat in the project. */
-export interface ProjectFile { fileId: string; name: string; mime: string; size: number; status?: 'uploading' | 'processing' | 'ready' | 'failed' }
+export interface ProjectFile { fileId: string; name: string; mime: string; size: number; status?: 'uploading' | 'processing' | 'ready' | 'failed'; /** when it joined the project (the list can sort by it) */ addedAt?: number }
 
 export interface Source { title: string; url: string; /** short id the model cites with [cite:id] */ id?: string }
 
