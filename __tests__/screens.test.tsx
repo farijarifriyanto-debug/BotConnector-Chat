@@ -46,6 +46,15 @@ describe('screens', () => {
     expect(await r.findByText('No quick phrases yet.')).toBeTruthy()
   })
 
+  it('opens statistics from settings', async () => {
+    const { useSettings } = require('../src/store/settings')
+    const { useChat } = require('../src/store/chat')
+    useSettings.setState({ lang: 'en' }); useChat.setState({ convs: [] })
+    const r = await render(<SettingsSheet visible onClose={() => {}} />)
+    await fireEvent.press(r.getByTestId('open-stats'))
+    expect(await r.findByText('Chat heatmap')).toBeTruthy()
+  })
+
   it('sidebar lists chats and filters by search', async () => {
     const onOpen = jest.fn()
     const r = await render(wrap(<Sidebar open convs={[conv('a', 'Resep nasi goreng', Date.now()), conv('b', 'Harga beras', Date.now())] as never} activeId={null} onClose={() => {}} onNew={() => {}} onOpen={onOpen} onDelete={() => {}} onSettings={() => {}} onPals={() => {}} />))

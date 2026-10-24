@@ -22,6 +22,7 @@ import { ToolDescriptionsSheet } from './ToolDescriptionsSheet'
 import { ProvidersSheet } from './ProvidersSheet'
 import { SearchSheet } from './SearchSheet'
 import { QuickPhrasesSheet } from './QuickPhrasesSheet'
+import { StatsSheet } from './StatsSheet'
 import { SyncSection } from './SyncSection'
 import { UsageSheet } from './UsageSheet'
 
@@ -33,7 +34,7 @@ const cap = (x: string) => x.charAt(0).toUpperCase() + x.slice(1)
 export function SettingsSheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const th = useTheme(), t = useT(), s = useSettings(), account = useAuth(a => a.account), guest = useAuth(a => a.status === 'guest')
   const apple = useAuth(a => a.apple), appleLinked = useAuth(a => a.appleLinked), [linkMsg, setLinkMsg] = useState<string | null>(null)
-  const [providers, setProviders] = useState(false), [local, setLocal] = useState(false), [personal, setPersonal] = useState(false), [laptop, setLaptop] = useState(false), [langOpen, setLangOpen] = useState(false), [usage, setUsage] = useState(false), [search, setSearch] = useState(false), [instr, setInstr] = useState(false), [lore, setLore] = useState(false), [tools, setTools] = useState(false), [quickPhrases, setQuickPhrases] = useState(false), [deleting, setDeleting] = useState(false), [pw, setPw] = useState(''), [phrase, setPhrase] = useState(''), [busy, setBusy] = useState(false), [err, setErr] = useState<DeleteError | null>(null)
+  const [providers, setProviders] = useState(false), [local, setLocal] = useState(false), [personal, setPersonal] = useState(false), [laptop, setLaptop] = useState(false), [langOpen, setLangOpen] = useState(false), [usage, setUsage] = useState(false), [search, setSearch] = useState(false), [instr, setInstr] = useState(false), [lore, setLore] = useState(false), [tools, setTools] = useState(false), [quickPhrases, setQuickPhrases] = useState(false), [stats, setStats] = useState(false), [deleting, setDeleting] = useState(false), [pw, setPw] = useState(''), [phrase, setPhrase] = useState(''), [busy, setBusy] = useState(false), [err, setErr] = useState<DeleteError | null>(null)
   const viaApple = appleLinked === true   // Apple HIG: an Apple account is never asked for a password; Apple confirms it is the owner
   const canDelete = !busy && phrase.trim() === DELETE_PHRASE && (viaApple || !!pw)
   const scene = useShot(x => x.scene)
@@ -129,6 +130,7 @@ export function SettingsSheet({ visible, onClose }: { visible: boolean; onClose:
               <Pressable testID="open-worldbook" onPress={() => setLore(true)} accessibilityRole="button" style={{ marginTop: 10, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: th.lineStrong, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}><Text style={{ color: th.ink, fontWeight: '600' }}>{t('loreTitle')}</Text><Icon name="Chevron" size={16} color={th.muted} /></Pressable>
               <Pressable testID="open-tools" onPress={() => setTools(true)} accessibilityRole="button" style={{ marginTop: 10, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: th.lineStrong, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}><Text style={{ color: th.ink, fontWeight: '600' }}>{t('toolTitle')}</Text><Icon name="Chevron" size={16} color={th.muted} /></Pressable>
               <Pressable testID="open-quick-phrases" onPress={() => setQuickPhrases(true)} accessibilityRole="button" style={{ marginTop: 10, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: th.lineStrong, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}><Text style={{ color: th.ink, fontWeight: '600' }}>{t('qpTitle')}</Text><Icon name="Chevron" size={16} color={th.muted} /></Pressable>
+              <Pressable testID="open-stats" onPress={() => setStats(true)} accessibilityRole="button" style={{ marginTop: 10, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: th.lineStrong, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}><Text style={{ color: th.ink, fontWeight: '600' }}>{t('statTitle')}</Text><Icon name="Chevron" size={16} color={th.muted} /></Pressable>
               {label(t('toolsMemTitle'))}
               {seg<'on' | 'off'>(s.toolsMemory ? 'on' : 'off', [{ v: 'on', label: t('msgMetaOn') }, { v: 'off', label: t('msgMetaOff') }], v => s.setToolsMemory(v === 'on'))}
               {label(t('toolsDevTitle'))}
@@ -161,6 +163,7 @@ export function SettingsSheet({ visible, onClose }: { visible: boolean; onClose:
       <WorldBookSheet visible={lore} onClose={() => setLore(false)} />
       <ToolDescriptionsSheet visible={tools} onClose={() => setTools(false)} />
       <QuickPhrasesSheet visible={quickPhrases} onClose={() => setQuickPhrases(false)} />
+      <StatsSheet visible={stats} onClose={() => setStats(false)} />
       <ProvidersSheet visible={providers} onClose={() => setProviders(false)} />
       <LocalModelsSheet visible={local} onClose={() => setLocal(false)} onUsed={onClose} />
     </Modal>
