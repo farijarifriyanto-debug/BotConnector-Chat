@@ -67,6 +67,8 @@ export interface Msg {
   local?: { deviceId: string; deviceName: string; model: string; modelName: string; runtime: string }
   /** an image made in chat: how it was asked (the picture itself is the message's attachment) */
   image?: { prompt: string; modelId: string; model: string; size: string; left?: string }
+  /** a translation of the answer, written by the translate action */
+  translation?: string
   /** earlier answers to the same question (regenerate); local to this device */
   variants?: Msg[]
 }

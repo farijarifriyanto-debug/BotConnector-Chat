@@ -24,6 +24,7 @@ const PATHS = {
   Research: '<circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/><path d="M11 8.5v5M8.5 11h5"/>',
   Send: '<path d="M12 19V5"/><path d="M6 11l6-6 6 6"/>',
   Clip: '<path d="M20 11.5l-8.2 8.2a5 5 0 01-7-7L13 4.5a3.3 3.3 0 014.7 4.7l-8.3 8.3a1.7 1.7 0 01-2.4-2.4l7.6-7.6"/>',
+  ArrowLeftRight: '<path d="M8 3 4 7l4 4"/><path d="M4 7h16"/><path d="m16 21 4-4-4-4"/><path d="M20 17H4"/>',
   Globe: '<circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17"/><path d="M12 3.5c2.4 2.4 3.5 5.2 3.5 8.5S14.4 18.100 12 20.500c-2.4-2.4-3.5-5.200-3.500-8.500S9.600 5.900 12 3.500z"/>',
   Copy: '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 012-2h9"/>',
   Check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',

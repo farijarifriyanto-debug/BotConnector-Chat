@@ -18,6 +18,7 @@ import type { RunStatus } from '../store/chat'
 import { useTheme, type Theme } from '../theme/theme'
 import { Icon } from './Icons'
 import { Markdown } from './Markdown'
+import { TranslateSheet } from './TranslateSheet'
 
 const domain = (u: string) => { try { return new URL(u).hostname.replace(/^www\./, '') } catch { return u } }
 const PHASES = ['plan', 'search', 'read', 'check', 'write'] as const
@@ -102,12 +103,16 @@ function ReasoningCard({ msg, streaming }: { msg: Msg; streaming: boolean }) {
   )
 }
 
-interface Props { msg: Msg; streaming: boolean; status: RunStatus | null; isLastAssistant: boolean; canAct: boolean; onRegenerate: () => void; onReport?: () => void }
+interface Props { msg: Msg; streaming: boolean; status: RunStatus | null; isLastAssistant: boolean; canAct: boolean; onRegenerate: () => void; onReport?: () => void; onTranslate?: (code: string) => Promise<{ ok: boolean }>; onClearTranslation?: () => void }
 
-function MessageViewBase({ msg, streaming, status, isLastAssistant, canAct, onRegenerate, onReport }: Props) {
+function MessageViewBase({ msg, streaming, status, isLastAssistant, canAct, onRegenerate, onReport, onTranslate, onClearTranslation }: Props) {
   const th = useTheme(), t = useT(), lang = useSettings(s => s.lang), meta = useSettings(s => s.msgMeta)
   const [speaking, setSpeaking] = useState(false), [copied, setCopied] = useState(false)
   const liked = useRatings(r => !!r.up[msg.id]), disliked = useRatings(r => !!r.down[msg.id])
+  const [trSheet, setTrSheet] = useState(false), [trOpen, setTrOpen] = useState(false), [trNote, setTrNote] = useState<string | null>(null)
+  /** A translation that was already saved is shown collapsed; one written now opens by itself. */
+  const savedInitially = React.useRef(!!msg.translation)
+  useEffect(() => { if (!savedInitially.current && msg.translation !== undefined) setTrOpen(true) }, [msg.translation])
   /** [cite:id] markers become the source numbers the chips show; ids without a source disappear. */
   const text = resolveCitations(msg.content, msg.sources)
   useEffect(() => () => { if (speaking) void Speech.stop() }, [speaking])
@@ -145,6 +150,18 @@ function MessageViewBase({ msg, streaming, status, isLastAssistant, canAct, onRe
         </View>)}
       {msg.research && !streaming && <Text style={{ color: th.muted, fontSize: 12, marginBottom: 6 }}>{t('researchLog', { s: msg.research.searches, p: msg.research.pages })}</Text>}
       {showTyping ? <ActivityIndicator color={th.muted2} style={{ alignSelf: 'flex-start', marginVertical: 8 }} /> : !!msg.content && <Markdown text={text} sources={msg.sources} streaming={streaming} />}
+      {msg.translation !== undefined && (
+        <View testID="translation-card" style={{ marginTop: 10, borderRadius: 16, borderWidth: 1, borderColor: th.lineStrong, backgroundColor: th.accentSoft, padding: 10 }}>
+          <Pressable testID="translation-toggle" onPress={() => setTrOpen(v => !v)} accessibilityRole="button" accessibilityState={{ expanded: trOpen }} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <Icon name="ArrowLeftRight" size={16} color={th.accentStrong} />
+            <Text style={{ color: th.accentStrong, fontWeight: '700', fontSize: 13, flex: 1 }}>{t('translateTitle')}</Text>
+            <Icon name={trOpen ? 'Chevron' : 'ChevR'} size={14} color={th.muted} />
+          </Pressable>
+          {trOpen && (msg.translation
+            ? <View style={{ marginTop: 6 }}><Markdown text={msg.translation} /></View>
+            : <Text style={{ color: th.muted, fontSize: 13, fontStyle: 'italic', marginTop: 6 }}>{t('translating')}</Text>)}
+        </View>)}
+      {!!trNote && <Text accessibilityRole="alert" testID="translate-note" style={{ color: th.danger, fontSize: 13, marginTop: 6 }}>{trNote}</Text>}
       {(msg.attachments ?? []).filter(a => a.kind === 'image' && a.uri && imageUri(a.uri)).map(a => (
         <Pressable key={a.uri} testID="generated-image" accessibilityRole="imagebutton" accessibilityLabel={msg.image?.prompt || t('imgAlt')} onPress={() => void Share.share({ url: imageUri(a.uri!) })} style={{ marginTop: 4, alignSelf: 'flex-start', width: '100%', maxWidth: 420, aspectRatio: 1, borderRadius: 14, overflow: 'hidden', backgroundColor: th.surface3 }}>
           <Image source={{ uri: imageUri(a.uri!) }} style={{ width: '100%', height: '100%' }} resizeMode="contain" accessibilityIgnoresInvertColors />
@@ -165,12 +182,16 @@ function MessageViewBase({ msg, streaming, status, isLastAssistant, canAct, onRe
           {!!msg.content && <Pressable onPress={speak} hitSlop={8} accessibilityRole="button" accessibilityLabel={t(speaking ? 'stopReading' : 'readAloud')} testID="read-aloud" style={{ flexDirection: 'row', alignItems: 'center', gap: 5, padding: 6 }}><Icon name={speaking ? 'Stop' : 'Speaker'} size={16} color={th.muted} /></Pressable>}
           <Pressable onPress={() => void Share.share({ message: text + (msg.sources?.length ? '\n\n' + msg.sources.map((s, i) => `${i + 1}. ${s.title} ${s.url}`).join('\n') : '') })} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('share')} style={{ flexDirection: 'row', alignItems: 'center', gap: 5, padding: 6 }}><Icon name="Share" size={16} color={th.muted} /><Text style={{ color: th.muted, fontSize: 12.5 }}>{t('share')}</Text></Pressable>
           {isLastAssistant && canAct && <Pressable onPress={onRegenerate} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('regenerate')} style={{ flexDirection: 'row', alignItems: 'center', gap: 5, padding: 6 }}><Icon name="Refresh" size={16} color={th.muted} /><Text style={{ color: th.muted, fontSize: 12.5 }}>{t('regenerate')}</Text></Pressable>}
+          {!!onTranslate && !streaming && !!msg.content && <Pressable testID="translate-open" onPress={() => { setTrNote(null); setTrSheet(true) }} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('translateAction')} style={{ padding: 6 }}><Icon name="ArrowLeftRight" size={16} color={th.muted} /></Pressable>}
           <Pressable testID="rate-up" onPress={() => useRatings.getState().toggleUp(msg.id)} hitSlop={8} accessibilityRole="button" accessibilityState={{ selected: liked }} accessibilityLabel={t('rateUp')} style={{ padding: 6 }}><Icon name="ThumbUp" size={16} color={liked ? th.accentStrong : th.muted} strokeWidth={liked ? 2.5 : 1.8} /></Pressable>
           {!!onReport && <Pressable testID="report-open" onPress={onReport} hitSlop={8} accessibilityRole="button" accessibilityState={{ selected: disliked }} accessibilityLabel={t('rpOpen')} style={{ padding: 6 }}><Icon name="ThumbDown" size={16} color={disliked ? th.danger : th.muted} strokeWidth={disliked ? 2.5 : 1.8} /></Pressable>}
           {!!msg.ms && <Text testID="msg-latency" style={{ color: th.muted2, fontSize: 12, marginLeft: 4 }}>{t('latency', { t: secondsLabel(msg.ms, lang) })}</Text>}
         </View>)}
       {!streaming && !msg.content && !!msg.error && isLastAssistant && canAct && (
         <Pressable onPress={onRegenerate} accessibilityRole="button" style={{ flexDirection: 'row', alignItems: 'center', gap: 5, padding: 6, marginTop: 4 }}><Icon name="Refresh" size={16} color={th.muted} /><Text style={{ color: th.muted, fontSize: 13 }}>{t('regenerate')}</Text></Pressable>)}
+      {!!onTranslate && (
+        <TranslateSheet visible={trSheet} onClose={() => setTrSheet(false)} canClear={!!msg.translation} onClear={onClearTranslation}
+          onPick={code => { void onTranslate(code).then(r => { if (!r.ok) setTrNote(t('translateFail')) }) }} />)}
     </View>
   )
 }

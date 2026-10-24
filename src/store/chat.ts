@@ -9,6 +9,7 @@ import { deleteImagesOf, saveImage } from '../lib/images'
 import { defaultSize } from '../lib/modelPicker'
 import { MEMORY_ID, composedSystem, fileIdsOf, isChat, newConv, newId, titleFrom, toApiMessages } from '../lib/conv'
 import { research, ResearchError, type Progress } from '../lib/research'
+import { buildPrompt, languageName } from '../lib/translate'
 import { ChatError, type Attachment, type ChatModel, type Conv, type Msg } from '../lib/types'
 import '../local/engine'
 import '../laptop/api'
@@ -75,9 +76,14 @@ interface ChatState {
   selectModel(id: string): void; newChat(): void; open(id: string): void; remove(id: string): Promise<void>; reset(): void
   send(text: string, opts: SendOptions, attachments?: Attachment[]): Promise<void>; regenerate(opts: SendOptions): Promise<void>; stop(): void
   queue(text: string, opts: SendOptions, attachments?: Attachment[]): void; cancelQueued(): void
+  /** writes a translation of one answer beside it (the original is untouched); '' while it streams */
+  translateMessage(msgId: string, code: string): Promise<{ ok: true } | { ok: false; kind: string }>
+  clearTranslation(msgId: string): void
 }
 
 let controller: AbortController | null = null
+/** one translation run at a time per message, like the reference app's run token */
+const translations = new Map<string, AbortController>()
 
 export const currentConv = (s: Pick<ChatState, 'convs' | 'activeId' | 'draft'>): Conv | null => (s.activeId ? s.convs.find(c => c.id === s.activeId) ?? null : s.draft)
 const sortConvs = (list: Conv[]) => [...list].sort((a, b) => b.updatedAt - a.updatedAt)
@@ -92,6 +98,17 @@ const errorCode = (e: unknown) => {
 export const useChat = create<ChatState>((set, get) => {
   const put = (c: Conv) => { set(s => ({ convs: sortConvs([c, ...s.convs.filter(x => x.id !== c.id)]), activeId: c.id, draft: s.draft?.id === c.id ? null : s.draft })) }
   const replace = (c: Conv) => set(s => ({ convs: s.convs.map(x => (x.id === c.id ? c : x)) }))
+  /** Writes (or clears, with undefined) the translation of one message wherever that message lives. */
+  const setTranslation = (msgId: string, translation?: string) => {
+    const s = get()
+    const touch = (c: Conv): Conv | null => (c.messages.some(m => m.id === msgId) ? { ...c, messages: c.messages.map(m => (m.id === msgId ? { ...m, translation } : m)), updatedAt: Date.now() } : null)
+    let changed: Conv | null = null
+    const convs = s.convs.map(c => { const n = touch(c); if (n) changed = n; return n ?? c })
+    let draft = s.draft
+    if (!changed && draft) { const n = touch(draft); if (n) { changed = n; draft = n } }
+    set({ convs, draft })
+    if (changed) void putConv(changed).catch(() => {})
+  }
 
   async function autoTitle(id: string, initial: string, q: string, a: string) {
     const { models } = get(); const fm = models.find(x => x.access === 'free' && x.available && !x.reasoning); if (!fm) return
@@ -261,6 +278,33 @@ export const useChat = create<ChatState>((set, get) => {
     stop() { controller?.abort() },
     queue(text, opts, attachments) { if (get().busy) set({ queued: { text, opts, attachments: attachments ?? [] } }) },
     cancelQueued() { set({ queued: null }) },
+    async translateMessage(msgId, code) {
+      const s = get(), conv = currentConv(s), msg = conv?.messages.find(m => m.id === msgId)
+      if (!conv || !msg || !msg.content.trim()) return { ok: false as const, kind: 'unavailable' }
+      const model = s.models.find(x => x.id === conv.model) ?? s.models.find(x => x.id === s.modelId)
+      translations.get(msgId)?.abort()
+      const ctrl = new AbortController(); translations.set(msgId, ctrl)
+      setTranslation(msgId, '')   // the card says "Translating…" until the first words arrive
+      let out = ''
+      try {
+        for await (const d of streamCompletion({ model: model?.id ?? conv.model, messages: [{ role: 'user', content: buildPrompt('', languageName(code), msg.content) }], reasoning_effort: 'none' }, ctrl.signal)) {
+          if (d.content) { out += d.content; setTranslation(msgId, out) }
+        }
+        const done = out.trim()
+        setTranslation(msgId, done || undefined)
+        return done ? { ok: true as const } : { ok: false as const, kind: 'unavailable' }
+      } catch (e) {
+        if (ctrl.signal.aborted) return { ok: false as const, kind: 'aborted' }
+        setTranslation(msgId, undefined)
+        return { ok: false as const, kind: e instanceof ChatError ? e.kind : 'network' }
+      } finally {
+        if (translations.get(msgId) === ctrl) translations.delete(msgId)
+      }
+    },
+    clearTranslation(msgId) {
+      translations.get(msgId)?.abort(); translations.delete(msgId)
+      setTranslation(msgId, undefined)
+    },
   }
 })
 
