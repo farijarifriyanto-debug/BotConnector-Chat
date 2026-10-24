@@ -8,11 +8,11 @@ import type { Conv } from '../lib/types'
 import { useTheme } from '../theme/theme'
 import { Icon } from './Icons'
 
-interface Props { open: boolean; convs: Conv[]; activeId: string | null; onClose: () => void; onNew: () => void; onOpen: (id: string) => void; onDelete: (id: string) => void; onSettings: () => void; onPals: () => void; /** shown only when the account has picture models */ onStudio?: () => void; onVideo?: () => void }
+interface Props { open: boolean; convs: Conv[]; activeId: string | null; onClose: () => void; onNew: () => void; onOpen: (id: string) => void; onDelete: (id: string) => void; onSettings: () => void; onPals: () => void; /** shown only when the account has picture models */ onStudio?: () => void; onVideo?: () => void; onTranslate?: () => void }
 type Row = { kind: 'head'; key: string; label: string } | { kind: 'conv'; key: string; conv: Conv }
 
 /** Slide-in chat history. Grouped by day like the web; long-press a chat to delete it. */
-export function Sidebar({ open, convs, activeId, onClose, onNew, onOpen, onDelete, onSettings, onPals, onStudio, onVideo }: Props) {
+export function Sidebar({ open, convs, activeId, onClose, onNew, onOpen, onDelete, onSettings, onPals, onStudio, onVideo, onTranslate }: Props) {
   const th = useTheme(), t = useT(), { width } = useWindowDimensions()
   const w = Math.min(width * 0.84, 340), x = useRef(new Animated.Value(-w)).current
   const [shown, setShown] = useState(open), [query, setQuery] = useState('')
@@ -39,6 +39,7 @@ export function Sidebar({ open, convs, activeId, onClose, onNew, onOpen, onDelet
           </View>
           <Pressable testID="sidebar-pals" onPress={() => { onPals(); onClose() }} accessibilityRole="button" style={{ marginHorizontal: 12, marginBottom: 8, flexDirection: 'row', alignItems: 'center', gap: 10, padding: 10, borderRadius: 12, borderWidth: 1, borderColor: th.line, backgroundColor: th.surface }}><Icon name="Research" size={18} color={th.accentStrong} /><Text style={{ color: th.ink, fontWeight: '600', fontSize: 15 }}>{t('palsTitle')}</Text></Pressable>
           {onVideo && <Pressable testID="sidebar-video" onPress={() => { onVideo(); onClose() }} accessibilityRole="button" style={{ marginHorizontal: 12, marginBottom: 8, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: th.lineStrong, backgroundColor: th.surface, flexDirection: 'row', alignItems: 'center', gap: 10 }}><Icon name="Image" size={18} color={th.ink} /><Text style={{ color: th.ink, fontWeight: '600' }}>{t('vidTitle')}</Text></Pressable>}
+          {onTranslate && <Pressable testID="sidebar-translate" onPress={() => { onTranslate(); onClose() }} accessibilityRole="button" style={{ marginHorizontal: 12, marginBottom: 8, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: th.lineStrong, backgroundColor: th.surface, flexDirection: 'row', alignItems: 'center', gap: 10 }}><Icon name="Globe" size={18} color={th.ink} /><Text style={{ color: th.ink, fontWeight: '600' }}>{t('trPageTitle')}</Text></Pressable>}
         {onStudio && <Pressable testID="sidebar-studio" onPress={() => { onStudio(); onClose() }} accessibilityRole="button" style={{ marginHorizontal: 12, marginBottom: 8, flexDirection: 'row', alignItems: 'center', gap: 10, padding: 10, borderRadius: 12, borderWidth: 1, borderColor: th.line, backgroundColor: th.surface }}><Icon name="Image" size={18} color={th.accentStrong} /><Text style={{ color: th.ink, fontWeight: '600', fontSize: 15 }}>{t('stOpen')}</Text></Pressable>}
           <View style={{ marginHorizontal: 12, marginBottom: 6, flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderColor: th.lineStrong, borderRadius: 12, paddingHorizontal: 10, backgroundColor: th.surface2 }}>
             <Icon name="Search" size={16} color={th.muted2} />
