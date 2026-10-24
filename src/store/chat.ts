@@ -2,7 +2,9 @@ import { create } from 'zustand'
 import { fetchCapabilities, fetchImageModels, fetchModels, generateImage, streamCompletion, type Capabilities, type ImageModel } from '../api/api'
 import { deleteConv, listConvs, putConv } from '../db/convs'
 import { noteDeleted, registerReload, scheduleSync, useSync } from '../sync/store'
-import { runAssistant } from '../lib/agent'
+import { runAssistant, TOOLS } from '../lib/agent'
+import { applyOverrides } from '../lib/toolSchema'
+import { useToolSchema } from './toolSchema'
 import { deleteImagesOf, saveImage } from '../lib/images'
 import { defaultSize } from '../lib/modelPicker'
 import { MEMORY_ID, composedSystem, fileIdsOf, newConv, newId, titleFrom, toApiMessages } from '../lib/conv'
@@ -106,7 +108,7 @@ export const useChat = create<ChatState>((set, get) => {
         update({ content: res.content, reasoning: res.reasoning || undefined, sources: res.sources, searched: res.queries, research: { searches: res.searches, pages: res.pages }, ms: Date.now() - t0 }, true)
       } else {
         const messages = toApiMessages(composedSystem(base, convs, instructionBlock()), history, m.vision)
-        const res = await runAssistant({ model: m, messages: applyLore(messages, activatedEntries(activeBooks(), messages)), web: opts.web && caps?.web !== false, fileIds: isPrivate(m) ? [] : fileIdsOf(history), signal,
+        const res = await runAssistant({ model: m, messages: applyLore(messages, activatedEntries(activeBooks(), messages)), tools: applyOverrides(TOOLS, useToolSchema.getState().tools), web: opts.web && caps?.web !== false, fileIds: isPrivate(m) ? [] : fileIdsOf(history), signal,
           onText: c => noteText(c), onReasoning: r => noteReasoning(r), onStatus: s => set({ status: s }) })
         update({ content: res.content, reasoning: res.reasoning || undefined, sources: res.sources.length ? res.sources : undefined, searched: res.queries.length ? res.queries : undefined, ms: Date.now() - t0 }, true)
       }
