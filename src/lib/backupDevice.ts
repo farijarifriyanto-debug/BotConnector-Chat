@@ -10,8 +10,9 @@ import { clearConvs, listConvs, putConv } from '../db/convs'
 import type { Conv } from './types'
 import {
   ARCHIVE_FORMAT, BACKUP_CATEGORIES, BACKUP_PREF_KEYS, DATABASE_ENTRY, FORMAT_VERSION, IMAGES_ROOT, MANIFEST_ENTRY, SETTINGS_ENTRY,
-  buildManifest, checkEntries, readManifest, readSettings, type BackupEntry, type BackupManifest, type BackupSettings,
+  BackupError, buildManifest, checkEntries, readManifest, readSettings, type BackupEntry, type BackupManifest, type BackupSettings,
 } from './backup'
+import { decryptBackupBytes, encryptBackupBytes, isEncryptedBackup } from './backupEncryption'
 
 const DB_NAME = 'botconnector-chat.db'
 const SECURE = { keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK }
@@ -54,7 +55,7 @@ async function collectImages(): Promise<BackupEntry[]> {
 }
 
 /** A checkpointed copy of the live database plus settings and pictures, zipped with a manifest. */
-export async function buildArchive(): Promise<{ manifest: BackupManifest; zip: Uint8Array; name: string }> {
+export async function buildArchive(opts?: { password?: string }): Promise<{ manifest: BackupManifest; zip: Uint8Array; name: string; encrypted: boolean }> {
   const db = await SQLite.openDatabaseAsync(DB_NAME)
   await db.execAsync('PRAGMA wal_checkpoint(TRUNCATE);')
   const databaseBytes = await readBytes(`${dbDir()}${DB_NAME}`)
@@ -75,7 +76,14 @@ export async function buildArchive(): Promise<{ manifest: BackupManifest; zip: U
   })
   const files: Record<string, Uint8Array> = { [MANIFEST_ENTRY]: strToU8(JSON.stringify(manifest, null, 2)) }
   for (const e of entries) files[e.path] = e.bytes
-  return { manifest, zip: zipSync(files, { level: 6 }), name: `botconnector-backup-${stamp()}.zip` }
+  const rawZip = zipSync(files, { level: 6 })
+
+  if (opts?.password) {
+    const enc = await encryptBackupBytes(rawZip, opts.password)
+    return { manifest, zip: enc, name: `botconnector-backup-${stamp()}.kbackup`, encrypted: true }
+  }
+
+  return { manifest, zip: rawZip, name: `botconnector-backup-${stamp()}.zip`, encrypted: false }
 }
 
 export async function writeArchiveFile(zip: Uint8Array, name: string): Promise<string> {
@@ -85,24 +93,39 @@ export async function writeArchiveFile(zip: Uint8Array, name: string): Promise<s
 }
 
 export async function shareArchive(uri: string): Promise<void> {
-  if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(uri, { mimeType: 'application/zip', dialogTitle: 'Backup' })
+  if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(uri, { mimeType: 'application/octet-stream', dialogTitle: 'Backup' })
 }
 
 export interface PickedArchive { manifest: BackupManifest; settings: BackupSettings; database: Uint8Array; images: BackupEntry[] }
 
-/** Lets the person pick an archive, then validates it exactly as the manifest declares. */
-export async function pickArchive(): Promise<PickedArchive | null> {
-  const picked = await DocumentPicker.getDocumentAsync({ type: ['application/zip', 'application/x-zip-compressed', 'application/octet-stream'], copyToCacheDirectory: true, multiple: false })
-  const file = picked.canceled ? null : picked.assets[0]
-  if (!file) return null
-  const zipped = await readBytes(file.uri)
-  const files = unzipSync(zipped)
+export async function unpackArchiveBytes(
+  bytes: Uint8Array,
+  opts?: { getPassword?: () => Promise<string | null> }
+): Promise<PickedArchive> {
+  let rawBytes = bytes
+  if (isEncryptedBackup(rawBytes)) {
+    const pwd = opts?.getPassword ? await opts.getPassword() : null
+    if (!pwd) throw new BackupError('decryption')
+    try {
+      rawBytes = await decryptBackupBytes(rawBytes, pwd)
+    } catch {
+      throw new BackupError('decryption')
+    }
+  }
+
+  let files: Record<string, Uint8Array>
+  try {
+    files = unzipSync(rawBytes)
+  } catch {
+    throw new BackupError('format')
+  }
+
   const manifestBytes = files[MANIFEST_ENTRY]
-  if (!manifestBytes) throw new Error('manifest')
+  if (!manifestBytes) throw new BackupError('manifest')
   let rawManifest: unknown
-  try { rawManifest = JSON.parse(strFromU8(manifestBytes)) } catch { throw new Error('manifest') }
+  try { rawManifest = JSON.parse(strFromU8(manifestBytes)) } catch { throw new BackupError('manifest') }
   const manifest = readManifest(rawManifest)
-  const entries: BackupEntry[] = Object.entries(files).filter(([p]) => p !== MANIFEST_ENTRY).map(([path, bytes]) => ({ path, bytes }))
+  const entries: BackupEntry[] = Object.entries(files).filter(([p]) => p !== MANIFEST_ENTRY).map(([path, b]) => ({ path, bytes: b }))
   checkEntries(manifest, entries)
   const settingsBytes = files[SETTINGS_ENTRY]
   const settings = readSettings(JSON.parse(strFromU8(settingsBytes)))
@@ -112,6 +135,19 @@ export async function pickArchive(): Promise<PickedArchive | null> {
     database: files[manifest.database.entry] ?? new Uint8Array(),
     images: entries.filter(e => e.path.startsWith(IMAGES_ROOT)),
   }
+}
+
+/** Lets the person pick an archive, then validates it exactly as the manifest declares. */
+export async function pickArchive(opts?: { getPassword?: () => Promise<string | null> }): Promise<PickedArchive | null> {
+  const picked = await DocumentPicker.getDocumentAsync({
+    type: ['application/zip', 'application/x-zip-compressed', 'application/octet-stream', '*/*'],
+    copyToCacheDirectory: true,
+    multiple: false,
+  })
+  const file = picked.canceled ? null : picked.assets[0]
+  if (!file) return null
+  const rawBytes = await readBytes(file.uri)
+  return unpackArchiveBytes(rawBytes, opts)
 }
 
 function convsFromDatabase(bytes: Uint8Array): Promise<Conv[]> {

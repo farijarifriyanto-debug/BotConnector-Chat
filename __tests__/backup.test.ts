@@ -70,6 +70,23 @@ describe('the zip archive', () => {
     expect(manifest.database).toMatchObject({ entry: DATABASE_ENTRY, conversationCount: 1 })
   })
 
+  it('builds an encrypted kbackup archive and decrypts it during pickArchive', async () => {
+    const password = 'test-encryption-key-456!'
+    const { zip, name, encrypted } = await buildArchive({ password })
+    expect(encrypted).toBe(true)
+    expect(name).toMatch(/^botconnector-backup-\d{8}-\d{6}\.kbackup$/)
+
+    mockPickDoc.mockResolvedValue({ canceled: false, assets: [{ uri: 'file:///picked.kbackup' }] })
+    mockRead.mockImplementation(async (uri: string) => (uri === 'file:///picked.kbackup' ? b64(zip) : b64(new Uint8Array([65]))))
+
+    // When password is provided
+    const picked = await pickArchive({ getPassword: async () => password })
+    expect(picked?.manifest.entries[SETTINGS_ENTRY]).toBeTruthy()
+
+    // When wrong password is provided, refuses with decryption error
+    await expect(pickArchive({ getPassword: async () => 'wrong-pass' })).rejects.toThrow(BackupError)
+  })
+
   it('reads a picked archive only after verifying it, then overwrites or merges', async () => {
     const { zip } = await buildArchive()
     mockPickDoc.mockResolvedValue({ canceled: false, assets: [{ uri: 'file:///picked.zip' }] })

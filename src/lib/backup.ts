@@ -43,7 +43,7 @@ export interface BackupManifest {
 }
 
 export class BackupError extends Error {
-  code: 'format' | 'version' | 'manifest' | 'entry' | 'hash' | 'size' | 'settings' | 'database'
+  code: 'format' | 'version' | 'manifest' | 'entry' | 'hash' | 'size' | 'settings' | 'database' | 'decryption'
   constructor(code: BackupError['code']) { super(code); this.code = code; Object.setPrototypeOf(this, new.target.prototype) }
 }
 
