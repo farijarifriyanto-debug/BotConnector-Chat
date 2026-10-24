@@ -11,8 +11,10 @@ import { Icon } from './Icons'
 
 /** Per-chat options: name, instructions for this chat, pin, export, delete. Saved when the sheet closes. */
 export function ChatOptionsSheet({ visible, conv, onClose }: { visible: boolean; conv: Conv | null; onClose: () => void }) {
-  const th = useTheme(), t = useT()
-  const [title, setTitle] = useState(''), [system, setSystem] = useState('')
+  const th = useTheme(), t = useT(), all = useChat(s => s.convs)
+  const [title, setTitle] = useState(''), [system, setSystem] = useState(''), [projOpen, setProjOpen] = useState(false)
+  const projects = all.filter(c => c.kind === 'project')
+  const project = conv?.projectId ? projects.find(p => p.id === conv.projectId) : undefined
   useEffect(() => { if (visible && conv) { setTitle(conv.title); setSystem(conv.system) } }, [visible, conv?.id])   // eslint-disable-line react-hooks/exhaustive-deps
   if (!conv) return null
   const save = async () => {
@@ -40,11 +42,32 @@ export function ChatOptionsSheet({ visible, conv, onClose }: { visible: boolean;
           <Text style={{ color: th.muted2, fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 18, marginBottom: 6 }}>{t('instructions')}</Text>
           <TextInput testID="options-system" style={[input, { minHeight: 120, textAlignVertical: 'top' }]} value={system} onChangeText={setSystem} multiline placeholder={t('instructionsPh')} placeholderTextColor={th.muted2} maxLength={4000} />
           {saved && row(conv.pinned ? t('unpin') : t('pin'), () => { void useChat.getState().updateConv(conv.id, { pinned: !conv.pinned }); onClose() }, 'options-pin')}
+          <Pressable testID="options-project" onPress={() => setProjOpen(true)} accessibilityRole="button" style={{ marginTop: 10, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: th.lineStrong, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Text style={{ color: th.ink, fontWeight: '600' }}>{t('projPick')}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}><Text style={{ color: th.muted }}>{project?.title ?? t('projNone')}</Text><Icon name="ChevR" size={16} color={th.muted} /></View>
+          </Pressable>
           {saved && row(t('exportBtn'), exportChat, 'options-export')}
           {saved && row(t('copy'), copyChat, 'options-copy')}
           {saved && row(t('delete'), remove, 'options-delete', true)}
         </ScrollView>
       </KeyboardAvoidingView>
+      <Modal visible={projOpen} transparent animationType="fade" onRequestClose={() => setProjOpen(false)}>
+        <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.35)', justifyContent: 'flex-end' }} onPress={() => setProjOpen(false)} accessibilityLabel={t('close')}>
+          <Pressable onPress={() => {}} style={{ backgroundColor: th.surface, borderTopLeftRadius: 18, borderTopRightRadius: 18, paddingVertical: 10, paddingHorizontal: 12, maxHeight: '60%' }}>
+            <Text style={{ color: th.muted2, fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8, paddingHorizontal: 4 }}>{t('projPick')}</Text>
+            <ScrollView>
+              <Pressable testID="proj-pick-none" onPress={() => { void useChat.getState().bindProject(conv.id, null); setProjOpen(false) }} accessibilityRole="button" style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, paddingHorizontal: 6 }}>
+                <Icon name="Close" size={18} color={th.muted} /><Text style={{ color: th.ink, fontSize: 15, flex: 1 }}>{t('projNone')}</Text>
+              </Pressable>
+              {projects.map(p => (
+                <Pressable key={p.id} testID={`proj-pick-${p.id}`} onPress={() => { void useChat.getState().bindProject(conv.id, p.id); setProjOpen(false) }} accessibilityRole="button" style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, paddingHorizontal: 6 }}>
+                  <Icon name="Folder" size={18} color={th.accentStrong} /><Text numberOfLines={1} style={{ color: th.ink, fontSize: 15, flex: 1 }}>{p.title}</Text>
+                  {conv.projectId === p.id && <Icon name="Check" size={18} color={th.accentStrong} />}
+                </Pressable>))}
+            </ScrollView>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </Modal>
   )
 }

@@ -3,13 +3,18 @@ import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, View } fr
 import { Text, TextInput } from './Text'
 import { useT } from '../hooks/useT'
 import { TOOLS } from '../lib/agent'
+import { DEVICE_TOOLS, MEMORY_TOOLS } from '../lib/tools/local'
 import { cleanOverride, describeParams, isModified, type ToolDef, type ToolOverride } from '../lib/toolSchema'
 import { useToolSchema } from '../store/toolSchema'
 import { useTheme } from '../theme/theme'
 import { Icon } from './Icons'
 
-const GROUP: Record<string, 'search'> = { web_search: 'search', read_url: 'search' }
-const tools: ToolDef[] = TOOLS as ToolDef[]
+const GROUPS: { key: 'search' | 'memory' | 'device'; label: string; defs: ToolDef[] }[] = [
+  { key: 'search', label: 'toolGroupSearch', defs: TOOLS },
+  { key: 'memory', label: 'toolGroupMemory', defs: MEMORY_TOOLS },
+  { key: 'device', label: 'toolGroupDevice', defs: DEVICE_TOOLS },
+]
+const tools: ToolDef[] = GROUPS.flatMap(g => g.defs)
 
 /**
  * Tool Descriptions: rewrite the wording the model reads for the built-in tools. Names,
@@ -41,7 +46,6 @@ export function ToolDescriptionsSheet({ visible, onClose }: { visible: boolean; 
   const reset = (name: string) => setDraft(d => { const next = { ...d }; delete next[name]; return next })
 
   const input = { borderWidth: 1, borderColor: th.lineStrong, borderRadius: 10, padding: 12, color: th.ink, backgroundColor: th.surface, fontSize: 15 } as const
-  const groups = ['search'] as const
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
@@ -52,10 +56,10 @@ export function ToolDescriptionsSheet({ visible, onClose }: { visible: boolean; 
         </View>
         <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
           <Text style={{ color: th.muted, fontSize: 13, lineHeight: 19 }}>{t('toolNote')}</Text>
-          {groups.map(group => (
-            <View key={group}>
-              <Text style={{ color: th.muted2, fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 20 }}>{t('toolGroupSearch')}</Text>
-              {tools.filter(d => GROUP[d.function.name] === group).map(def => {
+          {GROUPS.map(group => (
+            <View key={group.key}>
+              <Text style={{ color: th.muted2, fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 20 }}>{t(group.label as 'toolGroupSearch')}</Text>
+              {group.defs.map(def => {
                 const name = def.function.name
                 const o = draft[name]
                 const modified = isModified(def, o)
