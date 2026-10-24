@@ -18,7 +18,7 @@ const CHIPS: { id: ModelFilter; key: 'fAll' | 'fFree' | 'fCloud' | 'fLocal' | 'f
 interface Props {
   visible: boolean; models: ChatModel[]; selected: string; onSelect: (id: string) => void; onClose: () => void
   /** which kind this screen offers: chat only, pictures only, or voices only (the reference keeps them apart too) */
-  mode?: 'chat' | 'image' | 'voice'
+  mode?: 'chat' | 'image' | 'voice' | 'video'
   /** voices, when the screen is the voice one */
   voiceModels?: { id: string; name: string; access: Access }[]; selectedVoice?: string; onSelectVoice?: (id: string) => void
   /** picture models: shown under the Image filter (and in "All"); picking one calls onSelectImage */
@@ -38,7 +38,7 @@ export function ModelSheet({ visible, models, selected, onSelect, onClose, mode 
   const shown = useMemo(() => filterModels(all, filter, query), [all, filter, query])
   const count = (f: ModelFilter) => filterModels(all, f, '').length
   const groups = useMemo(() => {
-    if (mode !== 'chat') return [{ id: mode, title: mode === 'image' ? t('fImage') : t('voiceTitle'), list: shown }].filter(g => g.list.length)
+    if (mode !== 'chat') return [{ id: mode, title: mode === 'image' ? t('fImage') : mode === 'video' ? t('vidTitle') : t('voiceTitle'), list: shown }].filter(g => g.list.length)
     const chat = shown.filter(m => !m.image)
     return [
       ...GROUPS.map(g => ({ id: g.access as string, title: t(g.key), list: chat.filter(m => m.access === g.access) })),
