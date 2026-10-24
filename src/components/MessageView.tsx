@@ -7,6 +7,7 @@ import { errorText, type Lang } from '../i18n/strings'
 import { bcp47 } from '../i18n/langs'
 import { useT } from '../hooks/useT'
 import { imageUri } from '../lib/images'
+import { resolveCitations } from '../lib/cite'
 import { plainText } from '../lib/speech'
 import type { Progress } from '../lib/research'
 import { ChatError, type Msg } from '../lib/types'
@@ -107,6 +108,8 @@ function MessageViewBase({ msg, streaming, status, isLastAssistant, canAct, onRe
   const th = useTheme(), t = useT(), lang = useSettings(s => s.lang), meta = useSettings(s => s.msgMeta)
   const [speaking, setSpeaking] = useState(false), [copied, setCopied] = useState(false)
   const liked = useRatings(r => !!r.up[msg.id]), disliked = useRatings(r => !!r.down[msg.id])
+  /** [cite:id] markers become the source numbers the chips show; ids without a source disappear. */
+  const text = resolveCitations(msg.content, msg.sources)
   useEffect(() => () => { if (speaking) void Speech.stop() }, [speaking])
   if (msg.role === 'user') return (
     <View style={{ alignItems: 'flex-end', marginVertical: 12, paddingHorizontal: 16 }} accessibilityLabel={t('you')}>
@@ -124,11 +127,11 @@ function MessageViewBase({ msg, streaming, status, isLastAssistant, canAct, onRe
   )
   const speak = () => {
     if (speaking) { void Speech.stop(); setSpeaking(false); return }
-    const text = plainText(msg.content); if (!text) return
+    const speech = plainText(text); if (!speech) return
     setSpeaking(true)
-    Speech.speak(text, { language: bcp47(lang), onDone: () => setSpeaking(false), onStopped: () => setSpeaking(false), onError: () => setSpeaking(false) })
+    Speech.speak(speech, { language: bcp47(lang), onDone: () => setSpeaking(false), onStopped: () => setSpeaking(false), onError: () => setSpeaking(false) })
   }
-  const copy = async () => { await Clipboard.setStringAsync(msg.content || msg.image?.prompt || ''); setCopied(true); setTimeout(() => setCopied(false), 1500) }
+  const copy = async () => { await Clipboard.setStringAsync(text || msg.image?.prompt || ''); setCopied(true); setTimeout(() => setCopied(false), 1500) }
   const showTyping = streaming && !msg.content && !status && !msg.reasoning
   return (
     <View style={{ marginVertical: 12, paddingHorizontal: 20 }} accessibilityLabel={t('assistant')}>
@@ -141,7 +144,7 @@ function MessageViewBase({ msg, streaming, status, isLastAssistant, canAct, onRe
           <Text numberOfLines={1} style={{ color: th.muted, fontSize: 13, flexShrink: 1 }}>{status.searching ? t('searching', { q: status.searching }) : t('reading', { u: domain(status.reading ?? '') })}</Text>
         </View>)}
       {msg.research && !streaming && <Text style={{ color: th.muted, fontSize: 12, marginBottom: 6 }}>{t('researchLog', { s: msg.research.searches, p: msg.research.pages })}</Text>}
-      {showTyping ? <ActivityIndicator color={th.muted2} style={{ alignSelf: 'flex-start', marginVertical: 8 }} /> : !!msg.content && <Markdown text={msg.content} sources={msg.sources} streaming={streaming} />}
+      {showTyping ? <ActivityIndicator color={th.muted2} style={{ alignSelf: 'flex-start', marginVertical: 8 }} /> : !!msg.content && <Markdown text={text} sources={msg.sources} streaming={streaming} />}
       {(msg.attachments ?? []).filter(a => a.kind === 'image' && a.uri && imageUri(a.uri)).map(a => (
         <Pressable key={a.uri} testID="generated-image" accessibilityRole="imagebutton" accessibilityLabel={msg.image?.prompt || t('imgAlt')} onPress={() => void Share.share({ url: imageUri(a.uri!) })} style={{ marginTop: 4, alignSelf: 'flex-start', width: '100%', maxWidth: 420, aspectRatio: 1, borderRadius: 14, overflow: 'hidden', backgroundColor: th.surface3 }}>
           <Image source={{ uri: imageUri(a.uri!) }} style={{ width: '100%', height: '100%' }} resizeMode="contain" accessibilityIgnoresInvertColors />
@@ -160,7 +163,7 @@ function MessageViewBase({ msg, streaming, status, isLastAssistant, canAct, onRe
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6 }}>
           <Pressable onPress={copy} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('copy')} style={{ flexDirection: 'row', alignItems: 'center', gap: 5, padding: 6 }}><Icon name={copied ? 'Check' : 'Copy'} size={16} color={th.muted} /><Text style={{ color: th.muted, fontSize: 12.5 }}>{copied ? t('copied') : t('copy')}</Text></Pressable>
           {!!msg.content && <Pressable onPress={speak} hitSlop={8} accessibilityRole="button" accessibilityLabel={t(speaking ? 'stopReading' : 'readAloud')} testID="read-aloud" style={{ flexDirection: 'row', alignItems: 'center', gap: 5, padding: 6 }}><Icon name={speaking ? 'Stop' : 'Speaker'} size={16} color={th.muted} /></Pressable>}
-          <Pressable onPress={() => void Share.share({ message: msg.content + (msg.sources?.length ? '\n\n' + msg.sources.map((s, i) => `${i + 1}. ${s.title} ${s.url}`).join('\n') : '') })} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('share')} style={{ flexDirection: 'row', alignItems: 'center', gap: 5, padding: 6 }}><Icon name="Share" size={16} color={th.muted} /><Text style={{ color: th.muted, fontSize: 12.5 }}>{t('share')}</Text></Pressable>
+          <Pressable onPress={() => void Share.share({ message: text + (msg.sources?.length ? '\n\n' + msg.sources.map((s, i) => `${i + 1}. ${s.title} ${s.url}`).join('\n') : '') })} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('share')} style={{ flexDirection: 'row', alignItems: 'center', gap: 5, padding: 6 }}><Icon name="Share" size={16} color={th.muted} /><Text style={{ color: th.muted, fontSize: 12.5 }}>{t('share')}</Text></Pressable>
           {isLastAssistant && canAct && <Pressable onPress={onRegenerate} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('regenerate')} style={{ flexDirection: 'row', alignItems: 'center', gap: 5, padding: 6 }}><Icon name="Refresh" size={16} color={th.muted} /><Text style={{ color: th.muted, fontSize: 12.5 }}>{t('regenerate')}</Text></Pressable>}
           <Pressable testID="rate-up" onPress={() => useRatings.getState().toggleUp(msg.id)} hitSlop={8} accessibilityRole="button" accessibilityState={{ selected: liked }} accessibilityLabel={t('rateUp')} style={{ padding: 6 }}><Icon name="ThumbUp" size={16} color={liked ? th.accentStrong : th.muted} strokeWidth={liked ? 2.5 : 1.8} /></Pressable>
           {!!onReport && <Pressable testID="report-open" onPress={onReport} hitSlop={8} accessibilityRole="button" accessibilityState={{ selected: disliked }} accessibilityLabel={t('rpOpen')} style={{ padding: 6 }}><Icon name="ThumbDown" size={16} color={disliked ? th.danger : th.muted} strokeWidth={disliked ? 2.5 : 1.8} /></Pressable>}

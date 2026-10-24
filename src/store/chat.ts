@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { fetchCapabilities, fetchImageModels, fetchModels, generateImage, streamCompletion, type Capabilities, type ImageModel } from '../api/api'
+import { fetchCapabilities, fetchImageModels, fetchModels, generateImage, streamCompletion, webFetch, type Capabilities, type ImageModel } from '../api/api'
 import { deleteConv, listConvs, putConv } from '../db/convs'
 import { noteDeleted, registerReload, scheduleSync, useSync } from '../sync/store'
 import { runAssistant, TOOLS } from '../lib/agent'
@@ -16,7 +16,7 @@ import { laptopModels, useLaptop } from '../laptop/store'
 import { localModels, useLocal } from '../local/store'
 import { useAuth } from './auth'
 import { customModels } from './providers'
-import { useSearch } from './search'
+import { readByok, useSearch } from './search'
 import { instructionBlock } from './instructions'
 import { activeBooks } from './worldbook'
 import { activatedEntries, applyLore } from '../lib/worldbook'
@@ -146,6 +146,7 @@ export const useChat = create<ChatState>((set, get) => {
         const messages = toApiMessages(composedSystem(base, convs, instructionBlock()), history, m.vision)
         const webOn = opts.web && caps?.web !== false
         const settings = useSettings.getState(), overrides = useToolSchema.getState().tools
+        const fetchMode = useSearch.getState().webFetch
         const tools = [
           ...(webOn ? applyOverrides(TOOLS, overrides) : []),
           ...(settings.toolsMemory ? applyOverrides(MEMORY_TOOLS.filter(d => d.function.name !== 'chat_search'), overrides) : []),
@@ -153,6 +154,8 @@ export const useChat = create<ChatState>((set, get) => {
           ...(settings.toolsDevice ? applyOverrides(DEVICE_TOOLS, overrides) : []),
         ]
         const res = await runAssistant({ model: m, messages: applyLore(messages, activatedEntries(activeBooks(), messages)), tools, onTool: (name, args) => runLocalTool(name, args, localContext), web: webOn, think: opts.think !== false, fileIds: isPrivate(m) ? [] : fileIdsOf(history), signal,
+          fetchMode,
+          fetchPage: fetchMode === 'follow' ? async (url, signal) => (await readByok(url, signal)) ?? webFetch(url, signal) : webFetch,
           onText: c => noteText(c), onReasoning: r => noteReasoning(r), onStatus: s => set({ status: s }) })
         update({ content: res.content, reasoning: res.reasoning || undefined, sources: res.sources.length ? res.sources : undefined, searched: res.queries.length ? res.queries : undefined, ms: Date.now() - t0 }, true)
       }

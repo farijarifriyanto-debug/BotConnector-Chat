@@ -115,8 +115,8 @@ describe('device tools', () => {
 
   it('knows which names belong to Memory and Device tools', () => {
     expect(['memory_read', 'memory_update', 'memory_edit', 'memory_delete', 'memory_search_profile', 'chat_search', 'get_time_info', 'clipboard_tool', 'text_to_speech', 'calculate'].every(isLocalTool)).toBe(true)
-    expect(isLocalTool('web_search')).toBe(false)
-    expect(isLocalTool('read_url')).toBe(false)
+    expect(isLocalTool('search_web')).toBe(false)
+    expect(isLocalTool('fetch_url')).toBe(false)
   })
 })
 

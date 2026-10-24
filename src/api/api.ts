@@ -183,7 +183,9 @@ export async function webSearch(query: string, signal?: AbortSignal): Promise<Se
 }
 export async function webFetch(url: string, signal?: AbortSignal): Promise<{ title: string; text: string }> {
   const j = await withRetry(() => postJson<any>('/v1/web/fetch', { url }, signal), signal)
-  return { title: String(j?.title || url).slice(0, 200), text: String(j?.content ?? j?.text ?? j?.markdown ?? '').slice(0, 12000) }
+  // The tool hands out 10.000 characters at a time and continues with start_index, so the whole
+  // page has to survive here; clipping at a few thousand would silently end every long page.
+  return { title: String(j?.title || url).slice(0, 200), text: String(j?.content ?? j?.text ?? j?.markdown ?? '').slice(0, 200000) }
 }
 
 // ---------- streaming completions ----------

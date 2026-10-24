@@ -1,5 +1,5 @@
 import './helpers/mocks'
-import { byokSearch } from '../src/api/search'
+import { byokFetch, byokSearch } from '../src/api/search'
 import { configureApi, webSearch } from '../src/api/api'
 import { searchByok, useSearch } from '../src/store/search'
 
@@ -24,6 +24,22 @@ describe('BYOK web search', () => {
     await expect(byokSearch('exa', 'bad', 'q', 5)).rejects.toMatchObject({ kind: 'badkey' })
     await expect(byokSearch('exa', '  ', 'q', 5)).rejects.toMatchObject({ kind: 'badkey' })
   })
+  it('reads a page through the own provider when it can (Tavily extract, Exa contents)', async () => {
+    mockFetch.mockResolvedValueOnce(reply(200, { results: [{ url: 'https://a.example', raw_content: '# Judul\nisi' }] }))
+    expect(await byokFetch('tavily', 'k', 'https://a.example')).toEqual({ title: 'https://a.example', text: '# Judul\nisi' })
+    expect(String(mockFetch.mock.calls[0][0])).toContain('api.tavily.com/extract')
+    expect(JSON.parse(mockFetch.mock.calls[0][1].body)).toMatchObject({ urls: ['https://a.example'] })
+
+    mockFetch.mockResolvedValueOnce(reply(200, { results: [{ url: 'https://b.example', title: 'B', text: 'isi b' }] }))
+    expect(await byokFetch('exa', 'k', 'https://b.example')).toEqual({ title: 'B', text: 'isi b' })
+    expect(String(mockFetch.mock.calls[1][0])).toContain('api.exa.ai/contents')
+  })
+
+  it('cannot read pages through a provider that has no reader', async () => {
+    expect(await byokFetch('brave', 'k', 'https://a.example')).toBeNull()
+    expect(mockFetch).not.toHaveBeenCalled()
+  })
+
   it('uses BotConnector Search when no key is set, and when the own provider fails', async () => {
     useSearch.setState({ provider: 'brave' })
     expect(await searchByok('q')).toBeNull()                       // chosen provider but no key saved

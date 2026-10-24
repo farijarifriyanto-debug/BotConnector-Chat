@@ -38,7 +38,10 @@ export interface Attachment {
 /** A document that belongs to a project: uploaded once, used by every chat in the project. */
 export interface ProjectFile { fileId: string; name: string; mime: string; size: number; status?: 'uploading' | 'processing' | 'ready' | 'failed' }
 
-export interface Source { title: string; url: string }
+export interface Source { title: string; url: string; /** short id the model cites with [cite:id] */ id?: string }
+
+/** How the model reads a page it was given: follow the search provider, the app's own reader, or nothing. */
+export type WebFetchMode = 'follow' | 'local' | 'off'
 
 export interface Msg {
   id: string
