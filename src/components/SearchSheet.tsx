@@ -9,9 +9,16 @@ import { Icon } from './Icons'
 
 const NAME: Record<SearchProviderId, string> = { botconnector: 'BotConnector', brave: 'Brave', tavily: 'Tavily', exa: 'Exa', parallel: 'Parallel' }
 
+/** The page-reading choices, in the order the reference app lists them. */
+const FETCH_ROWS = [
+  { mode: 'follow', label: 'srchFetchFollow', note: 'srchFetchFollowNote' },
+  { mode: 'local', label: 'srchFetchLocal', note: 'srchFetchLocalNote' },
+  { mode: 'off', label: 'srchFetchOff', note: 'srchFetchOffNote' },
+] as const
+
 /** Web search: BotConnector Search by default, or the user's own Brave / Tavily / Exa / Parallel key. */
 export function SearchSheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {
-  const th = useTheme(), t = useT(), { provider, count, hasKey } = useSearch()
+  const th = useTheme(), t = useT(), { provider, count, hasKey, webFetch } = useSearch()
   const [key, setKey] = useState(''), [busy, setBusy] = useState(false), [result, setResult] = useState<string | null>(null)
   useEffect(() => { if (visible) void useSearch.getState().load() }, [visible])
   useEffect(() => { setKey(''); setResult(null) }, [provider])
@@ -49,6 +56,13 @@ export function SearchSheet({ visible, onClose }: { visible: boolean; onClose: (
             {RESULT_COUNTS.map(n => <Pressable key={n} accessibilityRole="button" accessibilityState={{ selected: count === n }} onPress={() => useSearch.getState().setCount(n)} style={{ flex: 1, paddingVertical: 9, alignItems: 'center', backgroundColor: count === n ? th.accentSoft : th.surface }}><Text style={{ color: count === n ? th.accentStrong : th.ink, fontWeight: '600' }}>{n}</Text></Pressable>)}
           </View>
           <Text style={{ color: th.muted, fontSize: 12.5, marginTop: 6 }}>{t('srchCountNote')}</Text>
+          {label(t('srchFetch'))}
+          {FETCH_ROWS.map(({ mode, label: title, note }) => (
+            <Pressable key={mode} testID={`web-fetch-${mode}`} onPress={() => useSearch.getState().setWebFetch(mode)} accessibilityRole="radio" accessibilityState={{ selected: webFetch === mode }} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, padding: 13, marginBottom: 6, borderRadius: 12, borderWidth: 1, borderColor: webFetch === mode ? th.accent : th.line, backgroundColor: webFetch === mode ? th.accentSoft : th.surface }}>
+              <View style={{ flex: 1 }}><Text style={{ color: th.ink, fontWeight: '600' }}>{t(title)}</Text><Text style={{ color: th.muted, fontSize: 12.5, marginTop: 2 }}>{t(note)}</Text></View>
+              {webFetch === mode && <Icon name="Check" size={18} color={th.accentStrong} />}
+            </Pressable>))}
+          <Text style={{ color: th.muted, fontSize: 12.5, marginTop: 2 }}>{t('srchFetchNote')}</Text>
         </ScrollView>
       </KeyboardAvoidingView>
     </Modal>

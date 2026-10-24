@@ -15,8 +15,9 @@ describe('web search mode', () => {
     const r = await runAssistant(opts(true))
     expect(mockSearch).toHaveBeenCalledWith('cari harga vps murah', undefined)
     const sent = mockStream.mock.calls[0][0] as { messages: { role: string; content: string }[]; tools?: unknown[] }
-    expect(sent.messages[0].role).toBe('system'); expect(sent.messages[0].content).toContain('VPS A'); expect(sent.tools?.length).toBe(2)   // tools stay available for more searching
-    expect(r.sources).toEqual([{ title: 'VPS A', url: 'https://a.example' }]); expect(r.queries).toEqual(['cari harga vps murah'])
+    expect(sent.messages[0].content).toContain('<citations>')   // the model is told how to cite, before the results
+    expect(sent.messages[1].role).toBe('system'); expect(sent.messages[1].content).toContain('VPS A'); expect(sent.tools?.length).toBe(2)   // tools stay available for more searching
+    expect(r.sources).toEqual([{ title: 'VPS A', url: 'https://a.example', id: expect.stringMatching(/^r[0-9a-f]{6}$/) }]); expect(r.queries).toEqual(['cari harga vps murah'])
   })
   it('does not search when web is off, and still answers when the search fails', async () => {
     mockStream.mockImplementation(() => answer('ok'))

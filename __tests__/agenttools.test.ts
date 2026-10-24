@@ -46,3 +46,17 @@ describe('local tool calls', () => {
     expect((mockStream.mock.calls[0][0] as { tools?: unknown[] }).tools).toBeUndefined()
   })
 })
+
+describe('thinking switch', () => {
+  it('asks the model not to reason when the person turned it off', async () => {
+    mockStream.mockImplementation(() => answer('halo'))
+    await runAssistant(opts({ think: false }))
+    expect((mockStream.mock.calls[0][0] as { reasoning_effort?: string }).reasoning_effort).toBe('none')
+  })
+
+  it('leaves the server default alone when thinking is on', async () => {
+    mockStream.mockImplementation(() => answer('halo'))
+    await runAssistant(opts({ think: true }))
+    expect((mockStream.mock.calls[0][0] as { reasoning_effort?: string }).reasoning_effort).toBeUndefined()
+  })
+})

@@ -33,11 +33,25 @@ describe('model picker', () => {
     expect(r.getByTestId('model-p').props.accessibilityState.disabled).toBe(true); await fireEvent.press(r.getByTestId('model-p')); expect(onSelect).not.toHaveBeenCalled()
     await fireEvent.press(r.getByTestId('model-c')); expect(onSelect).toHaveBeenCalledWith('c')
   })
-  it('picture models appear under Image and open the Studio instead of becoming the chat model', async () => {
+  it('the chat picker offers only chat models, never pictures', async () => {
     const onSelect = jest.fn(), onImg = jest.fn(), r = await render(<ModelSheet visible models={models} selected="g" onSelect={onSelect} onClose={() => {}} imageModels={img} selectedImage="flux" onSelectImage={onImg} />)
-    await fireEvent.press(r.getByTestId('filter-image'))
-    expect(r.queryByTestId('model-g')).toBeNull(); await fireEvent.press(r.getByTestId('model-flux'))
-    expect(onImg).toHaveBeenCalledWith('flux'); expect(onSelect).not.toHaveBeenCalled()
+    expect(r.queryByTestId('model-flux')).toBeNull()
+    expect(r.queryByTestId('filter-image')).toBeNull()
+    expect(r.getByTestId('model-g')).toBeTruthy()
+  })
+  it('the picture screen offers only picture models', async () => {
+    const onImg = jest.fn(), r = await render(<ModelSheet visible mode="image" models={[]} imageModels={img} selected="flux" selectedImage="flux" onSelect={() => {}} onClose={() => {}} onSelectImage={onImg} />)
+    expect(r.queryByTestId('model-g')).toBeNull()
+    expect(r.queryByTestId('model-flux')).toBeTruthy()
+    await fireEvent.press(r.getByTestId('model-flux'))
+    expect(onImg).toHaveBeenCalledWith('flux')
+  })
+  it('the voice screen offers only voices', async () => {
+    const onVoice = jest.fn(), r = await render(<ModelSheet visible mode="voice" models={models} voiceModels={[{ id: 'kokoro', name: 'Kokoro 82M', access: 'payg' }]} selectedVoice="kokoro" selected="" onSelect={() => {}} onClose={() => {}} onSelectVoice={onVoice} />)
+    expect(r.queryByTestId('model-g')).toBeNull()
+    expect(r.getByText('Kokoro 82M')).toBeTruthy()
+    await fireEvent.press(r.getByTestId('model-kokoro'))
+    expect(onVoice).toHaveBeenCalledWith('kokoro')
   })
   it('shows loading and a retry for a failed list', async () => {
     const retry = jest.fn(), a = await render(<ModelSheet visible models={[]} selected="" onSelect={() => {}} onClose={() => {}} state="loading" />)
