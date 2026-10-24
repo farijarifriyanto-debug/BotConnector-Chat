@@ -4,6 +4,7 @@ import { SvgXml } from 'react-native-svg'
 // Same line icons as the web Chat. `Stop` is a filled square, drawn separately.
 const PATHS = {
   Plus: '<path d="M12 5v14"/><path d="M5 12h14"/>',
+  Boxes: '<path d="M2.97 12.92A2 2 0 0 0 2 14.63v3.24a2 2 0 0 0 .97 1.71l3 1.8a2 2 0 0 0 2.06 0L12 19v-5.5l-5-3-4.03 2.42Z"/><path d="m7 16.5-4.74-2.85"/><path d="m7 16.5 5-3"/><path d="M7 16.5v5.17"/><path d="M12 13.5V19l3.97 2.38a2 2 0 0 0 2.06 0l3-1.8a2 2 0 0 0 .97-1.71v-3.24a2 2 0 0 0-.97-1.71L17 10.5l-5 3Z"/><path d="m17 16.5-5-3"/><path d="m17 16.5 4.74-2.85"/><path d="M17 16.5v5.17"/><path d="M7.97 4.42A2 2 0 0 0 7 6.13v4.37l5 3 5-3V6.13a2 2 0 0 0-.97-1.71l-3-1.8a2 2 0 0 0-2.06 0l-3 1.8Z"/><path d="M12 8 7.26 5.15"/><path d="m12 8 4.74-2.85"/><path d="M12 13.5V8"/>"',
   ArrowDown: '<path d="M12 5v14"/><path d="M6 13l6 6 6-6"/>',
   Panel: '<rect x="3" y="4" width="18" height="16" rx="3"/><path d="M9 4v16"/>',
   Ghost: '<path d="M3 3l18 18"/><path d="M10.6 10.6a2 2 0 002.8 2.8"/><path d="M9.9 5.1A10.4 10.4 0 0112 5c5 0 8.5 4 9.5 7a13 13 0 01-2.6 3.9M6.1 6.1A13.3 13.3 0 002.5 12c1 3 4.5 7 9.5 7 1.6 0 3-.4 4.2-1"/>',

@@ -60,4 +60,17 @@ describe('Composer attachments', () => {
     await waitFor(() => expect(seeing.getByTestId('att-f.jpg')).toBeTruthy())
     expect(seeing.getByTestId('send-go').props.accessibilityState.disabled).toBe(false)
   })
+
+  it('has a model button in the action row that opens the model list', async () => {
+    const onPickModel = jest.fn()
+    const r = await render(<Composer busy={false} model={model(false)} webAvailable onSend={() => {}} onStop={() => {}} onPickModel={onPickModel} />)
+    await fireEvent.press(r.getByTestId('pill-model'))
+    expect(onPickModel).toHaveBeenCalledTimes(1)
+    expect(r.getByTestId('pill-model').props.accessibilityLabel).toBe('Choose a model: M')
+  })
+
+  it('leaves the model button out when the screen does not offer one', async () => {
+    const r = await render(<Composer busy={false} model={model(false)} webAvailable onSend={() => {}} onStop={() => {}} />)
+    expect(r.queryByTestId('pill-model')).toBeNull()
+  })
 })
