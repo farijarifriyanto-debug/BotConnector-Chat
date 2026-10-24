@@ -7,13 +7,12 @@ import { STRINGS } from '../src/i18n/strings'
 
 jest.setTimeout(30000)
 jest.mock('expo-audio', () => ({
-  RecordingPresets: { HIGH_QUALITY: {} },
-  useAudioRecorder: () => ({ prepareToRecordAsync: jest.fn(async () => {}), record: jest.fn(), stop: jest.fn(async () => {}), uri: null }),
   requestRecordingPermissionsAsync: jest.fn(async () => ({ granted: false })),
   setAudioModeAsync: jest.fn(async () => {}),
+  useAudioStream: () => ({ stream: { start: jest.fn(async () => {}), stop: jest.fn(), sampleRate: 16000 }, isStreaming: false }),
 }))
 const mockUpload = jest.fn(), mockStatus = jest.fn(), mockPickDoc = jest.fn(), mockPickPhotos = jest.fn()
-jest.mock('../src/api/files', () => ({ uploadFile: (...a: unknown[]) => mockUpload(...a), fileStatus: (...a: unknown[]) => mockStatus(...a), isTerminal: (s: string) => s === 'ready' || s === 'failed' }))
+jest.mock('../src/api/files', () => ({ ...jest.requireActual('../src/api/files'), uploadFile: (...a: unknown[]) => mockUpload(...a), fileStatus: (...a: unknown[]) => mockStatus(...a), isTerminal: (s: string) => s === 'ready' || s === 'failed' }))
 jest.mock('../src/lib/attachments', () => ({ MAX_IMAGES: 4, pickDocument: () => mockPickDoc(), pickPhotos: () => mockPickPhotos(), takePhoto: jest.fn() }))
 const model = (vision: boolean) => ({ id: 'm', name: 'M', access: 'free' as const, vision, tools: false, reasoning: false, available: true })
 const choose = (index: number) => jest.spyOn(ActionSheetIOS, 'showActionSheetWithOptions').mockImplementation(((_o: unknown, cb: (i: number) => void) => cb(index)) as never)

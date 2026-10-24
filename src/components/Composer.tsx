@@ -1,13 +1,15 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { ActionSheetIOS, ActivityIndicator, Alert, Image, Modal, Platform, Pressable, ScrollView, View } from 'react-native'
-import { RecordingPresets, requestRecordingPermissionsAsync, setAudioModeAsync, useAudioRecorder } from 'expo-audio'
+import { requestRecordingPermissionsAsync, setAudioModeAsync, useAudioStream } from 'expo-audio'
 import { Text, TextInput } from './Text'
 import { useAttachments } from '../hooks/useAttachments'
 import { useT } from '../hooks/useT'
 import { MAX_IMAGES } from '../lib/attachments'
 import { insertPhrase } from '../lib/phrases'
 import type { Attachment, ChatModel } from '../lib/types'
-import { joinVoiceText, transcribeClip, voiceFailure } from '../lib/voice'
+import { joinVoiceText } from '../lib/voice'
+import { openAsrStream, type AsrSession } from '../lib/asrStream'
+import { useAuth } from '../store/auth'
 import { usePhrases } from '../store/phrases'
 import { useSettings } from '../store/settings'
 import { useTheme } from '../theme/theme'
@@ -49,7 +51,9 @@ export function Composer({ busy, model, webAvailable, onSend, onStop, image, fil
   const [text, setText] = useState(''), [web, setWeb] = useState(false), [research, setResearch] = useState(false), [img, setImg] = useState(false), [note, setNote] = useState<string | null>(null)
   const [rowW, setRowW] = useState(0), [more, setMore] = useState(false), [quick, setQuick] = useState(false), [manage, setManage] = useState(false)
   const [sel, setSel] = useState<{ start: number; end: number } | null>(null)
-  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY)
+  const audio = useAudioStream({ sampleRate: 16000, channels: 1, encoding: 'int16', onBuffer: buffer => { session.current?.send(new Uint8Array(buffer.data)) } })
+  const session = useRef<AsrSession | null>(null)
+  const baseText = useRef(''), voiceFailed = useRef(false), finalWait = useRef<{ resolve: (text: string | null) => void } | null>(null)
   const [recording, setRecording] = useState(false), [transcribing, setTranscribing] = useState(false), [recordedMs, setRecordedMs] = useState(0)
   const hasPhotos = att.photoCount > 0
   const blocked = !img && (!att.ready || (hasPhotos && !model?.vision))
@@ -105,48 +109,58 @@ export function Composer({ busy, model, webAvailable, onSend, onStop, image, fil
 
   const startVoice = async () => {
     if (!voice?.available || recording || transcribing || busy) return
-    setNote(null)
+    setNote(null); voiceFailed.current = false
+    const token = useAuth.getState().session?.accessToken
+    if (!token) { setNote(t('micDenied')); return }
     try {
       const permission = await requestRecordingPermissionsAsync()
       if (!permission.granted) { setNote(t('micDenied')); return }
       await setAudioModeAsync({ playsInSilentMode: true, allowsRecording: true })
-      await recorder.prepareToRecordAsync()
-      recorder.record()
+      await audio.stream.start()
+      baseText.current = text
+      session.current = openAsrStream({
+        token, sampleRate: audio.stream.sampleRate || 16000, language: /^[a-z]{2,3}$/.test(lang) ? lang : undefined,
+        handlers: {
+          onPartial: partial => setText(joinVoiceText(baseText.current, partial)),
+          onFinal: final => { setText(joinVoiceText(baseText.current, final)); finalWait.current?.resolve(final) },
+          onError: () => { voiceFailed.current = true; setNote(t('micFail')); finalWait.current?.resolve(null) },
+          onClose: () => finalWait.current?.resolve(null),
+        },
+      })
       setRecording(true)
-    } catch (e) {
-      setNote(t(voiceFailure(e) === 'mic' ? 'micDenied' : 'micFail'))
-    }
+    } catch { setNote(t('micFail')) }
   }
 
-  /** Stops the microphone, transcribes the clip, and puts the words after the draft (or sends them). */
+  /** Ends the stream, waits for the final words, and puts them after the draft (or sends them). */
   const finishVoice = async (sendAfter: boolean) => {
     if (!recording || transcribing) return
     setRecording(false); setTranscribing(true)
-    try {
-      await recorder.stop()
-      const uri = recorder.uri
-      if (!uri) throw new Error('no recording')
-      const { text: said } = await transcribeClip(uri, { language: /^[a-z]{2,3}$/.test(lang) ? lang : undefined })
-      if (!said) { setNote(t('micNoSpeech')); return }
-      const next = joinVoiceText(text, said)
-      setText(next); setSel({ start: next.length, end: next.length })
-      if (sendAfter) {
-        onSend(next, flags, img ? [] : att.toMessage())
-        setText(''); setSel(null); setResearch(false); setImg(false); setNote(null); att.clear()
-      }
-    } catch (e) {
-      const why = voiceFailure(e)
-      setNote(why === 'aborted' ? null : t(why === 'mic' ? 'micDenied' : 'micFail'))
-    } finally {
-      setTranscribing(false)
-      void setAudioModeAsync({ allowsRecording: false }).catch(() => {})
+    const done = new Promise<string | null>(resolve => {
+      const timer = setTimeout(() => resolve(null), 8000)
+      finalWait.current = { resolve: text => { clearTimeout(timer); resolve(text) } }
+    })
+    try { session.current?.finish(); session.current = null } catch { /* the socket may already be closed */ }
+    try { audio.stream.stop() } catch { /* already stopped */ }
+    const final = await Promise.race([done, new Promise<null>(resolve => setTimeout(() => resolve(null), 8000))])
+    finalWait.current = null
+    setTranscribing(false)
+    void setAudioModeAsync({ allowsRecording: false }).catch(() => {})
+    if (final === null) { if (!voiceFailed.current) setNote(t('micFail')); return }
+    if (!final.trim()) { setNote(t('micNoSpeech')); return }
+    const next = joinVoiceText(baseText.current, final)
+    setText(next); setSel({ start: next.length, end: next.length })
+    if (sendAfter) {
+      onSend(next, flags, img ? [] : att.toMessage())
+      setText(''); setSel(null); setResearch(false); setImg(false); setNote(null); att.clear()
     }
   }
 
   const cancelVoice = async () => {
     if (!recording) return
     setRecording(false)
-    try { await recorder.stop() } catch { /* the clip is thrown away */ }
+    try { session.current?.cancel(); session.current = null } catch { /* already closed */ }
+    try { audio.stream.stop() } catch { /* already stopped */ }
+    setText(baseText.current); setSel(null)
     void setAudioModeAsync({ allowsRecording: false }).catch(() => {})
   }
 

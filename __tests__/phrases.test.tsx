@@ -9,12 +9,11 @@ import { useSettings } from '../src/store/settings'
 
 jest.setTimeout(30000)
 jest.mock('expo-audio', () => ({
-  RecordingPresets: { HIGH_QUALITY: {} },
-  useAudioRecorder: () => ({ prepareToRecordAsync: jest.fn(async () => {}), record: jest.fn(), stop: jest.fn(async () => {}), uri: null }),
+  useAudioStream: () => ({ stream: { start: jest.fn(async () => {}), stop: jest.fn(), sampleRate: 16000 }, isStreaming: false }),
   requestRecordingPermissionsAsync: jest.fn(async () => ({ granted: false })),
   setAudioModeAsync: jest.fn(async () => {}),
 }))
-jest.mock('../src/api/files', () => ({ uploadFile: jest.fn(), fileStatus: jest.fn(), isTerminal: () => true }))
+jest.mock('../src/api/files', () => ({ ...jest.requireActual('../src/api/files'), uploadFile: jest.fn(), fileStatus: jest.fn(), isTerminal: () => true }))
 jest.mock('../src/lib/attachments', () => ({ MAX_IMAGES: 4, pickDocument: jest.fn(), pickPhotos: jest.fn(), takePhoto: jest.fn() }))
 
 const model = { id: 'm', name: 'M', access: 'free' as const, vision: false, tools: false, reasoning: false, available: true }
