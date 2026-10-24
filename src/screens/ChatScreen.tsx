@@ -7,6 +7,7 @@ import { Composer } from '../components/Composer'
 import { FeatureGuide, type Feature } from '../components/FeatureGuide'
 import { Icon } from '../components/Icons'
 import { ImageStudio } from '../components/ImageStudio'
+import { VideoStudio } from '../components/VideoStudio'
 import { MessageView } from '../components/MessageView'
 import { ModelIcon } from '../components/ModelIcon'
 import { ModelSheet } from '../components/ModelSheet'
@@ -41,7 +42,7 @@ export function ChatScreen() {
   const th = useTheme(), t = useT()
   const chat = useChat(), conv = useChat(currentConv)
   const think = useSettings(s => s.think)
-  const guest = useAuth(a => a.status === 'guest'), ownSearch = useSearch(x => x.provider !== 'botconnector' && !!x.hasKey[x.provider]), [provSheet, setProvSheet] = useState(false), [localSheet, setLocalSheet] = useState(false), [pals, setPals] = useState(false), [optSheet, setOptSheet] = useState(false), [imgSheet, setImgSheet] = useState(false), [studio, setStudio] = useState(false), [reporting, setReporting] = useState<string | null>(null), [menu, setMenu] = useState(false), [models, setModels] = useState(false), [settings, setSettings] = useState(false)
+  const guest = useAuth(a => a.status === 'guest'), ownSearch = useSearch(x => x.provider !== 'botconnector' && !!x.hasKey[x.provider]), [provSheet, setProvSheet] = useState(false), [localSheet, setLocalSheet] = useState(false), [pals, setPals] = useState(false), [optSheet, setOptSheet] = useState(false), [imgSheet, setImgSheet] = useState(false), [studio, setStudio] = useState(false), [video, setVideo] = useState(false), [reporting, setReporting] = useState<string | null>(null), [menu, setMenu] = useState(false), [models, setModels] = useState(false), [settings, setSettings] = useState(false)
   const list = useRef<FlatList>(null)
   const { width, fontScale } = useWindowDimensions(), narrow = width / Math.max(1, fontScale) < 340   // very small phone or very large system text: the model keeps the room, the title steps aside
   const msgs = conv?.messages ?? []
@@ -94,10 +95,11 @@ export function ChatScreen() {
         {msgs.length > 0 && away && <Pressable testID="jump-end" onPress={() => { fol.current.jump(); setAway(false); toEnd(true) }} accessibilityRole="button" accessibilityLabel={t('jumpEnd')} style={{ position: 'absolute', right: 16, bottom: 120, width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: th.surface, borderWidth: 1, borderColor: th.lineStrong, shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 4 }}><Icon name="ArrowDown" size={20} color={th.ink} /></Pressable>}
         <Composer busy={chat.busy} model={model} onPickModel={() => setModels(true)} think={think} onThinkChange={useSettings.getState().setThink} queued={chat.queued} onQueue={(text, o, atts) => chat.queue(text, o, atts)} onCancelQueue={chat.cancelQueued} webAvailable={web} researchAvailable={!guest} onSend={(text, o, atts) => void chat.send(text, o, atts)} onStop={chat.stop} files={{ available: chat.caps?.files === true && model?.access !== 'local' && model?.access !== 'custom' }} image={{ available: chat.imageModels.length > 0, modelName: chat.imageModels.find(m => m.id === chat.imageModelId)?.name ?? '', onPick: () => setImgSheet(true) }} />
       </KeyboardAvoidingView>
-      <Sidebar open={menu} convs={chat.convs} activeId={chat.activeId} onClose={() => setMenu(false)} onNew={chat.newChat} onOpen={chat.open} onDelete={id => void chat.remove(id)} onSettings={() => setSettings(true)} onPals={() => setPals(true)} onStudio={chat.imageModels.length ? () => setStudio(true) : undefined} />
+      <Sidebar open={menu} convs={chat.convs} activeId={chat.activeId} onClose={() => setMenu(false)} onNew={chat.newChat} onOpen={chat.open} onDelete={id => void chat.remove(id)} onSettings={() => setSettings(true)} onPals={() => setPals(true)} onVideo={() => setVideo(true)} onStudio={chat.imageModels.length ? () => setStudio(true) : undefined} />
       <ModelSheet mode="chat" visible={models} models={chat.models} selected={chat.modelId} onSelect={id => { chat.selectModel(id); setModels(false) }} onClose={() => setModels(false)} imageModels={chat.imageModels} selectedImage={chat.imageModelId} onSelectImage={id => { chat.selectImageModel(id); setStudio(true) }} state={chat.modelsState} onRetry={() => void chat.loadModels()} />
       <ModelSheet mode="image" visible={imgSheet} models={[]} imageModels={chat.imageModels} selected={chat.imageModelId} onSelect={chat.selectImageModel} onClose={() => setImgSheet(false)} />
       <ImageStudio visible={studio} onClose={() => setStudio(false)} />
+      <VideoStudio visible={video} onClose={() => setVideo(false)} />
       <ChatOptionsSheet visible={optSheet} conv={conv} onClose={() => setOptSheet(false)} />
       <ProvidersSheet visible={provSheet} onClose={() => setProvSheet(false)} />
       <LocalModelsSheet visible={localSheet} onClose={() => setLocalSheet(false)} />

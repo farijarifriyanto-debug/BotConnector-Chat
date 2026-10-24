@@ -48,9 +48,9 @@ export async function getJson<T>(path: string, signal?: AbortSignal): Promise<T>
   return (await r.json().catch(() => ({}))) as T
 }
 
-export async function postJson<T>(path: string, body: unknown, signal?: AbortSignal): Promise<T> {
+export async function postJson<T>(path: string, body: unknown, signal?: AbortSignal, extraHeaders: Record<string, string> = {}): Promise<T> {
   let r: Response
-  try { r = await fetch(`${API_BASE}${path}`, { method: 'POST', headers: headers(JSON_POST), body: JSON.stringify(body), signal }) }
+  try { r = await fetch(`${API_BASE}${path}`, { method: 'POST', headers: headers({ ...JSON_POST, ...extraHeaders }), body: JSON.stringify(body), signal }) }
   catch (e) { throw (e as Error)?.name === 'AbortError' ? new ChatError('aborted') : new ChatError('network') }
   if (!r.ok) throw await failure(r)
   return (await r.json().catch(() => ({}))) as T
@@ -303,3 +303,63 @@ export async function transcribeAudio(req: { audioBase64: string; mime?: string;
     throw e
   } finally { clearTimeout(timer); signal?.removeEventListener('abort', onAbort) }
 }
+
+// ---------- video ----------
+export interface VideoModel { id: string; name: string; access: Access; durationSeconds: number; resolution: string; textToVideo: boolean; requiresImage: boolean; guestTrial: boolean }
+/** The video models the job route accepts, with the limits it enforces. */
+export async function fetchVideoModels(): Promise<VideoModel[]> {
+  const j = await getJson<{ data?: any[] }>('/v1/studio-video/models')
+  return (j.data ?? []).filter(m => m && typeof m.id === 'string')
+    .map((m): VideoModel => ({
+      id: String(m.id),
+      name: String(m.name || prettyId(String(m.id))),
+      access: accessOf(m.botconnector_access),
+      durationSeconds: Number(m.duration_seconds) > 0 ? Number(m.duration_seconds) : 5,
+      resolution: String(m.resolution || '720p'),
+      textToVideo: m.supports_text_to_video !== false,
+      requiresImage: m.requires_image === true,
+      guestTrial: m.guest_trial === true,
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name))
+}
+
+export interface VideoQuote { micros: number; token: string; expiresAt: string; durationSeconds: number; aspect: string }
+/** Price for one clip. The token goes back with the job so a changed price is refused. */
+export async function quoteVideo(req: { model: string; aspect: string; sourceSha256?: string }): Promise<VideoQuote> {
+  const j = await postJson<any>('/v1/studio-video/quote', {
+    model: req.model, aspect_ratio: req.aspect,
+    ...(req.sourceSha256 ? { source_sha256: req.sourceSha256 } : {}),
+  })
+  const micros = Number(j?.customer_estimate_micros), token = j?.quote_token
+  if (!Number.isFinite(micros) || micros < 0 || typeof token !== 'string' || !token) throw new ChatError('unavailable')
+  return { micros, token, expiresAt: String(j?.quote_expires_at || ''), durationSeconds: Number(j?.duration_seconds) || 5, aspect: String(j?.aspect_ratio || req.aspect) }
+}
+
+export interface VideoJob { id: string; status: string; error?: string }
+const jobOf = (j: any): VideoJob | null => {
+  const job = j?.job && typeof j.job === 'object' ? j.job : j
+  const id = typeof job?.id === 'string' ? job.id : typeof job?.job_id === 'string' ? job.job_id : ''
+  const status = typeof job?.status === 'string' ? job.status : ''
+  if (!id || !status) return null
+  return { id, status, ...(typeof job.error_code === 'string' ? { error: job.error_code } : {}) }
+}
+
+export async function submitVideo(req: { model: string; prompt: string; aspect: string; quoteToken: string; idempotencyKey: string; sourceBase64?: string; sourceMime?: string; sourceSha256?: string }): Promise<VideoJob> {
+  const j = await postJson<any>('/v1/studio-video/jobs', {
+    model: req.model, prompt: req.prompt, aspect_ratio: req.aspect, idempotency_key: req.idempotencyKey,
+    ...(req.sourceBase64 ? { source_base64: req.sourceBase64, source_mime: req.sourceMime || 'image/jpeg', source_sha256: req.sourceSha256 } : {}),
+  }, undefined, { 'x-botconnector-media-quote': req.quoteToken })
+  const job = jobOf(j)
+  if (!job) throw new ChatError('unavailable')
+  return job
+}
+
+export async function fetchVideoJob(id: string): Promise<VideoJob> {
+  const job = jobOf(await getJson<any>(`/v1/studio-video/jobs/${encodeURIComponent(id)}`))
+  if (!job) throw new ChatError('unavailable')
+  return job
+}
+
+/** Where the finished clip plays; the player must send the same authorization header. */
+export const videoContentUrl = (id: string): string => `${API_BASE}/v1/studio-video/jobs/${encodeURIComponent(id)}/content`
+export const videoHeaders = (): Record<string, string> => headers({ accept: 'video/mp4' })
