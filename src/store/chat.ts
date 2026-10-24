@@ -57,13 +57,15 @@ import { useSettings } from './settings'
 
 const TITLE_PROMPT = 'Write a short title (at most 6 words) for this conversation, in the same language as the user. No quotes, no trailing punctuation. Reply with the title only.'
 export interface RunStatus { searching?: string; reading?: string; research?: Progress }
-export interface SendOptions { web: boolean; research: boolean; image?: boolean; /** picture size the user chose in the Image Studio (must be one the model offers) */ size?: string }
+export interface SendOptions { web: boolean; research: boolean; image?: boolean; /** false = ask the model not to reason (sent as reasoning_effort: none) */ think?: boolean; /** picture size the user chose in the Image Studio (must be one the model offers) */ size?: string }
 type ModelsState = 'idle' | 'loading' | 'ready' | 'error' | 'auth'
 
 interface ChatState {
   convs: Conv[]; activeId: string | null; draft: Conv | null
   models: ChatModel[]; modelId: string; imageModels: ImageModel[]; imageModelId: string; modelsState: ModelsState; caps: Capabilities | null
   busy: boolean; status: RunStatus | null
+  /** a message typed while an answer was still streaming; sent as soon as it ends */
+  queued: { text: string; opts: SendOptions; attachments: Attachment[] } | null
   init(): Promise<void>; loadModels(): Promise<void>; syncCustom(): void; selectImageModel(id: string): void
   startWith(system: string): void
   updateConv(id: string, patch: Partial<Pick<Conv, 'title' | 'system' | 'pinned'>>): Promise<void>
@@ -72,6 +74,7 @@ interface ChatState {
   deletePicture(convId: string, msgId: string): Promise<void>
   selectModel(id: string): void; newChat(): void; open(id: string): void; remove(id: string): Promise<void>; reset(): void
   send(text: string, opts: SendOptions, attachments?: Attachment[]): Promise<void>; regenerate(opts: SendOptions): Promise<void>; stop(): void
+  queue(text: string, opts: SendOptions, attachments?: Attachment[]): void; cancelQueued(): void
 }
 
 let controller: AbortController | null = null
@@ -149,7 +152,7 @@ export const useChat = create<ChatState>((set, get) => {
           ...(settings.toolsRecall ? applyOverrides(MEMORY_TOOLS.filter(d => d.function.name === 'chat_search'), overrides) : []),
           ...(settings.toolsDevice ? applyOverrides(DEVICE_TOOLS, overrides) : []),
         ]
-        const res = await runAssistant({ model: m, messages: applyLore(messages, activatedEntries(activeBooks(), messages)), tools, onTool: (name, args) => runLocalTool(name, args, localContext), web: webOn, fileIds: isPrivate(m) ? [] : fileIdsOf(history), signal,
+        const res = await runAssistant({ model: m, messages: applyLore(messages, activatedEntries(activeBooks(), messages)), tools, onTool: (name, args) => runLocalTool(name, args, localContext), web: webOn, think: opts.think !== false, fileIds: isPrivate(m) ? [] : fileIdsOf(history), signal,
           onText: c => noteText(c), onReasoning: r => noteReasoning(r), onStatus: s => set({ status: s }) })
         update({ content: res.content, reasoning: res.reasoning || undefined, sources: res.sources.length ? res.sources : undefined, searched: res.queries.length ? res.queries : undefined, ms: Date.now() - t0 }, true)
       }
@@ -163,11 +166,14 @@ export const useChat = create<ChatState>((set, get) => {
       const done = { ...cur, updatedAt: Date.now() }; replace(done)
       await putConv(done).catch(() => {})
       scheduleSync()
+      // A message typed while this answer was streaming goes out now, once, and never after a stop.
+      const waiting = get().queued
+      if (waiting && !signal.aborted) { set({ queued: null }); void get().send(waiting.text, waiting.opts, waiting.attachments) }
     }
   }
 
   return {
-    convs: [], activeId: null, draft: null, models: [], modelId: '', imageModels: [], imageModelId: '', modelsState: 'idle', caps: null, busy: false, status: null,
+    convs: [], activeId: null, draft: null, models: [], modelId: '', imageModels: [], imageModelId: '', modelsState: 'idle', caps: null, busy: false, status: null, queued: null,
     async init() { void useSearch.getState().load(); registerReload(async () => { if (!get().busy) set({ convs: sortConvs(await listConvs()) }) }); scheduleSync(800); void get().loadModels(); if (useAuth.getState().session) void useLaptop.getState().refresh(); try { set({ convs: await listConvs() }) } catch { /* an unreadable database starts empty */ } },
     async loadModels() {
       if (!useAuth.getState().session) {   // no BotConnector account: only the user's own providers and on-device models; nothing is asked from BotConnector
@@ -239,6 +245,8 @@ export const useChat = create<ChatState>((set, get) => {
       const next = { ...conv, messages, updatedAt: Date.now() }; replace(next); await putConv(next).catch(() => {}); scheduleSync()
     },
     stop() { controller?.abort() },
+    queue(text, opts, attachments) { if (get().busy) set({ queued: { text, opts, attachments: attachments ?? [] } }) },
+    cancelQueued() { set({ queued: null }) },
   }
 })
 

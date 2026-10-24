@@ -18,6 +18,8 @@ export interface RunOptions {
   fileIds: string[]
   /** the tool definitions to offer; the chat store passes the built-in ones with the person's wording applied */
   tools?: ToolDef[]
+  /** false turns reasoning off for models that can think (sent as reasoning_effort: none) */
+  think?: boolean
   /** runs a tool that is not web_search/read_url (memory, device) and returns the text the model reads */
   onTool?: (name: string, args: Record<string, unknown>) => Promise<string>
   signal?: AbortSignal
@@ -69,6 +71,7 @@ export async function runAssistant(o: RunOptions): Promise<RunResult> {
     let roundText = '', finish = ''
     const body: Record<string, unknown> = { model: o.model.id, messages }
     if (o.fileIds.length) body.botconnector_file_ids = o.fileIds.slice(0, 10)
+    if (o.think === false) body.reasoning_effort = 'none'
     if (useTools && round < MAX_TOOL_ROUNDS) body.tools = o.tools ?? TOOLS
     for await (const d of streamCompletion(body, o.signal)) {
       if (d.reasoning) { reasoning += d.reasoning; o.onReasoning(reasoning) }

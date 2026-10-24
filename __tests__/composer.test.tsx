@@ -30,7 +30,7 @@ describe('Composer attachments', () => {
     await act(async () => { finish() })
     await waitFor(() => expect(r.getByTestId('send-go').props.accessibilityState.disabled).toBe(false), { timeout: 5000 })
     await fireEvent.press(r.getByTestId('send-go'))
-    expect(onSend).toHaveBeenCalledWith('ringkas', { web: false, research: false, image: false }, [expect.objectContaining({ kind: 'file', name: 'laporan.pdf', fileId: 'file_bc_1', status: 'ready' })])
+    expect(onSend).toHaveBeenCalledWith('ringkas', { web: false, research: false, image: false, think: true }, [expect.objectContaining({ kind: 'file', name: 'laporan.pdf', fileId: 'file_bc_1', status: 'ready' })])
     expect(JSON.stringify(onSend.mock.calls[0][2])).not.toContain('file:///x.pdf')           // no local path leaves the composer
   })
 
@@ -72,5 +72,48 @@ describe('Composer attachments', () => {
   it('leaves the model button out when the screen does not offer one', async () => {
     const r = await render(<Composer busy={false} model={model(false)} webAvailable onSend={() => {}} onStop={() => {}} />)
     expect(r.queryByTestId('pill-model')).toBeNull()
+  })
+
+  it('offers the reasoning switch only for models that can think, and reports it with the message', async () => {
+    const onSend = jest.fn(), onThinkChange = jest.fn()
+    const thinking = { ...model(false), reasoning: true }
+    const r = await render(<Composer busy={false} model={thinking} webAvailable onSend={onSend} onStop={() => {}} think={false} onThinkChange={onThinkChange} />)
+    await fireEvent.changeText(r.getByTestId('composer-input'), 'halo')
+    await fireEvent.press(r.getByTestId('send-go'))
+    expect(onSend.mock.calls[0][1]).toMatchObject({ think: false })
+    await fireEvent.press(r.getByTestId('pill-think'))
+    expect(onThinkChange).toHaveBeenCalledWith(true)
+    const plain = await render(<Composer busy={false} model={model(false)} webAvailable onSend={() => {}} onStop={() => {}} onThinkChange={onThinkChange} />)
+    expect(plain.queryByTestId('pill-think')).toBeNull()
+  })
+
+  it('collects the actions that no longer fit under "+"', async () => {
+    const r = await render(<Composer busy={false} model={model(false)} webAvailable researchAvailable image={{ available: true, modelName: 'img', onPick: () => {} }} onSend={() => {}} onStop={() => {}} />)
+    expect(r.queryByTestId('pill-more')).toBeNull()
+    await fireEvent(r.getByTestId('composer-actions'), 'layout', { nativeEvent: { layout: { width: 210, height: 40 } } })
+    expect(r.getByTestId('pill-more')).toBeTruthy()
+    expect(r.queryByTestId('pill-image')).toBeNull()
+    await fireEvent.press(r.getByTestId('pill-more'))
+    await fireEvent.press(r.getByTestId('more-image'))
+    await fireEvent.press(r.getByTestId('pill-more'))
+    expect(r.getByTestId('more-image').props.accessibilityState.selected).toBe(true)
+  })
+
+  it('waits its turn instead of dropping a message typed while answering', async () => {
+    const onSend = jest.fn(), onQueue = jest.fn()
+    const r = await render(<Composer busy model={model(false)} webAvailable onSend={onSend} onStop={() => {}} onQueue={onQueue} />)
+    await fireEvent.changeText(r.getByTestId('composer-input'), 'pertanyaan berikutnya')
+    expect(r.queryByTestId('send-go')).toBeNull()          // while answering, the round button is the stop button
+    await fireEvent(r.getByTestId('composer-input'), 'submitEditing')
+    expect(onQueue).toHaveBeenCalledWith('pertanyaan berikutnya', expect.objectContaining({ web: false }), [])
+    expect(onSend).not.toHaveBeenCalled()
+  })
+
+  it('shows what is waiting and lets the person drop it', async () => {
+    const onCancelQueue = jest.fn()
+    const r = await render(<Composer busy={false} model={model(false)} webAvailable onSend={() => {}} onStop={() => {}} queued={{ text: 'pertanyaan berikutnya' }} onCancelQueue={onCancelQueue} />)
+    expect(r.getByTestId('composer-queued')).toBeTruthy()
+    await fireEvent.press(r.getByTestId('queued-cancel'))
+    expect(onCancelQueue).toHaveBeenCalled()
   })
 })
