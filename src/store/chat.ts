@@ -180,7 +180,9 @@ export const useChat = create<ChatState>((set, get) => {
           fetchMode,
           fetchPage: fetchMode === 'follow' ? async (url, signal) => (await readByok(url, signal)) ?? webFetch(url, signal) : webFetch,
           onText: c => noteText(c), onReasoning: r => noteReasoning(r), onStatus: s => set({ status: s }) })
-        update({ content: res.content, reasoning: res.reasoning || undefined, sources: res.sources.length ? res.sources : undefined, searched: res.queries.length ? res.queries : undefined, ms: Date.now() - t0 }, true)
+        update({ content: res.content, reasoning: res.reasoning || undefined, sources: res.sources.length ? res.sources : undefined, searched: res.queries.length ? res.queries : undefined, ms: Date.now() - t0,
+          ...(res.usage ? { promptTokens: res.usage.input, completionTokens: res.usage.output, ...(res.usage.cached ? { cachedTokens: res.usage.cached } : {}), totalTokens: res.usage.total } : {}),
+          ...(res.cost ? { costMicros: res.cost.micros, costCurrency: res.cost.currency } : {}) }, true)
       }
       const firstQ = history.filter(x => x.role === 'user')
       if (!isPrivate(m) && !base.titled && firstQ.length === 1 && cur.messages.at(-1)?.content && base.title === titleFrom(firstQ[0].content)) void autoTitle(base.id, base.title, firstQ[0].content, cur.messages.at(-1)!.content)

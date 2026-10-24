@@ -10,6 +10,12 @@ export interface StatsSnapshot {
   conversations: number
   messages: number
   answers: number
+  inputTokens: number
+  outputTokens: number
+  cachedTokens: number
+  totalTokens: number
+  /** what the service says was charged, per currency (the reference app shows one tile per currency) */
+  costs: RankRow[]
   heatmap: DayCount[]
   trend: DayCount[]
   models: RankRow[]
@@ -51,8 +57,8 @@ export function computeStats(convs: Conv[], preset: RangePreset, now: Date = new
     dayCounts.set(key, (dayCounts.get(key) ?? 0) + 1)
   }
 
-  let messages = 0, answers = 0
-  const models = new Map<string, number>(), topics = new Map<string, { label: string; value: number }>()
+  let messages = 0, answers = 0, inputTokens = 0, outputTokens = 0, cachedTokens = 0, totalTokens = 0
+  const models = new Map<string, number>(), topics = new Map<string, { label: string; value: number }>(), costs = new Map<string, number>()
   for (const c of chats) {
     const title = c.title?.trim()
     for (const m of c.messages) {
@@ -62,6 +68,11 @@ export function computeStats(convs: Conv[], preset: RangePreset, now: Date = new
         answers++
         const label = m.model?.trim() || '—'
         models.set(label, (models.get(label) ?? 0) + 1)
+        inputTokens += m.promptTokens ?? 0
+        outputTokens += m.completionTokens ?? 0
+        cachedTokens += m.cachedTokens ?? 0
+        totalTokens += m.totalTokens ?? ((m.promptTokens ?? 0) + (m.completionTokens ?? 0))
+        if (m.costMicros) { const cur = m.costCurrency || 'USD'; costs.set(cur, (costs.get(cur) ?? 0) + m.costMicros) }
       }
       if (title) {
         const row = topics.get(c.id) ?? { label: title, value: 0 }
@@ -90,6 +101,11 @@ export function computeStats(convs: Conv[], preset: RangePreset, now: Date = new
     conversations: chats.filter(c => inRange(c.createdAt)).length,
     messages,
     answers,
+    inputTokens,
+    outputTokens,
+    cachedTokens,
+    totalTokens,
+    costs: [...costs.entries()].map(([label, micros]) => ({ label, value: micros })).sort((a, b) => a.label.localeCompare(b.label)),
     heatmap,
     trend,
     models: rank([...models.entries()].map(([label, value]) => ({ label, value }))),

@@ -190,13 +190,28 @@ export async function webFetch(url: string, signal?: AbortSignal): Promise<{ tit
 
 // ---------- streaming completions ----------
 export interface ToolCallDelta { index: number; id?: string; name?: string; args?: string }
-export interface Delta { content?: string; reasoning?: string; toolCalls?: ToolCallDelta[]; finish?: string }
+export interface TokenUsage { input: number; output: number; cached?: number; reasoning?: number; total?: number }
+export interface Delta { content?: string; reasoning?: string; toolCalls?: ToolCallDelta[]; finish?: string; usage?: TokenUsage; cost?: { micros: number; currency: string } }
+
+/** The provider's token report (requested with stream_options.include_usage); null when the chunk has none. */
+export function parseUsage(raw: any): TokenUsage | null {
+  if (!raw || typeof raw !== 'object') return null
+  const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : 0)
+  const input = num(raw.prompt_tokens ?? raw.input_tokens), output = num(raw.completion_tokens ?? raw.output_tokens)
+  const cached = num(raw.prompt_tokens_details?.cached_tokens ?? raw.input_tokens_details?.cached_tokens)
+  const reasoning = num(raw.completion_tokens_details?.reasoning_tokens ?? raw.output_tokens_details?.reasoning_tokens)
+  if (!input && !output && !cached && !reasoning) return null
+  return { input, output, ...(cached ? { cached } : {}), ...(reasoning ? { reasoning } : {}), total: num(raw.total_tokens) || input + output }
+}
 
 /** Parses one SSE data payload into the parts the UI cares about (OpenAI-compatible chunk). */
 export function parseChunk(payload: string): Delta | null {
   let j: any
   try { j = JSON.parse(payload) } catch { return null }
-  const choice = j?.choices?.[0]; if (!choice) return null
+  const usage = parseUsage(j?.usage)
+  const cost = typeof j?.botconnector?.cost_micros === 'number' ? { micros: j.botconnector.cost_micros, currency: String(j.botconnector.currency || 'USD') } : undefined
+  const choice = j?.choices?.[0]
+  if (!choice) return usage || cost ? { ...(usage ? { usage } : {}), ...(cost ? { cost } : {}) } : null   // the final usage frame has no choices
   const d = choice.delta ?? choice.message ?? {}
   const out: Delta = {}
   if (typeof d.content === 'string' && d.content) out.content = d.content
@@ -204,6 +219,8 @@ export function parseChunk(payload: string): Delta | null {
   if (typeof reasoning === 'string' && reasoning) out.reasoning = reasoning
   if (Array.isArray(d.tool_calls)) out.toolCalls = d.tool_calls.map((t: any, i: number) => ({ index: Number.isInteger(t?.index) ? t.index : i, id: t?.id, name: t?.function?.name, args: t?.function?.arguments }))
   if (typeof choice.finish_reason === 'string') out.finish = choice.finish_reason
+  if (usage) out.usage = usage
+  if (cost) out.cost = cost
   return out
 }
 
@@ -282,7 +299,7 @@ async function* streamOnce(body: Record<string, unknown>, signal?: AbortSignal):
       for (const p of payloads) {
         const d = parseChunk(p); if (!d) continue
         const stuck = padGuard(d, pads); if (stuck) { void reader.cancel?.().catch?.(() => {}); yield { finish: 'length' }; return }
-        if (d.content !== undefined || d.reasoning !== undefined || d.toolCalls || d.finish) yield d
+        if (d.content !== undefined || d.reasoning !== undefined || d.toolCalls || d.finish || d.usage || d.cost) yield d
       }
     }
   } finally { try { reader.releaseLock?.() } catch { /* a read was still pending (stalled stream): the reader was cancelled above */ } }

@@ -59,6 +59,10 @@ export function StatsSheet({ visible, onClose, now }: { visible: boolean; onClos
             {tile('st-conv', snapshot.conversations, t('statConversations'))}
             {tile('st-msg', snapshot.messages, t('statMessages'))}
             {tile('st-answers', snapshot.answers, t('statAnswers'))}
+            {tile('st-in', snapshot.inputTokens, t('statInputTokens'))}
+            {tile('st-out', snapshot.outputTokens, t('statOutputTokens'))}
+            {tile('st-cached', snapshot.cachedTokens, t('statCachedTokens'))}
+            {snapshot.costs.map(c => tile(`st-cost-${c.label}`, Number((c.value / 1_000_000).toFixed(4)), t('statCost', { c: c.label })))}
           </View>
 
           {label(t('statHeatmap'))}

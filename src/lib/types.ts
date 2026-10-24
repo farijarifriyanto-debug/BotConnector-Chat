@@ -69,6 +69,14 @@ export interface Msg {
   image?: { prompt: string; modelId: string; model: string; size: string; left?: string }
   /** a translation of the answer, written by the translate action */
   translation?: string
+  /** the provider's token report for this answer (input/output/cached), like the reference app's message fields */
+  promptTokens?: number
+  completionTokens?: number
+  cachedTokens?: number
+  totalTokens?: number
+  /** what the account was charged for this answer, when the service reports it */
+  costMicros?: number
+  costCurrency?: string
   /** earlier answers to the same question (regenerate); local to this device */
   variants?: Msg[]
 }

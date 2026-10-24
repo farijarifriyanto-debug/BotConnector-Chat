@@ -1,5 +1,5 @@
 import { sha256 } from 'js-sha256'
-import { streamCompletion, webFetch, webSearch, type SearchHit, type ToolCallDelta } from '../api/api'
+import { streamCompletion, webFetch, webSearch, type SearchHit, type TokenUsage, type ToolCallDelta } from '../api/api'
 import type { ChatModel, Source, WebFetchMode } from './types'
 import type { ToolDef } from './toolSchema'
 
@@ -99,7 +99,7 @@ export interface RunOptions {
   onReasoning: (text: string) => void
   onStatus: (s: { searching?: string; reading?: string } | null) => void
 }
-export interface RunResult { content: string; reasoning: string; sources: Source[]; queries: string[] }
+export interface RunResult { content: string; reasoning: string; sources: Source[]; queries: string[]; usage?: TokenUsage; cost?: { micros: number; currency: string } }
 
 const clip = (s: string, n: number) => (s.length > n ? s.slice(0, n) + '…' : s)
 
@@ -144,7 +144,7 @@ export function mergeToolCalls(acc: Map<number, { id: string; name: string; args
 export async function runAssistant(o: RunOptions): Promise<RunResult> {
   const messages = [...o.messages]
   const sources: Source[] = [], queries: string[] = []
-  let content = '', reasoning = ''
+  let content = '', reasoning = '', usage: TokenUsage | undefined, cost: RunResult['cost']
   const useTools = o.model.tools && (o.tools ?? TOOLS).length > 0
   const mode = o.fetchMode ?? 'follow'
   const readPage = o.fetchPage ?? webFetch
@@ -176,6 +176,8 @@ export async function runAssistant(o: RunOptions): Promise<RunResult> {
       if (d.reasoning) { reasoning += d.reasoning; o.onReasoning(reasoning) }
       if (d.content) { roundText += d.content; content += d.content; o.onText(content) }
       if (d.toolCalls) mergeToolCalls(calls, d.toolCalls)
+      if (d.usage) usage = d.usage
+      if (d.cost) cost = d.cost
       if (d.finish) finish = d.finish
     }
     if (!calls.size || !useTools || round >= MAX_TOOL_ROUNDS) break
@@ -212,7 +214,7 @@ export async function runAssistant(o: RunOptions): Promise<RunResult> {
     void finish
   }
   o.onStatus(null)
-  return { content, reasoning, sources, queries }
+  return { content, reasoning, sources, queries, ...(usage ? { usage } : {}), ...(cost ? { cost } : {}) }
 }
 
 export function lastUserText(messages: ApiMessage[]): string {
