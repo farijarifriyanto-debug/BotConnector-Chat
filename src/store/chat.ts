@@ -7,7 +7,7 @@ import { applyOverrides } from '../lib/toolSchema'
 import { useToolSchema } from './toolSchema'
 import { deleteImagesOf, saveImage } from '../lib/images'
 import { defaultSize } from '../lib/modelPicker'
-import { MEMORY_ID, composedSystem, fileIdsOf, isChat, newConv, newId, titleFrom, toApiMessages } from '../lib/conv'
+import { MEMORY_ID, composedSystem, fileIdsOf, isChat, newConv, newId, titleFrom, toApiMessages, blankRecord, projectFileIds } from '../lib/conv'
 import { research, ResearchError, type Progress } from '../lib/research'
 import { buildPrompt, languageName } from '../lib/translate'
 import { ChatError, type Attachment, type ChatModel, type Conv, type Msg } from '../lib/types'
@@ -79,6 +79,12 @@ interface ChatState {
   /** writes a translation of one answer beside it (the original is untouched); '' while it streams */
   translateMessage(msgId: string, code: string): Promise<{ ok: true } | { ok: false; kind: string }>
   clearTranslation(msgId: string): void
+  /** project records: a name, its own instructions and documents every bound chat can use */
+  createProject(name: string): string
+  updateProject(id: string, patch: Partial<Pick<Conv, 'title' | 'system' | 'files'>>): Promise<void>
+  removeProject(id: string): Promise<void>
+  /** attaches (or detaches, with null) one chat to a project */
+  bindProject(chatId: string, projectId: string | null): Promise<void>
 }
 
 let controller: AbortController | null = null
@@ -170,7 +176,7 @@ export const useChat = create<ChatState>((set, get) => {
           ...(settings.toolsRecall ? applyOverrides(MEMORY_TOOLS.filter(d => d.function.name === 'chat_search'), overrides) : []),
           ...(settings.toolsDevice ? applyOverrides(DEVICE_TOOLS, overrides) : []),
         ]
-        const res = await runAssistant({ model: m, messages: applyLore(messages, activatedEntries(activeBooks(), messages)), tools, onTool: (name, args) => runLocalTool(name, args, localContext), web: webOn, think: opts.think !== false, fileIds: isPrivate(m) ? [] : fileIdsOf(history), signal,
+        const res = await runAssistant({ model: m, messages: applyLore(messages, activatedEntries(activeBooks(), messages)), tools, onTool: (name, args) => runLocalTool(name, args, localContext), web: webOn, think: opts.think !== false, fileIds: isPrivate(m) ? [] : fileIdsOf(history, projectFileIds(base, convs)), signal,
           fetchMode,
           fetchPage: fetchMode === 'follow' ? async (url, signal) => (await readByok(url, signal)) ?? webFetch(url, signal) : webFetch,
           onText: c => noteText(c), onReasoning: r => noteReasoning(r), onStatus: s => set({ status: s }) })
@@ -304,6 +310,33 @@ export const useChat = create<ChatState>((set, get) => {
     clearTranslation(msgId) {
       translations.get(msgId)?.abort(); translations.delete(msgId)
       setTranslation(msgId, undefined)
+    },
+    createProject(name) {
+      const rec: Conv = { ...blankRecord('project', newId(), name.trim().slice(0, 80)), files: [] }
+      set(s => ({ convs: sortConvs([rec, ...s.convs]) }))
+      void putConv(rec).catch(() => {})
+      return rec.id
+    },
+    async updateProject(id, patch) {
+      const cur = get().convs.find(c => c.id === id && c.kind === 'project')
+      if (!cur) return
+      const next = { ...cur, ...patch, updatedAt: Date.now() }
+      replace(next)
+      await putConv(next).catch(() => {})
+    },
+    async removeProject(id) {
+      const cur = get().convs.find(c => c.id === id && c.kind === 'project')
+      if (!cur) return
+      await deleteConv(id).catch(() => {})
+      set(s => ({ convs: s.convs.filter(c => c.id !== id) }))   // chats keep a dangling id and simply lose the files, like the reference app
+    },
+    async bindProject(chatId, projectId) {
+      const s = get(), conv = s.convs.find(c => c.id === chatId) ?? (s.draft?.id === chatId ? s.draft : null)
+      if (!conv) return
+      const next: Conv = { ...conv, projectId: projectId ?? undefined, updatedAt: Date.now() }
+      if (s.draft?.id === chatId) { set({ draft: next }); return }
+      replace(next)
+      await putConv(next).catch(() => {})
     },
   }
 })
