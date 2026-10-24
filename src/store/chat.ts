@@ -15,6 +15,7 @@ import { localModels, useLocal } from '../local/store'
 import { useAuth } from './auth'
 import { customModels } from './providers'
 import { useSearch } from './search'
+import { instructionBlock } from './instructions'
 import { useSettings } from './settings'
 
 const TITLE_PROMPT = 'Write a short title (at most 6 words) for this conversation, in the same language as the user. No quotes, no trailing punctuation. Reply with the title only.'
@@ -98,11 +99,11 @@ export const useChat = create<ChatState>((set, get) => {
         update({ content: '', attachments: [{ kind: 'image', name: 'image', mime: g.mime, size: file.size, uri: file.uri }], image: { prompt: question, modelId: im.id, model: im.name, size, ...(g.left !== undefined ? { left: String(g.left) } : {}) }, model: im.name, ms: Date.now() - t0 }, true)
       } else if (opts.research && caps?.web !== false) {
         const planner = isPrivate(m) ? m : models.find(x => x.access === 'free' && x.available && !x.reasoning) ?? m   // a local or custom model plans its own research; its questions never go to a cloud model
-        const res = await research({ question, history: toApiMessages('', history.slice(0, -1), false), system: composedSystem(base, convs), writer: m, planner, signal,
+        const res = await research({ question, history: toApiMessages('', history.slice(0, -1), false), system: composedSystem(base, convs, instructionBlock()), writer: m, planner, signal,
           onProgress: p => set({ status: { research: p } }), onText: c => noteText(c), onReasoning: r => noteReasoning(r) })
         update({ content: res.content, reasoning: res.reasoning || undefined, sources: res.sources, searched: res.queries, research: { searches: res.searches, pages: res.pages }, ms: Date.now() - t0 }, true)
       } else {
-        const res = await runAssistant({ model: m, messages: toApiMessages(composedSystem(base, convs), history, m.vision), web: opts.web && caps?.web !== false, fileIds: isPrivate(m) ? [] : fileIdsOf(history), signal,
+        const res = await runAssistant({ model: m, messages: toApiMessages(composedSystem(base, convs, instructionBlock()), history, m.vision), web: opts.web && caps?.web !== false, fileIds: isPrivate(m) ? [] : fileIdsOf(history), signal,
           onText: c => noteText(c), onReasoning: r => noteReasoning(r), onStatus: s => set({ status: s }) })
         update({ content: res.content, reasoning: res.reasoning || undefined, sources: res.sources.length ? res.sources : undefined, searched: res.queries.length ? res.queries : undefined, ms: Date.now() - t0 }, true)
       }

@@ -75,6 +75,7 @@ const en = {
   dAcctReauthNote: 'Signed up with Google or GitHub, or do not know your password? Type the phrase above, then confirm by signing in again.', dAcctReauth: 'Confirm by signing in again',
   dAcctReauthFailed: 'Signing in again did not complete, so nothing was deleted. Please try again.', dAcctReauthOther: 'You signed in to a different account, so nothing was deleted. Sign in with the account you want to delete.',
   msgMeta: 'Names and times', msgMetaOn: 'Show', msgMetaOff: 'Hide', thinkingLive: 'Thinking… {t}s', thoughtDone: 'Thought for {t}s', latency: '{t}s',
+  instrTitle: 'Instruction Injection', instrNote: 'Switched-on cards are added to the system message of every chat on this phone.', instrAdd: 'Add instruction', instrEmpty: 'No instruction injection cards yet', instrName: 'Title', instrNamePh: 'e.g. Answer in Indonesian', instrPrompt: 'Prompt', instrPromptPh: 'The instruction sent to the model...', instrActive: 'Active', instrUntitled: 'Untitled', instrEmptyPrompt: 'No prompt yet',
 } as const
 
 export type Key = keyof typeof en
@@ -151,6 +152,7 @@ const id: Record<Key, string> = {
   dAcctReauthNote: 'Daftar lewat Google atau GitHub, atau lupa password? Ketik frasa di atas, lalu konfirmasi dengan masuk ulang.', dAcctReauth: 'Konfirmasi dengan masuk ulang',
   dAcctReauthFailed: 'Masuk ulang tidak selesai, jadi tidak ada yang dihapus. Silakan coba lagi.', dAcctReauthOther: 'Anda masuk ke akun lain, jadi tidak ada yang dihapus. Masuk dengan akun yang ingin dihapus.',
   msgMeta: 'Nama dan waktu', msgMetaOn: 'Tampilkan', msgMetaOff: 'Sembunyikan', thinkingLive: 'Berpikir… {t} dtk', thoughtDone: 'Berpikir {t} dtk', latency: '{t} dtk',
+  instrTitle: 'Injeksi Instruksi', instrNote: 'Kartu yang aktif ditambahkan ke pesan sistem pada setiap chat di ponsel ini.', instrAdd: 'Tambah instruksi', instrEmpty: 'Belum ada kartu injeksi instruksi', instrName: 'Judul', instrNamePh: 'mis. Jawab dalam bahasa Indonesia', instrPrompt: 'Prompt', instrPromptPh: 'Instruksi yang dikirim ke model...', instrActive: 'Aktif', instrUntitled: 'Tanpa judul', instrEmptyPrompt: 'Belum ada prompt',
 }
 export const STRINGS: Record<Lang, Partial<Record<Key, string>>> & { en: Record<Key, string> } = { en: en as Record<Key, string>, id, ...PACKS } as never
 void LANG_CODES
