@@ -12,7 +12,7 @@ export interface Theme {
 export const lightTheme: Theme = {
   dark: false, bg: '#f3f6f4', surface: '#ffffff', surface2: '#f6f9f7', surface3: '#eaf0ec', ink: '#0f1a15', muted: '#5b6963', muted2: '#61706b',
   line: '#e1e8e4', lineStrong: '#cdd8d2', accent: '#0d7f55', accent2: '#12a36b', accentStrong: '#0a6844', accentSoft: '#e4f5ec', accentInk: '#ffffff',
-  danger: '#b4443a', dangerSoft: '#fdeceb', dangerInk: '#ffffff', free: '#0d7f55', freeBg: '#e4f5ec', plan: '#3552c9', planBg: '#eaeeff', payg: '#a85f08', paygBg: '#fff2dd',
+  danger: '#b4443a', dangerSoft: '#fdeceb', dangerInk: '#ffffff', free: '#0a6844', freeBg: '#e4f5ec', plan: '#3552c9', planBg: '#eaeeff', payg: '#8f5306', paygBg: '#fff2dd',
 }
 export const darkTheme: Theme = {
   dark: true, bg: '#0a0c0e', surface: '#12151a', surface2: '#171b21', surface3: '#1e232b', ink: '#f3f6f4', muted: '#9aa6a0', muted2: '#7b8781',
