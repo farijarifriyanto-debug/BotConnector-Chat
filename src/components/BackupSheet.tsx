@@ -365,6 +365,8 @@ export function BackupSheet({ visible, onClose }: { visible: boolean; onClose: (
                       }
                     }}
                     thumbColor={encryptEnabled ? th.accent : undefined}
+                    accessibilityRole="switch"
+                    accessibilityLabel={t('bkEncryptToggle')}
                   />
                 </View>
 
@@ -484,7 +486,7 @@ export function BackupSheet({ visible, onClose }: { visible: boolean; onClose: (
               <View style={{ marginTop: 20 }}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                   <Text style={{ color: th.ink, fontWeight: '700', fontSize: 15 }}>{t('bkRemoteList')}</Text>
-                  <Pressable testID="webdav-refresh-btn" onPress={() => void refreshRemoteList()} hitSlop={8}>
+                  <Pressable testID="webdav-refresh-btn" onPress={() => void refreshRemoteList()} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('bkRemoteRefresh')}>
                     <Icon name="ArrowLeftRight" size={16} color={th.muted} />
                   </Pressable>
                 </View>
