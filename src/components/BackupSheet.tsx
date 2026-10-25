@@ -303,6 +303,8 @@ export function BackupSheet({ visible, onClose }: { visible: boolean; onClose: (
           <Pressable
             testID="backup-tab-local"
             onPress={() => setTab('local')}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: tab === 'local' }}
             style={{
               flex: 1,
               paddingVertical: 9,
@@ -319,6 +321,8 @@ export function BackupSheet({ visible, onClose }: { visible: boolean; onClose: (
               setTab('remote')
               void refreshRemoteList()
             }}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: tab === 'remote' }}
             style={{
               flex: 1,
               paddingVertical: 9,
