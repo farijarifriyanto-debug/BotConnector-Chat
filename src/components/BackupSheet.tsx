@@ -52,7 +52,7 @@ export function BackupSheet({ visible, onClose }: { visible: boolean; onClose: (
   // Password prompt for importing encrypted backup
   const [promptOpen, setPromptOpen] = useState(false)
   const [importPassword, setImportPassword] = useState('')
-  const [pendingDecrypt, setPendingDecrypt] = useState<((pw: string) => Promise<void>) | null>(null)
+  const [pendingDecrypt, setPendingDecrypt] = useState<((pw: string | null) => Promise<void>) | null>(null)
 
   // WebDAV remote states
   const [davUrl, setDavUrl] = useState('')
@@ -143,7 +143,7 @@ export function BackupSheet({ visible, onClose }: { visible: boolean; onClose: (
         getPassword: () =>
           new Promise<string | null>(resolve => {
             setImportPassword('')
-            setPendingDecrypt(() => async (pw: string) => {
+            setPendingDecrypt(() => async (pw: string | null) => {
               resolve(pw)
             })
             setPromptOpen(true)
@@ -155,7 +155,7 @@ export function BackupSheet({ visible, onClose }: { visible: boolean; onClose: (
         setNote(t('bkPicked', { n: archive.manifest.database.conversationCount }))
       }
     } catch (e) {
-      setError(explain(e))
+      if (!(e instanceof BackupError && e.code === 'cancel')) setError(explain(e))
     }
   })
 
@@ -235,21 +235,25 @@ export function BackupSheet({ visible, onClose }: { visible: boolean; onClose: (
   }
 
   const restoreRemoteItem = (item: RemoteBackupItem) => run(async () => {
-    const cfg = getWebDavConfig()
-    const bytes = await downloadWebDavBackup(cfg, item.name)
-    const archive = await unpackArchiveBytes(bytes, {
-      getPassword: () =>
-        new Promise<string | null>(resolve => {
-          setImportPassword('')
-          setPendingDecrypt(() => async (pw: string) => {
-            resolve(pw)
-          })
-          setPromptOpen(true)
-        }),
-    })
-    setPicked(archive)
-    setRestart(null)
-    setNote(t('bkPicked', { n: archive.manifest.database.conversationCount }))
+    try {
+      const cfg = getWebDavConfig()
+      const bytes = await downloadWebDavBackup(cfg, item.name)
+      const archive = await unpackArchiveBytes(bytes, {
+        getPassword: () =>
+          new Promise<string | null>(resolve => {
+            setImportPassword('')
+            setPendingDecrypt(() => async (pw: string | null) => {
+              resolve(pw)
+            })
+            setPromptOpen(true)
+          }),
+      })
+      setPicked(archive)
+      setRestart(null)
+      setNote(t('bkPicked', { n: archive.manifest.database.conversationCount }))
+    } catch (e) {
+      if (!(e instanceof BackupError && e.code === 'cancel')) setError(explain(e))
+    }
   })
 
   const inputStyle = {
@@ -528,7 +532,7 @@ export function BackupSheet({ visible, onClose }: { visible: boolean; onClose: (
             </>
           )}
 
-          {busy && <ActivityIndicator color={th.muted} style={{ marginTop: 14 }} />}
+          {busy && <ActivityIndicator testID="backup-busy" color={th.muted} style={{ marginTop: 14 }} />}
 
           {/* Overwrite or Merge confirmation modal */}
           {!!picked && (
@@ -631,7 +635,9 @@ export function BackupSheet({ visible, onClose }: { visible: boolean; onClose: (
                   testID="import-password-cancel"
                   onPress={() => {
                     setPromptOpen(false)
+                    const settle = pendingDecrypt
                     setPendingDecrypt(null)
+                    if (settle) void settle(null)   // resolve the awaited getPassword promise so the busy state clears
                   }}
                   accessibilityRole="button"
                   style={{
