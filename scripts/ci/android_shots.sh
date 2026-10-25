@@ -19,6 +19,6 @@ for L in id en; do
   sleep 25
   scene dark; scene lang-$L; scene guest
   n=1
-  for s in home local settings language search; do scene $s; snap "$L-0$n-$s"; n=$((n+1)); done
+  for s in home local settings language search backup models; do scene $s; snap "$L-0$n-$s"; n=$((n+1)); done
 done
 adb shell wm size; adb shell getprop ro.product.model
