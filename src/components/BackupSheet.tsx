@@ -516,9 +516,10 @@ export function BackupSheet({ visible, onClose }: { visible: boolean; onClose: (
                         testID={`restore-remote-${file.name}`}
                         onPress={() => restoreRemoteItem(file)}
                         accessibilityRole="button"
+                        hitSlop={6}
                         style={{
                           paddingHorizontal: 12,
-                          paddingVertical: 6,
+                          paddingVertical: 8,
                           borderRadius: 8,
                           backgroundColor: th.surface,
                           borderWidth: 1,
@@ -589,7 +590,7 @@ export function BackupSheet({ visible, onClose }: { visible: boolean; onClose: (
                 testID="backup-cancel"
                 onPress={() => setPicked(null)}
                 accessibilityRole="button"
-                style={{ marginTop: 10, alignItems: 'center' }}
+                style={{ marginTop: 10, paddingVertical: 14, alignItems: 'center' }}
               >
                 <Text style={{ color: th.muted, fontWeight: '600' }}>{t('cancel')}</Text>
               </Pressable>
