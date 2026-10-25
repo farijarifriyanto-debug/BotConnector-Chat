@@ -119,7 +119,7 @@ export function BackupSheet({ visible, onClose }: { visible: boolean; onClose: (
   const exportNow = () => run(async () => {
     if (encryptEnabled) {
       if (!password) {
-        setError(t('bkPasswordMismatch'))
+        setError(t('bkPasswordPrompt'))
         return
       }
       if (password !== passwordConfirm) {
@@ -212,7 +212,11 @@ export function BackupSheet({ visible, onClose }: { visible: boolean; onClose: (
       return
     }
     if (encryptEnabled) {
-      if (!password || password !== passwordConfirm) {
+      if (!password) {
+        setError(t('bkPasswordPrompt'))
+        return
+      }
+      if (password !== passwordConfirm) {
         setError(t('bkPasswordMismatch'))
         return
       }
