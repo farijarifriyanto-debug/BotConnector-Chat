@@ -339,7 +339,7 @@ export function BackupSheet({ visible, onClose }: { visible: boolean; onClose: (
           {tab === 'local' ? (
             <>
               <Text style={{ color: th.muted, fontSize: 13, lineHeight: 19 }}>{t('bkNote')}</Text>
-              <Text style={{ color: th.muted2, fontSize: 12.5, marginTop: 6 }}>{t('bkScope')}</Text>
+              <Text style={{ color: th.muted, fontSize: 12.5, marginTop: 6 }}>{t('bkScope')}</Text>
 
               {/* Encryption options */}
               <View
