@@ -179,7 +179,7 @@ export function Composer({ busy, model, webAvailable, onSend, onStop, image, fil
     ...(image?.available ? [{ id: 'image' as const, label: t('imgPill'), icon: 'Image' as const, on: img, toggle: () => { setImg(v => !v); setResearch(false) } }] : []),
     ...(model?.reasoning && onThinkChange ? [{ id: 'think' as const, label: t('thinkPill'), icon: 'Brain' as const, on: think, toggle: () => onThinkChange(!think) }] : []),
   ]
-  const budget = rowW - (30 + 32 + 34) - 8 * 3
+  const budget = rowW - (32 + 32 + 34) - 8 * 3
   const slots = rowW ? Math.floor(budget / 40) : actions.length
   const shownCount = slots >= actions.length ? actions.length : Math.max(0, slots - 1)
   const hidden = actions.slice(shownCount)
@@ -211,7 +211,7 @@ export function Composer({ busy, model, webAvailable, onSend, onStop, image, fil
           onSelectionChange={e => setSel(e.nativeEvent.selection)}
           style={{ color: th.ink, fontSize: 16, lineHeight: 22, maxHeight: 150, minHeight: 24, paddingTop: 0, paddingBottom: 6 }} />
         <View testID="composer-actions" onLayout={e => setRowW(e.nativeEvent.layout.width)} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          {!recording && !!onPickModel && <Pressable testID="pill-model" accessibilityRole="button" accessibilityLabel={model ? `${t('menuModel')}: ${model.name}` : t('menuModel')} onPress={onPickModel} style={{ width: 30, height: 30, borderRadius: 15, borderWidth: 1, borderColor: th.lineStrong, backgroundColor: th.surface, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>{model ? <ModelIcon model={model} size={24} /> : <Icon name="Boxes" size={18} color={th.muted} />}</Pressable>}
+          {!recording && !!onPickModel && <Pressable testID="pill-model" accessibilityRole="button" accessibilityLabel={model ? `${t('menuModel')}: ${model.name}` : t('menuModel')} onPress={onPickModel} style={{ width: 32, height: 32, borderRadius: 16, borderWidth: 1, borderColor: th.lineStrong, backgroundColor: th.surface, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>{model ? <ModelIcon model={model} size={24} /> : <Icon name="Boxes" size={18} color={th.muted} />}</Pressable>}
           {!recording && !img && <Pressable testID="pill-attach" accessibilityRole="button" accessibilityLabel={t('attach')} onPress={openAttach} style={pill(false)}><Icon name="Plus" size={18} color={th.muted} /></Pressable>}
           {!recording && actions.slice(0, shownCount).map(a => (
             <Pressable key={a.id} testID={`pill-${a.id}`} accessibilityRole="button" accessibilityLabel={a.label} accessibilityState={{ selected: a.on }} onPress={a.toggle} style={pill(a.on)}>

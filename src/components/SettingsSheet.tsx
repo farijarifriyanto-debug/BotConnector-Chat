@@ -41,7 +41,7 @@ export function SettingsSheet({ visible, onClose }: { visible: boolean; onClose:
   const viaApple = appleLinked === true   // Apple HIG: an Apple account is never asked for a password; Apple confirms it is the owner
   const canDelete = !busy && phrase.trim() === DELETE_PHRASE && (viaApple || !!pw)
   const scene = useShot(x => x.scene)
-  useEffect(() => { if (SHOT) { setLangOpen(scene === 'language'); setSearch(scene === 'search'); setPersonal(scene === 'personal') } }, [scene])   // screenshot build only
+  useEffect(() => { if (SHOT) { setLangOpen(scene === 'language'); setSearch(scene === 'search'); setPersonal(scene === 'personal'); setBackup(scene === 'backup' || scene === 'backup-remote') } }, [scene])   // screenshot build only
   const open = (page: LegalPage) => { void Linking.openURL(legalUrl(page, s.lang)).catch(() => {}) }
   const done = () => { setDeleting(false); setPw(''); setPhrase(''); setErr(null); setBusy(false) }
   const close = () => { if (!busy) { done(); onClose() } }
@@ -88,7 +88,7 @@ export function SettingsSheet({ visible, onClose }: { visible: boolean; onClose:
               <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
                 <Pressable testID="delete-cancel" onPress={done} disabled={busy} accessibilityRole="button" style={{ flex: 1, padding: 13, borderRadius: 12, borderWidth: 1, borderColor: th.lineStrong, alignItems: 'center' }}><Text style={{ color: th.ink, fontWeight: '600' }}>{t('cancel')}</Text></Pressable>
                 <Pressable testID="delete-confirm" onPress={doDelete} disabled={!canDelete} accessibilityRole="button" accessibilityState={{ disabled: !canDelete }} style={{ flex: 1, padding: 13, borderRadius: 12, backgroundColor: th.danger, alignItems: 'center', opacity: canDelete ? 1 : 0.45 }}>
-                  {busy ? <ActivityIndicator color="#fff" /> : <Text style={{ color: '#fff', fontWeight: '700' }}>{t(viaApple ? 'dAcctApple' : 'dAcctConfirm')}</Text>}
+                  {busy ? <ActivityIndicator color={th.dangerInk} /> : <Text style={{ color: th.dangerInk, fontWeight: '700' }}>{t(viaApple ? 'dAcctApple' : 'dAcctConfirm')}</Text>}
                 </Pressable>
               </View>
               {!viaApple && <View style={{ marginTop: 18 }}>

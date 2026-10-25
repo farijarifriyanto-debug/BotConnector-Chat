@@ -105,7 +105,7 @@ export async function unpackArchiveBytes(
   let rawBytes = bytes
   if (isEncryptedBackup(rawBytes)) {
     const pwd = opts?.getPassword ? await opts.getPassword() : null
-    if (!pwd) throw new BackupError('decryption')
+    if (!pwd) throw new BackupError('cancel')   // a dismissed password prompt aborts quietly, like the reference app
     try {
       rawBytes = await decryptBackupBytes(rawBytes, pwd)
     } catch {

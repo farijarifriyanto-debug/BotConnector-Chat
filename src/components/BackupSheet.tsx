@@ -26,6 +26,7 @@ import { listConvs } from '../db/convs'
 import { useChat } from '../store/chat'
 import { useTheme } from '../theme/theme'
 import { Icon } from './Icons'
+import { SHOT, useShot } from '../lib/shot'
 
 const WEBDAV_CFG_KEY = 'bc.webdav.cfg'
 const WEBDAV_PASS_KEY = 'bc.webdav.pw'
@@ -37,6 +38,7 @@ const WEBDAV_PASS_KEY = 'bc.webdav.pw'
  */
 export function BackupSheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const th = useTheme(), t = useT()
+  const scene = useShot(x => x.scene)
   const [tab, setTab] = useState<'local' | 'remote'>('local')
   const [busy, setBusy] = useState(false)
   const [note, setNote] = useState<string | null>(null)
@@ -52,7 +54,7 @@ export function BackupSheet({ visible, onClose }: { visible: boolean; onClose: (
   // Password prompt for importing encrypted backup
   const [promptOpen, setPromptOpen] = useState(false)
   const [importPassword, setImportPassword] = useState('')
-  const [pendingDecrypt, setPendingDecrypt] = useState<((pw: string) => Promise<void>) | null>(null)
+  const [pendingDecrypt, setPendingDecrypt] = useState<((pw: string | null) => Promise<void>) | null>(null)
 
   // WebDAV remote states
   const [davUrl, setDavUrl] = useState('')
@@ -119,7 +121,7 @@ export function BackupSheet({ visible, onClose }: { visible: boolean; onClose: (
   const exportNow = () => run(async () => {
     if (encryptEnabled) {
       if (!password) {
-        setError(t('bkPasswordMismatch'))
+        setError(t('bkPasswordPrompt'))
         return
       }
       if (password !== passwordConfirm) {
@@ -143,7 +145,7 @@ export function BackupSheet({ visible, onClose }: { visible: boolean; onClose: (
         getPassword: () =>
           new Promise<string | null>(resolve => {
             setImportPassword('')
-            setPendingDecrypt(() => async (pw: string) => {
+            setPendingDecrypt(() => async (pw: string | null) => {
               resolve(pw)
             })
             setPromptOpen(true)
@@ -155,7 +157,7 @@ export function BackupSheet({ visible, onClose }: { visible: boolean; onClose: (
         setNote(t('bkPicked', { n: archive.manifest.database.conversationCount }))
       }
     } catch (e) {
-      setError(explain(e))
+      if (!(e instanceof BackupError && e.code === 'cancel')) setError(explain(e))
     }
   })
 
@@ -212,7 +214,11 @@ export function BackupSheet({ visible, onClose }: { visible: boolean; onClose: (
       return
     }
     if (encryptEnabled) {
-      if (!password || password !== passwordConfirm) {
+      if (!password) {
+        setError(t('bkPasswordPrompt'))
+        return
+      }
+      if (password !== passwordConfirm) {
         setError(t('bkPasswordMismatch'))
         return
       }
@@ -234,22 +240,28 @@ export function BackupSheet({ visible, onClose }: { visible: boolean; onClose: (
     }
   }
 
+  useEffect(() => { if (SHOT) { if (scene === 'backup-remote') { setTab('remote'); void refreshRemoteList() } else if (scene === 'backup') { setTab('local') } } }, [scene])   // screenshot build only
+
   const restoreRemoteItem = (item: RemoteBackupItem) => run(async () => {
-    const cfg = getWebDavConfig()
-    const bytes = await downloadWebDavBackup(cfg, item.name)
-    const archive = await unpackArchiveBytes(bytes, {
-      getPassword: () =>
-        new Promise<string | null>(resolve => {
-          setImportPassword('')
-          setPendingDecrypt(() => async (pw: string) => {
-            resolve(pw)
-          })
-          setPromptOpen(true)
-        }),
-    })
-    setPicked(archive)
-    setRestart(null)
-    setNote(t('bkPicked', { n: archive.manifest.database.conversationCount }))
+    try {
+      const cfg = getWebDavConfig()
+      const bytes = await downloadWebDavBackup(cfg, item.name)
+      const archive = await unpackArchiveBytes(bytes, {
+        getPassword: () =>
+          new Promise<string | null>(resolve => {
+            setImportPassword('')
+            setPendingDecrypt(() => async (pw: string | null) => {
+              resolve(pw)
+            })
+            setPromptOpen(true)
+          }),
+      })
+      setPicked(archive)
+      setRestart(null)
+      setNote(t('bkPicked', { n: archive.manifest.database.conversationCount }))
+    } catch (e) {
+      if (!(e instanceof BackupError && e.code === 'cancel')) setError(explain(e))
+    }
   })
 
   const inputStyle = {
@@ -299,6 +311,8 @@ export function BackupSheet({ visible, onClose }: { visible: boolean; onClose: (
           <Pressable
             testID="backup-tab-local"
             onPress={() => setTab('local')}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: tab === 'local' }}
             style={{
               flex: 1,
               paddingVertical: 9,
@@ -315,6 +329,8 @@ export function BackupSheet({ visible, onClose }: { visible: boolean; onClose: (
               setTab('remote')
               void refreshRemoteList()
             }}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: tab === 'remote' }}
             style={{
               flex: 1,
               paddingVertical: 9,
@@ -331,7 +347,7 @@ export function BackupSheet({ visible, onClose }: { visible: boolean; onClose: (
           {tab === 'local' ? (
             <>
               <Text style={{ color: th.muted, fontSize: 13, lineHeight: 19 }}>{t('bkNote')}</Text>
-              <Text style={{ color: th.muted2, fontSize: 12.5, marginTop: 6 }}>{t('bkScope')}</Text>
+              <Text style={{ color: th.muted, fontSize: 12.5, marginTop: 6 }}>{t('bkScope')}</Text>
 
               {/* Encryption options */}
               <View
@@ -357,6 +373,8 @@ export function BackupSheet({ visible, onClose }: { visible: boolean; onClose: (
                       }
                     }}
                     thumbColor={encryptEnabled ? th.accent : undefined}
+                    accessibilityRole="switch"
+                    accessibilityLabel={t('bkEncryptToggle')}
                   />
                 </View>
 
@@ -476,7 +494,7 @@ export function BackupSheet({ visible, onClose }: { visible: boolean; onClose: (
               <View style={{ marginTop: 20 }}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                   <Text style={{ color: th.ink, fontWeight: '700', fontSize: 15 }}>{t('bkRemoteList')}</Text>
-                  <Pressable testID="webdav-refresh-btn" onPress={() => void refreshRemoteList()} hitSlop={8}>
+                  <Pressable testID="webdav-refresh-btn" onPress={() => void refreshRemoteList()} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('bkRemoteRefresh')}>
                     <Icon name="ArrowLeftRight" size={16} color={th.muted} />
                   </Pressable>
                 </View>
@@ -508,9 +526,10 @@ export function BackupSheet({ visible, onClose }: { visible: boolean; onClose: (
                         testID={`restore-remote-${file.name}`}
                         onPress={() => restoreRemoteItem(file)}
                         accessibilityRole="button"
+                        hitSlop={6}
                         style={{
                           paddingHorizontal: 12,
-                          paddingVertical: 6,
+                          paddingVertical: 8,
                           borderRadius: 8,
                           backgroundColor: th.surface,
                           borderWidth: 1,
@@ -528,7 +547,7 @@ export function BackupSheet({ visible, onClose }: { visible: boolean; onClose: (
             </>
           )}
 
-          {busy && <ActivityIndicator color={th.muted} style={{ marginTop: 14 }} />}
+          {busy && <ActivityIndicator testID="backup-busy" color={th.muted} style={{ marginTop: 14 }} />}
 
           {/* Overwrite or Merge confirmation modal */}
           {!!picked && (
@@ -559,7 +578,7 @@ export function BackupSheet({ visible, onClose }: { visible: boolean; onClose: (
                     backgroundColor: th.danger,
                   }}
                 >
-                  <Text style={{ color: '#fff', fontWeight: '700' }}>{t('bkOverwrite')}</Text>
+                  <Text style={{ color: th.dangerInk, fontWeight: '700' }}>{t('bkOverwrite')}</Text>
                 </Pressable>
                 <Pressable
                   testID="backup-merge"
@@ -581,7 +600,7 @@ export function BackupSheet({ visible, onClose }: { visible: boolean; onClose: (
                 testID="backup-cancel"
                 onPress={() => setPicked(null)}
                 accessibilityRole="button"
-                style={{ marginTop: 10, alignItems: 'center' }}
+                style={{ marginTop: 10, paddingVertical: 14, alignItems: 'center' }}
               >
                 <Text style={{ color: th.muted, fontWeight: '600' }}>{t('cancel')}</Text>
               </Pressable>
@@ -631,7 +650,9 @@ export function BackupSheet({ visible, onClose }: { visible: boolean; onClose: (
                   testID="import-password-cancel"
                   onPress={() => {
                     setPromptOpen(false)
+                    const settle = pendingDecrypt
                     setPendingDecrypt(null)
+                    if (settle) void settle(null)   // resolve the awaited getPassword promise so the busy state clears
                   }}
                   accessibilityRole="button"
                   style={{

@@ -74,7 +74,7 @@ export function ModelSheet({ visible, models, selected, onSelect, onClose, mode 
           {state === 'loading' && all.length === 0 && <ActivityIndicator color={th.muted} style={{ marginTop: 24 }} testID="models-loading" />}
           {state === 'error' && (
             <Pressable testID="model-retry" onPress={onRetry} accessibilityRole="button" style={{ marginBottom: 12 }}><Text style={{ color: th.danger }}>{t('modelsError')} {t('retry')}</Text></Pressable>)}
-          {!groups.length && state !== 'loading' && <Text testID="model-empty" style={{ color: th.muted, textAlign: 'center', marginTop: 28 }}>{t('noModelMatch')}</Text>}
+          {!groups.length && state !== 'loading' && <Text testID="model-empty" style={{ color: th.muted, textAlign: 'center', marginTop: 28 }}>{t(query.trim() ? 'noModelMatch' : 'noModels')}</Text>}
           {groups.map(g => (
             <View key={g.id} style={{ marginBottom: 12 }}>
               <Text style={{ color: th.muted2, fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>{g.title}</Text>
