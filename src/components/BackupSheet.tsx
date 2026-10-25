@@ -563,7 +563,7 @@ export function BackupSheet({ visible, onClose }: { visible: boolean; onClose: (
                     backgroundColor: th.danger,
                   }}
                 >
-                  <Text style={{ color: '#fff', fontWeight: '700' }}>{t('bkOverwrite')}</Text>
+                  <Text style={{ color: th.dangerInk, fontWeight: '700' }}>{t('bkOverwrite')}</Text>
                 </Pressable>
                 <Pressable
                   testID="backup-merge"

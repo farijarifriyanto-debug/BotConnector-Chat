@@ -188,7 +188,7 @@ export function ProjectsSheet({ visible, onClose }: { visible: boolean; onClose:
                     <Text style={{ color: th.muted, fontSize: 12.5, marginTop: 4 }}>{t('projDeleteBody')}</Text>
                     <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
                       <Pressable testID="proj-delete-cancel" onPress={() => setConfirming(false)} accessibilityRole="button" style={{ flex: 1, alignItems: 'center', paddingVertical: 11, borderRadius: 10, borderWidth: 1, borderColor: th.lineStrong }}><Text style={{ color: th.ink, fontWeight: '600' }}>{t('cancel')}</Text></Pressable>
-                      <Pressable testID="proj-delete-confirm" onPress={() => { void useChat.getState().removeProject(open.id); setOpenId(null); setConfirming(false) }} accessibilityRole="button" style={{ flex: 1, alignItems: 'center', paddingVertical: 11, borderRadius: 10, backgroundColor: th.danger }}><Text style={{ color: '#fff', fontWeight: '700' }}>{t('delete')}</Text></Pressable>
+                      <Pressable testID="proj-delete-confirm" onPress={() => { void useChat.getState().removeProject(open.id); setOpenId(null); setConfirming(false) }} accessibilityRole="button" style={{ flex: 1, alignItems: 'center', paddingVertical: 11, borderRadius: 10, backgroundColor: th.danger }}><Text style={{ color: th.dangerInk, fontWeight: '700' }}>{t('delete')}</Text></Pressable>
                     </View>
                   </View>
                 : button('proj-delete', t('projDelete'), () => setConfirming(true), true)}
