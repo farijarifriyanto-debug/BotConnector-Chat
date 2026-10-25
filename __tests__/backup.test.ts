@@ -29,7 +29,7 @@ jest.mock('../src/db/convs', () => ({ listConvs: () => mockList(), putConv: (c: 
 const chat = (id: string, title = 't') => ({ ...newConv('m'), id, title })
 const b64 = (b: Uint8Array) => btoa(String.fromCharCode(...b))
 const settings = { prefs: { 'bc.lang': 'id' }, secrets: { 'bc.pk.x': 'k' } }
-const meta = { createdAtUtc: '2026-10-24T00:00:00.000Z', appVersion: '2.0.0', includeChats: true, includeFiles: true, scope: Object.fromEntries(BACKUP_CATEGORIES.map(c => [c, true])) as never, database: { entry: DATABASE_ENTRY, conversationCount: 1, messageCount: 2 } }
+const meta = { createdAtUtc: '2026-10-24T00:00:00.000Z', appVersion: '2.1.0', includeChats: true, includeFiles: true, scope: Object.fromEntries(BACKUP_CATEGORIES.map(c => [c, true])) as never, database: { entry: DATABASE_ENTRY, conversationCount: 1, messageCount: 2 } }
 
 beforeEach(() => {
   jest.clearAllMocks()

@@ -68,7 +68,7 @@ export async function buildArchive(opts?: { password?: string }): Promise<{ mani
   ]
   const manifest = buildManifest(entries, {
     createdAtUtc: new Date().toISOString(),
-    appVersion: '2.0.0',
+    appVersion: '2.1.0',
     includeChats: true,
     includeFiles: entries.some(e => e.path.startsWith(IMAGES_ROOT)),
     scope: Object.fromEntries(BACKUP_CATEGORIES.map(c => [c, true])) as Record<typeof BACKUP_CATEGORIES[number], boolean>,
