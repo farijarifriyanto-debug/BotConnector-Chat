@@ -41,7 +41,7 @@ export function SettingsSheet({ visible, onClose }: { visible: boolean; onClose:
   const viaApple = appleLinked === true   // Apple HIG: an Apple account is never asked for a password; Apple confirms it is the owner
   const canDelete = !busy && phrase.trim() === DELETE_PHRASE && (viaApple || !!pw)
   const scene = useShot(x => x.scene)
-  useEffect(() => { if (SHOT) { setLangOpen(scene === 'language'); setSearch(scene === 'search'); setPersonal(scene === 'personal'); setBackup(scene === 'backup') } }, [scene])   // screenshot build only
+  useEffect(() => { if (SHOT) { setLangOpen(scene === 'language'); setSearch(scene === 'search'); setPersonal(scene === 'personal'); setBackup(scene === 'backup' || scene === 'backup-remote') } }, [scene])   // screenshot build only
   const open = (page: LegalPage) => { void Linking.openURL(legalUrl(page, s.lang)).catch(() => {}) }
   const done = () => { setDeleting(false); setPw(''); setPhrase(''); setErr(null); setBusy(false) }
   const close = () => { if (!busy) { done(); onClose() } }

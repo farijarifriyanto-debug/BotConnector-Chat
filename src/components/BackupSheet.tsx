@@ -26,6 +26,7 @@ import { listConvs } from '../db/convs'
 import { useChat } from '../store/chat'
 import { useTheme } from '../theme/theme'
 import { Icon } from './Icons'
+import { SHOT, useShot } from '../lib/shot'
 
 const WEBDAV_CFG_KEY = 'bc.webdav.cfg'
 const WEBDAV_PASS_KEY = 'bc.webdav.pw'
@@ -37,6 +38,7 @@ const WEBDAV_PASS_KEY = 'bc.webdav.pw'
  */
 export function BackupSheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const th = useTheme(), t = useT()
+  const scene = useShot(x => x.scene)
   const [tab, setTab] = useState<'local' | 'remote'>('local')
   const [busy, setBusy] = useState(false)
   const [note, setNote] = useState<string | null>(null)
@@ -237,6 +239,8 @@ export function BackupSheet({ visible, onClose }: { visible: boolean; onClose: (
       // ignore
     }
   }
+
+  useEffect(() => { if (SHOT) { if (scene === 'backup-remote') { setTab('remote'); void refreshRemoteList() } else if (scene === 'backup') { setTab('local') } } }, [scene])   // screenshot build only
 
   const restoreRemoteItem = (item: RemoteBackupItem) => run(async () => {
     try {
