@@ -1,5 +1,5 @@
 import './helpers/mocks'
-import { base64ToBytes, sha256Hex, splitDataUrl } from '../src/lib/bytes'
+import { base64ToBytes, bytesToBase64, sha256Hex, splitDataUrl } from '../src/lib/bytes'
 
 /** Known-answer vectors, so the decoder and the hash are checked against something outside this code. */
 describe('source picture hashing', () => {
@@ -29,5 +29,20 @@ describe('source picture hashing', () => {
     expect(splitDataUrl('data:image/jpeg;base64,QUJD')).toEqual({ mime: 'image/jpeg', base64: 'QUJD' })
     expect(splitDataUrl('https://example.com/a.jpg')).toBeNull()
     expect(splitDataUrl('')).toBeNull()
+  })
+
+  it('encodes bytes to base64 without browser globals (audit E8)', () => {
+    expect(bytesToBase64(new Uint8Array([0, 1, 2]))).toBe('AAEC')
+    expect(bytesToBase64(new Uint8Array([255]))).toBe('/w==')
+    expect(bytesToBase64(new Uint8Array(0))).toBe('')
+    const round = new Uint8Array([...Array(256).keys()])
+    expect(base64ToBytes(bytesToBase64(round))).toEqual(round)
+  })
+
+  it('backup stays on the native-safe base64 helpers (audit E8)', () => {
+    // atob/btoa do not exist in the Hermes runtime; Node has them, so only a source check catches a regression.
+    const src: string = require('fs').readFileSync(require('path').join(process.cwd(), 'src/lib/backupDevice.ts'), 'utf8')
+    expect(src).not.toMatch(/\batob\(/)
+    expect(src).not.toMatch(/\bbtoa\(/)
   })
 })

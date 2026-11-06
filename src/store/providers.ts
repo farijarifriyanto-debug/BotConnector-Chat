@@ -5,7 +5,8 @@ import { configureEndpoints, customId, listRemoteModels, normalizeBaseUrl, type 
 import { newId } from '../lib/conv'
 import { ChatError, type ChatModel } from '../lib/types'
 
-export interface Provider { id: string; name: string; baseUrl: string; models: { id: string; name?: string }[]; updatedAt: number }
+export interface ModelCaps { tools?: boolean; vision?: boolean; reasoning?: boolean }
+export interface Provider { id: string; name: string; baseUrl: string; models: { id: string; name?: string; caps?: ModelCaps }[]; updatedAt: number }
 const KEY = 'bc.providers.v1', keyName = (id: string) => `bc.pk.${id}`
 const SECURE = { keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK }
 
@@ -25,6 +26,8 @@ interface State {
   refresh(id: string): Promise<boolean>
   remove(id: string): Promise<void>
   clear(): Promise<void>
+  /** Marks what one model can actually do (user-verified); anything unmarked stays off so the UI never promises a capability that does not work. */
+  setModelCaps(providerId: string, modelId: string, caps: ModelCaps): Promise<void>
 }
 
 export const useProviders = create<State>((set, get) => ({
@@ -57,11 +60,21 @@ export const useProviders = create<State>((set, get) => ({
     const providers = get().providers.filter(x => x.id !== id); writeAll(providers); set({ providers })
   },
   async clear() { for (const p of get().providers) await SecureStore.deleteItemAsync(keyName(p.id)).catch(() => {}); writeAll([]); set({ providers: [] }) },
+  async setModelCaps(providerId, modelId, caps) {
+    const providers = get().providers.map(p => p.id !== providerId ? p : ({
+      ...p, models: p.models.map(m => {
+        if (m.id !== modelId) return m
+        const merged: ModelCaps = { ...m.caps, ...caps }
+        return { ...m, ...(Object.keys(merged).length ? { caps: merged } : {}) }
+      }),
+    }))
+    writeAll(providers); set({ providers })
+  },
 }))
 
 configureEndpoints(async id => { const p = useProviders.getState().providers.find(x => x.id === id); return p ? { baseUrl: p.baseUrl, apiKey: await getKey(id) } : null })
 
-/** Provider models as picker entries. Capabilities are unknown, so Web search uses search-first (works with every model). */
+/** Provider models as picker entries. Capabilities start unknown (off) and only turn on where the user marked them, so Web search uses search-first (works with every model) until then. */
 export const customModels = (): ChatModel[] => useProviders.getState().providers.flatMap(p => p.models.map((m): ChatModel => ({
-  id: customId(p.id, m.id), name: m.name || m.id, access: 'custom', provider: p.name, vision: false, tools: false, reasoning: false, available: true,
+  id: customId(p.id, m.id), name: m.name || m.id, access: 'custom', provider: p.name, vision: m.caps?.vision ?? false, tools: m.caps?.tools ?? false, reasoning: m.caps?.reasoning ?? false, available: true,
 })))

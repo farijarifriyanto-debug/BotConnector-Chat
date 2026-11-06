@@ -40,11 +40,24 @@ describe('BYOK web search', () => {
     expect(mockFetch).not.toHaveBeenCalled()
   })
 
-  it('uses BotConnector Search when no key is set, and when the own provider fails', async () => {
+  it('uses BotConnector Search when no key is set', async () => {
     useSearch.setState({ provider: 'brave' })
     expect(await searchByok('q')).toBeNull()                       // chosen provider but no key saved
     mockFetch.mockResolvedValueOnce(reply(200, { results: [{ title: 'BC', url: 'https://bc.example', snippet: 's' }] }))
     expect((await webSearch('q'))[0].title).toBe('BC')
     expect(String(mockFetch.mock.calls[0][0])).toContain('/v1/web/search')
+  })
+
+  it('never silently switches recipient when the chosen provider fails or returns nothing (audit E4)', async () => {
+    useSearch.setState({ provider: 'brave' })
+    await useSearch.getState().setKey('brave', 'k1')
+    mockFetch.mockResolvedValueOnce(reply(401, {}))
+    await expect(searchByok('q')).rejects.toMatchObject({ kind: 'badkey' })   // a failing key surfaces as failure
+    mockFetch.mockResolvedValueOnce(reply(200, { web: { results: [] } }))
+    expect(await searchByok('q')).toEqual([])                                  // zero results is a real answer, not a fallback trigger
+    mockFetch.mockResolvedValueOnce(reply(401, {}))
+    await expect(webSearch('q')).rejects.toMatchObject({ kind: 'badkey' })     // webSearch never quietly asks BotConnector instead
+    expect(mockFetch).toHaveBeenCalledTimes(3)
+    for (const c of mockFetch.mock.calls) expect(String(c[0])).toContain('brave')   // every call went to the chosen provider, none to BotConnector
   })
 })

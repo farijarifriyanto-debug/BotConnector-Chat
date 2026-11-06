@@ -43,7 +43,8 @@ export async function* streamLocal(body: Record<string, unknown>, signal?: Abort
   signal?.addEventListener('abort', onAbort)
   const run = ctx.completion({
     messages, jinja: true, n_predict: Math.min(num(body.max_tokens) ?? p.nPredict, p.nPredict), temperature: num(body.temperature) ?? p.temperature, top_p: p.topP,
-    enable_thinking: p.thinking, stop: ['</s>', '<|end|>', '<|im_end|>', '<|eot_id|>'],
+    // One thinking rule for every transport: an explicit per-call switch (reasoning_effort from the composer) wins; otherwise the stored local default applies.
+    enable_thinking: body.reasoning_effort === 'none' ? false : p.thinking, stop: ['</s>', '<|end|>', '<|im_end|>', '<|eot_id|>'],
   } as any, d => { if (d.reasoning_content) push({ reasoning: d.reasoning_content }); if (d.content) push({ content: d.content }) })
     .then(() => push({ finish: 'stop' })).catch(e => { failure = e }).finally(() => { done = true; wake?.(); wake = null })
   try {
