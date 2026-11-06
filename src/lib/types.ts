@@ -111,7 +111,7 @@ export interface Conv {
   messages: Msg[]
 }
 
-export type ChatErrorKind = 'auth' | 'privacy' | 'balance' | 'plan' | 'capacity' | 'too_large' | 'unavailable' | 'rejected' | 'network' | 'aborted' | 'files' | 'quota' | 'badkey'
+export type ChatErrorKind = 'auth' | 'privacy' | 'balance' | 'plan' | 'capacity' | 'too_large' | 'unavailable' | 'rejected' | 'network' | 'aborted' | 'files' | 'quota' | 'badkey' | 'model'
 
 export class ChatError extends Error {
   kind: ChatErrorKind

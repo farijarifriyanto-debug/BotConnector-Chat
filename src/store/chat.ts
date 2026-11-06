@@ -131,7 +131,16 @@ export const useChat = create<ChatState>((set, get) => {
   /** One assistant turn: streams text into the last message, then stores the chat. */
   async function run(base: Conv, history: Msg[], opts: SendOptions) {
     const { models, modelId, convs, caps } = get()
-    const m = models.find(x => x.id === base.model) ?? models.find(x => x.id === modelId); if (!m) return
+    const m = models.find(x => x.id === base.model) ?? (!base.model ? models.find(x => x.id === modelId) : undefined)
+    if (!m) {
+      if (!base.model) return   // nothing was ever chosen and nothing is available: the picker is already asking
+      // The chat's model is gone (account models after the standalone move, a removed provider): say so and wait
+      // for an explicit pick — never send the person's words to a different provider behind their back.
+      const aId = newId()
+      const cur: Conv = { ...base, messages: [...history, { id: aId, role: 'assistant' as const, content: '', createdAt: Date.now(), error: 'model' }], updatedAt: Date.now() }
+      put(cur); await putConv(cur).catch(() => {})
+      return
+    }
     const aId = newId(), t0 = Date.now()
     let cur: Conv = { ...base, model: m.id, ...(base.local || isPrivate(m) ? { local: true } : {}), messages: [...history, { id: aId, role: 'assistant', content: '', createdAt: Date.now(), model: m.name }], updatedAt: Date.now() }
     controller = new AbortController(); const signal = controller.signal
