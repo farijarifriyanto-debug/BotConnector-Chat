@@ -19,6 +19,7 @@ import { TranslatePage } from '../components/TranslatePage'
 import { useT } from '../hooks/useT'
 import { LocalModelsSheet } from '../components/LocalModelsSheet'
 import { ProvidersSheet } from '../components/ProvidersSheet'
+import { ConnectAiWelcome } from '../components/ConnectAiWelcome'
 import { SHOT, useShot } from '../lib/shot'
 import { useAuth } from '../store/auth'
 import { currentConv, useChat } from '../store/chat'
@@ -48,6 +49,7 @@ export function ChatScreen() {
   const { width, fontScale } = useWindowDimensions(), narrow = width / Math.max(1, fontScale) < 340   // very small phone or very large system text: the model keeps the room, the title steps aside
   const msgs = conv?.messages ?? []
   const model = chat.models.find(m => m.id === chat.modelId)
+  const needsConnection = guest && !model && msgs.length === 0
   const web = guest ? ownSearch : chat.caps?.web !== false
   const lastAssistant = useMemo(() => { for (let i = msgs.length - 1; i >= 0; i--) if (msgs[i].role === 'assistant') return msgs[i].id; return null }, [msgs])
   const scene = useShot(x => x.scene)
@@ -73,7 +75,7 @@ export function ChatScreen() {
         <Pressable testID="header-new" onPress={() => chat.newChat()} hitSlop={10} accessibilityRole="button" accessibilityLabel={t('newChat')}><Icon name="Plus" size={22} color={th.ink} /></Pressable>
       </View>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
-        {msgs.length === 0 ? (
+        {needsConnection ? <ConnectAiWelcome onConnect={() => setProvSheet(true)} onLocal={() => setLocalSheet(true)} /> : msgs.length === 0 ? (
           <ScrollView style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24, paddingVertical: 20 }} keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive">
             <Image source={require('../../assets/bico/bico-hero.png')} style={{ width: 150, height: 150 }} resizeMode="contain" accessibilityIgnoresInvertColors />
             <Text style={{ color: th.ink, fontSize: 22, fontWeight: '800', marginTop: 12, textAlign: 'center' }}>{t(guest && !model ? 'guestEmpty' : 'emptyTitle')}</Text>
@@ -94,7 +96,7 @@ export function ChatScreen() {
             renderItem={({ item }) => <MessageView msg={item} streaming={chat.busy && item.id === last?.id && item.role === 'assistant'} status={chat.busy && item.id === last?.id ? chat.status : null} isLastAssistant={item.id === lastAssistant} canAct={!chat.busy} onRegenerate={() => void chat.regenerate(opts)} onReport={item.role === 'assistant' && !item.error && (item.content || item.attachments?.length) ? () => setReporting(item.id) : undefined} onTranslate={item.role === 'assistant' && !!item.content ? code => chat.translateMessage(item.id, code) : undefined} onClearTranslation={item.role === 'assistant' ? () => chat.clearTranslation(item.id) : undefined} />} />
         )}
         {msgs.length > 0 && away && <Pressable testID="jump-end" onPress={() => { fol.current.jump(); setAway(false); toEnd(true) }} accessibilityRole="button" accessibilityLabel={t('jumpEnd')} style={{ position: 'absolute', right: 16, bottom: 120, width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: th.surface, borderWidth: 1, borderColor: th.lineStrong, shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 4 }}><Icon name="ArrowDown" size={20} color={th.ink} /></Pressable>}
-        <Composer busy={chat.busy} model={model} onPickModel={() => setModels(true)} onWebUnavailable={() => setSettings(true)} think={think} onThinkChange={useSettings.getState().setThink} queued={chat.queued} onQueue={(text, o, atts) => chat.queue(text, o, atts)} onCancelQueue={chat.cancelQueued} webAvailable={web} researchAvailable={!guest} voice={{ available: !guest }} onSend={(text, o, atts) => void chat.send(text, o, atts)} onStop={chat.stop} files={{ available: chat.caps?.files === true && model?.access !== 'local' && model?.access !== 'custom' }} image={{ available: chat.imageModels.length > 0, modelName: chat.imageModels.find(m => m.id === chat.imageModelId)?.name ?? '', onPick: () => setImgSheet(true) }} />
+        {!needsConnection && <Composer busy={chat.busy} model={model} onPickModel={() => setModels(true)} onWebUnavailable={() => setSettings(true)} think={think} onThinkChange={useSettings.getState().setThink} queued={chat.queued} onQueue={(text, o, atts) => chat.queue(text, o, atts)} onCancelQueue={chat.cancelQueued} webAvailable={web} researchAvailable={!guest} voice={{ available: !guest }} onSend={(text, o, atts) => void chat.send(text, o, atts)} onStop={chat.stop} files={{ available: chat.caps?.files === true && model?.access !== 'local' && model?.access !== 'custom' }} image={{ available: chat.imageModels.length > 0, modelName: chat.imageModels.find(m => m.id === chat.imageModelId)?.name ?? '', onPick: () => setImgSheet(true) }} />}
       </KeyboardAvoidingView>
       <Sidebar open={menu} convs={chat.convs} activeId={chat.activeId} onClose={() => setMenu(false)} onNew={chat.newChat} onOpen={chat.open} onDelete={id => void chat.remove(id)} onSettings={() => setSettings(true)} onPals={() => setPals(true)} onVideo={() => setVideo(true)} onTranslate={() => setTranslate(true)} onStudio={chat.imageModels.length ? () => setStudio(true) : undefined} />
       <ModelSheet mode="chat" visible={models} models={chat.models} selected={chat.modelId} onSelect={id => { chat.selectModel(id); setModels(false) }} onClose={() => setModels(false)} imageModels={chat.imageModels} selectedImage={chat.imageModelId} onSelectImage={id => { chat.selectImageModel(id); setStudio(true) }} state={chat.modelsState} onRetry={() => void chat.loadModels()} />

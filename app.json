@@ -14,7 +14,7 @@
       "buildNumber": "102",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-        "NSCameraUsageDescription": "BotConnector uses the camera to take photos you attach to a chat.",
+        "NSCameraUsageDescription": "BotConnector uses the camera to scan AI provider QR codes and take photos you attach to a chat.",
         "NSPhotoLibraryUsageDescription": "BotConnector reads photos you choose to attach to a chat.",
         "NSMicrophoneUsageDescription": "BotConnector uses the microphone for voice input.",
         "NSAppTransportSecurity": {
@@ -36,6 +36,7 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
+      ["expo-camera", { "cameraPermission": "BotConnector uses the camera to scan AI provider QR codes and take photos you attach to a chat.", "recordAudioAndroid": false, "barcodeScannerEnabled": true }],
       "expo-secure-store",
       "expo-web-browser",
       "expo-sqlite",
@@ -44,7 +45,7 @@
         "expo-image-picker",
         {
           "photosPermission": "BotConnector reads photos you choose to attach to a chat.",
-          "cameraPermission": "BotConnector uses the camera to take photos you attach to a chat."
+          "cameraPermission": "BotConnector uses the camera to scan AI provider QR codes and take photos you attach to a chat."
         }
       ],
       [
