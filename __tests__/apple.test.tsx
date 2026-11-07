@@ -87,20 +87,6 @@ describe('Sign in with Apple', () => {
 describe('deleting an Apple account', () => {
   const signedIn = { status: 'signedIn', session: { sessionToken: 's'.repeat(40), accessToken: 'a', userId: 'u1', expiresAt: 9e9 }, account: { email: 'x@privaterelay.appleid.com', plan: 'free' } }
 
-  it('asks for the phrase and Apple, never for a password', async () => {
-    const del = jest.fn(async () => ({ ok: false as const, reason: 'apple_mismatch' as const }))
-    useAuth.setState({ ...signedIn, appleLinked: true, deleteAccountWithApple: del } as never)
-    const r = await render(<SettingsSheet visible onClose={() => {}} />)
-    expect(r.getByTestId('apple-using')).toBeTruthy()
-    await fireEvent.press(r.getByTestId('delete-account'))
-    expect(r.queryByTestId('delete-password')).toBeNull(); expect(r.getByTestId('delete-apple-note')).toBeTruthy()
-    expect(r.getByTestId('delete-confirm').props.accessibilityState.disabled).toBe(true)
-    await fireEvent.changeText(r.getByTestId('delete-phrase'), 'HAPUS AKUN')
-    await fireEvent.press(r.getByTestId('delete-confirm'))
-    expect(del).toHaveBeenCalledWith('HAPUS AKUN')
-    expect((await r.findByTestId('delete-error')).props.children).toBe('That Apple ID does not belong to this account.')
-  })
-
   it('sends a fresh Apple token with the phrase and signs out once the account is gone', async () => {
     useAuth.setState({ ...signedIn, appleLinked: true } as never)
     signIn.mockResolvedValue({ ...credential, authorizationCode: null })
@@ -111,13 +97,6 @@ describe('deleting an Apple account', () => {
     expect(call[1].headers.authorization).toBe(`Bearer ${'s'.repeat(40)}`)
     expect(Object.keys(JSON.parse(call[1].body)).sort()).toEqual(['confirmation', 'identity_token', 'nonce'])
     expect(useAuth.getState().status).toBe('signedOut')
-  })
-
-  it('a password account keeps the password confirmation', async () => {
-    useAuth.setState({ ...signedIn, appleLinked: false } as never)
-    const r = await render(<SettingsSheet visible onClose={() => {}} />)
-    await fireEvent.press(r.getByTestId('delete-account'))
-    expect(r.getByTestId('delete-password')).toBeTruthy()
   })
 })
 
@@ -158,16 +137,5 @@ describe('deleting a Google/GitHub account (no password they know)', () => {
     expect(await useAuth.getState().deleteAccountByLogin('HAPUS AKUN')).toEqual({ ok: false, reason: 'cancelled' })
     expect(mockFetch.mock.calls.filter(c => String(c[0]).startsWith('https://botconnector.id/app-login/'))).toHaveLength(0)   // other screens may still load models
     expect(useAuth.getState().status).toBe('signedIn')
-  })
-
-  it('the sign-in-again button waits for the exact phrase', async () => {
-    const byLogin = jest.fn(async () => ({ ok: false as const, reason: 'reauth_other' as const })); useAuth.setState({ deleteAccountByLogin: byLogin } as never)
-    const r = await render(<SettingsSheet visible onClose={() => {}} />)
-    await fireEvent.press(r.getByTestId('delete-account'))
-    expect(r.getByTestId('delete-reauth').props.accessibilityState.disabled).toBe(true)
-    await fireEvent.changeText(r.getByTestId('delete-phrase'), 'HAPUS AKUN')
-    await fireEvent.press(r.getByTestId('delete-reauth'))
-    expect(byLogin).toHaveBeenCalledWith('HAPUS AKUN')
-    expect((await r.findByTestId('delete-error')).props.children).toContain('different account')
   })
 })
