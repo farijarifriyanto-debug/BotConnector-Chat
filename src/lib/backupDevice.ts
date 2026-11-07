@@ -8,6 +8,7 @@ import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate'
 import { BYOK_PROVIDERS } from '../api/search'
 import { clearConvs, listConvs, putConv } from '../db/convs'
 import type { Conv } from './types'
+import { base64ToBytes, bytesToBase64 } from './bytes'
 import {
   ARCHIVE_FORMAT, BACKUP_CATEGORIES, BACKUP_PREF_KEYS, DATABASE_ENTRY, FORMAT_VERSION, IMAGES_ROOT, MANIFEST_ENTRY, SETTINGS_ENTRY,
   BackupError, buildManifest, checkEntries, readManifest, readSettings, type BackupEntry, type BackupManifest, type BackupSettings,
@@ -17,14 +18,8 @@ import { decryptBackupBytes, encryptBackupBytes, isEncryptedBackup } from './bac
 const DB_NAME = 'botconnector-chat.db'
 const SECURE = { keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK }
 
-const bytesFromBase64 = (b64: string): Uint8Array => Uint8Array.from(atob(b64), c => c.charCodeAt(0))
-const base64FromBytes = (bytes: Uint8Array): string => {
-  let out = ''
-  for (let i = 0; i < bytes.length; i += 0x8000) out += String.fromCharCode(...bytes.subarray(i, i + 0x8000))
-  return btoa(out)
-}
-const readBytes = async (uri: string): Promise<Uint8Array> => bytesFromBase64(await FileSystem.readAsStringAsync(uri, { encoding: 'base64' }))
-const writeBytes = async (uri: string, bytes: Uint8Array): Promise<void> => { await FileSystem.writeAsStringAsync(uri, base64FromBytes(bytes), { encoding: 'base64' }) }
+const readBytes = async (uri: string): Promise<Uint8Array> => base64ToBytes(await FileSystem.readAsStringAsync(uri, { encoding: 'base64' }))
+const writeBytes = async (uri: string, bytes: Uint8Array): Promise<void> => { await FileSystem.writeAsStringAsync(uri, bytesToBase64(bytes), { encoding: 'base64' }) }
 const stamp = (d = new Date()) => `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}-${String(d.getHours()).padStart(2, '0')}${String(d.getMinutes()).padStart(2, '0')}${String(d.getSeconds()).padStart(2, '0')}`
 const dbDir = () => { const d = String(SQLite.defaultDatabaseDirectory ?? ''); return d.endsWith('/') ? d : `${d}/` }
 const imagesDir = () => `${FileSystem.documentDirectory ?? ''}images/`

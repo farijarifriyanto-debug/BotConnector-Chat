@@ -52,4 +52,17 @@ describe('on-device engine', () => {
     useLocal.setState({ models: [] })
     await expect((async () => { for await (const _ of streamCompletion({ model: 'local:gone.gguf', messages: [] })) { /* none */ } })()).rejects.toMatchObject({ kind: 'rejected' })
   })
+  it('honours the per-call thinking switch over the stored local default (audit E5)', async () => {
+    const { useLocal } = require('../src/local/store') as typeof import('../src/local/store')
+    const { useLocalParams } = require('../src/local/params') as typeof import('../src/local/params')
+    useLocal.setState({ models: [{ id: 'local:t.gguf', name: 'Qwen3 think', file: 't.gguf', bytes: 1, addedAt: 0 }] })
+    useLocalParams.setState({ params: { ...DEFAULT_PARAMS, thinking: true } })
+    const completion = jest.fn(async () => ({ text: '' }))
+    mockInit.mockResolvedValue({ completion, stopCompletion: jest.fn(async () => {}), release: jest.fn(async () => {}) })
+    const drain = async (body: Record<string, unknown>) => { for await (const _ of streamCompletion({ model: 'local:t.gguf', messages: [{ role: 'user', content: 'hi' }], ...body })) { /* drain */ } }
+    await drain({ reasoning_effort: 'none' })
+    expect((completion.mock.calls.at(-1) as any)[0].enable_thinking).toBe(false)   // the composer's Thinking-off wins over the stored default
+    await drain({})
+    expect((completion.mock.calls.at(-1) as any)[0].enable_thinking).toBe(true)   // no per-call choice: the stored local default applies
+  })
 })

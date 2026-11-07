@@ -146,6 +146,8 @@ export async function runAssistant(o: RunOptions): Promise<RunResult> {
   const sources: Source[] = [], queries: string[] = []
   let content = '', reasoning = '', usage: TokenUsage | undefined, cost: RunResult['cost']
   const useTools = o.model.tools && (o.tools ?? TOOLS).length > 0
+  /** Names the model was actually offered this run; anything else it emits is refused, never executed. */
+  const offered = new Set((o.tools ?? TOOLS).map(t => t.function.name))
   const mode = o.fetchMode ?? 'follow'
   const readPage = o.fetchPage ?? webFetch
 
@@ -159,7 +161,10 @@ export async function runAssistant(o: RunOptions): Promise<RunResult> {
           addSources(sources, hits)
           messages.unshift({ role: 'system', content: 'The user turned web search on. Below are web search results for their latest question. Answer from them, cite each statement with the result ids, and do not ask for more details when the results already let you help. If they do not answer it, say so.\n\n' + JSON.stringify(searchPayload(hits)) })
         }
-      } catch { /* answer without search */ }
+      } catch {
+        // Never hide a failed search: the model must say the answer comes without live results.
+        messages.unshift({ role: 'system', content: 'Web search failed or was unavailable for this question. Answer from what you know, and say clearly that the search could not be done.' })
+      }
       o.onStatus(null)
     }
     messages.unshift({ role: 'system', content: CITATION_PROMPT })
@@ -188,7 +193,8 @@ export async function runAssistant(o: RunOptions): Promise<RunResult> {
       let args: any = {}
       try { args = JSON.parse(c.args || '{}') } catch { /* bad arguments: reported below */ }
       try {
-        if (c.name === 'search_web' && typeof args.query === 'string' && args.query.trim()) {
+        if (!offered.has(c.name)) result = 'That tool is not available in this chat. Do not call it again; answer from what you have.'
+        else if (c.name === 'search_web' && typeof args.query === 'string' && args.query.trim()) {
           o.onStatus({ searching: args.query }); queries.push(args.query)
           const hits = await webSearch(clip(args.query, 200), o.signal); addSources(sources, hits)
           result = JSON.stringify(searchPayload(hits))

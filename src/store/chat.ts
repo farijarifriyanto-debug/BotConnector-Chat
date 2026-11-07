@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { fetchCapabilities, fetchImageModels, fetchModels, generateImage, streamCompletion, webFetch, type Capabilities, type ImageModel } from '../api/api'
+import { generateCustomImage } from '../api/custom'
 import { deleteConv, listConvs, putConv } from '../db/convs'
 import { noteDeleted, registerReload, scheduleSync, useSync } from '../sync/store'
 import { runAssistant, TOOLS } from '../lib/agent'
@@ -7,16 +8,16 @@ import { applyOverrides } from '../lib/toolSchema'
 import { useToolSchema } from './toolSchema'
 import { deleteImagesOf, saveImage } from '../lib/images'
 import { defaultSize } from '../lib/modelPicker'
-import { MEMORY_ID, composedSystem, fileIdsOf, isChat, newConv, newId, titleFrom, toApiMessages, blankRecord, projectFileIds } from '../lib/conv'
+import { MEMORY_ID, MEMORY_ITEM_MAX, MEMORY_MAX, SYSTEM_MAX, composedSystem, fileIdsOf, isChat, newConv, newId, titleFrom, toApiMessages, blankRecord, projectFileIds } from '../lib/conv'
 import { research, ResearchError, type Progress } from '../lib/research'
-import { buildPrompt, languageName } from '../lib/translate'
+import { translateText } from '../lib/translate'
 import { ChatError, type Attachment, type ChatModel, type Conv, type Msg } from '../lib/types'
 import '../local/engine'
 import '../laptop/api'
 import { laptopModels, useLaptop } from '../laptop/store'
 import { localModels, useLocal } from '../local/store'
 import { useAuth } from './auth'
-import { customModels } from './providers'
+import { customImageModels, customModels } from './providers'
 import { readByok, useSearch } from './search'
 import { instructionBlock } from './instructions'
 import { activeBooks } from './worldbook'
@@ -55,6 +56,7 @@ const localContext: LocalContext = {
   clipboardWrite: async text => { await Clipboard.setStringAsync(text)  },
 }
 import { useSettings } from './settings'
+import { useTranslate } from './translate'
 
 const TITLE_PROMPT = 'Write a short title (at most 6 words) for this conversation, in the same language as the user. No quotes, no trailing punctuation. Reply with the title only.'
 export interface RunStatus { searching?: string; reading?: string; research?: Progress }
@@ -131,7 +133,16 @@ export const useChat = create<ChatState>((set, get) => {
   /** One assistant turn: streams text into the last message, then stores the chat. */
   async function run(base: Conv, history: Msg[], opts: SendOptions) {
     const { models, modelId, convs, caps } = get()
-    const m = models.find(x => x.id === base.model) ?? models.find(x => x.id === modelId); if (!m) return
+    const m = models.find(x => x.id === base.model) ?? (!base.model ? models.find(x => x.id === modelId) : undefined)
+    if (!m) {
+      if (!base.model) return   // nothing was ever chosen and nothing is available: the picker is already asking
+      // The chat's model is gone (account models after the standalone move, a removed provider): say so and wait
+      // for an explicit pick — never send the person's words to a different provider behind their back.
+      const aId = newId()
+      const cur: Conv = { ...base, messages: [...history, { id: aId, role: 'assistant' as const, content: '', createdAt: Date.now(), error: 'model' }], updatedAt: Date.now() }
+      put(cur); await putConv(cur).catch(() => {})
+      return
+    }
     const aId = newId(), t0 = Date.now()
     let cur: Conv = { ...base, model: m.id, ...(base.local || isPrivate(m) ? { local: true } : {}), messages: [...history, { id: aId, role: 'assistant', content: '', createdAt: Date.now(), model: m.name }], updatedAt: Date.now() }
     controller = new AbortController(); const signal = controller.signal
@@ -157,7 +168,9 @@ export const useChat = create<ChatState>((set, get) => {
         const im = get().imageModels.find(x => x.id === get().imageModelId); if (!im) throw new ChatError('unavailable')
         const size = (opts.size && im.sizes.includes(opts.size) ? opts.size : defaultSize(im.sizes)) ?? '1024x1024'
         const refs = im.refs ? [...history].reverse().find(x => x.role === 'user')?.attachments?.filter(a => a.kind === 'image' && a.dataUrl).map(a => a.dataUrl!) : undefined   // photos the user attached in the Studio: "edit" starts from them
-        const g = await generateImage({ model: im.id, prompt: question, size, refs }, signal)
+        const g = im.id.startsWith('custom:')
+          ? await generateCustomImage({ model: im.id, prompt: question, size }, signal)   // the provider itself, with its own key (audit F1)
+          : await generateImage({ model: im.id, prompt: question, size, refs }, signal)
         const file = await saveImage(g.b64, g.mime)
         update({ content: '', attachments: [{ kind: 'image', name: 'image', mime: g.mime, size: file.size, uri: file.uri }], image: { prompt: question, modelId: im.id, model: im.name, size, ...(g.left !== undefined ? { left: String(g.left) } : {}) }, model: im.name, ms: Date.now() - t0 }, true)
       } else if (opts.research && caps?.web !== false) {
@@ -224,8 +237,9 @@ export const useChat = create<ChatState>((set, get) => {
     syncCustom() {
       set(s => {
         const models = [...s.models.filter(m => m.access !== 'custom' && m.access !== 'local' && m.access !== 'laptop'), ...customModels(), ...localModels(), ...laptopModels()]
+        const imageModels = [...s.imageModels.filter(m => m.access !== 'custom'), ...customImageModels()]
         const modelId = models.some(m => m.id === s.modelId && m.available) ? s.modelId : (models.find(m => m.access === 'free' && m.available)?.id ?? models.find(m => m.available)?.id ?? '')
-        return { models, modelId, draft: s.draft && !s.activeId ? { ...s.draft, model: modelId } : s.draft }
+        return { models, imageModels, modelId, draft: s.draft && !s.activeId ? { ...s.draft, model: modelId } : s.draft }
       })
     },
     selectImageModel(id) { set({ imageModelId: id }) },
@@ -238,7 +252,13 @@ export const useChat = create<ChatState>((set, get) => {
     },
     async saveMemory(patch) {
       const cur = get().convs.find(c => c.id === MEMORY_ID) ?? { ...newConv(''), id: MEMORY_ID, kind: 'memory' as const }
-      const next = { ...cur, ...patch, updatedAt: Date.now() }
+      // one set of limits for the form and the memory tools, enforced here so no writer can exceed them (audit E7)
+      const clamped = {
+        ...patch,
+        ...(patch.memory ? { memory: patch.memory.slice(-MEMORY_MAX).map(m => m.slice(0, MEMORY_ITEM_MAX)) } : {}),
+        ...(patch.system !== undefined ? { system: patch.system.slice(0, SYSTEM_MAX) } : {}),
+      }
+      const next = { ...cur, ...clamped, updatedAt: Date.now() }
       set(s => ({ convs: sortConvs([next, ...s.convs.filter(c => c.id !== MEMORY_ID)]) }))   // not "put": this record must never become the open chat
       await putConv(next).catch(() => {})
     },
@@ -289,18 +309,16 @@ export const useChat = create<ChatState>((set, get) => {
     async translateMessage(msgId, code) {
       const s = get(), conv = currentConv(s), msg = conv?.messages.find(m => m.id === msgId)
       if (!conv || !msg || !msg.content.trim()) return { ok: false as const, kind: 'unavailable' }
-      const model = s.models.find(x => x.id === conv.model) ?? s.models.find(x => x.id === s.modelId)
+      // the same settings the Translate page uses, so "Translation model" means one thing everywhere (audit E6)
+      const tr = useTranslate.getState()
+      const model = (tr.model ? s.models.find(x => x.id === tr.model) : undefined) ?? s.models.find(x => x.id === conv.model) ?? s.models.find(x => x.id === s.modelId)
       translations.get(msgId)?.abort()
       const ctrl = new AbortController(); translations.set(msgId, ctrl)
       setTranslation(msgId, '')   // the card says "Translating…" until the first words arrive
-      let out = ''
       try {
-        for await (const d of streamCompletion({ model: model?.id ?? conv.model, messages: [{ role: 'user', content: buildPrompt('', languageName(code), msg.content) }], reasoning_effort: 'none' }, ctrl.signal)) {
-          if (d.content) { out += d.content; setTranslation(msgId, out) }
-        }
-        const done = out.trim()
-        setTranslation(msgId, done || undefined)
-        return done ? { ok: true as const } : { ok: false as const, kind: 'unavailable' }
+        const out = await translateText({ text: msg.content, target: code, model: model?.id ?? conv.model, prompt: tr.prompt, think: tr.think, signal: ctrl.signal, onText: text => setTranslation(msgId, text) })
+        setTranslation(msgId, out || undefined)
+        return out ? { ok: true as const } : { ok: false as const, kind: 'unavailable' }
       } catch (e) {
         if (ctrl.signal.aborted) return { ok: false as const, kind: 'aborted' }
         setTranslation(msgId, undefined)

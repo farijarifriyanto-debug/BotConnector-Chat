@@ -18,6 +18,18 @@ export function base64ToBytes(input: string): Uint8Array {
   return out.subarray(0, p)
 }
 
+/** Native-safe encoder: Hermes has no btoa, so backup must not rely on browser globals. */
+export function bytesToBase64(bytes: Uint8Array): string {
+  let out = ''
+  for (let i = 0; i < bytes.length; i += 3) {
+    const a = bytes[i], b = bytes[i + 1], c = bytes[i + 2]
+    out += ALPHABET[a >> 2] + ALPHABET[((a & 3) << 4) | ((b ?? 0) >> 4)]
+    out += b === undefined ? '=' : ALPHABET[((b & 15) << 2) | ((c ?? 0) >> 6)]
+    out += c === undefined ? '=' : ALPHABET[c & 63]
+  }
+  return out
+}
+
 export function sha256Hex(bytes: Uint8Array): string {
   const copy = new Uint8Array(bytes.length)
   copy.set(bytes)

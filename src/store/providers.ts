@@ -2,10 +2,13 @@ import Storage from 'expo-sqlite/kv-store'
 import * as SecureStore from 'expo-secure-store'
 import { create } from 'zustand'
 import { configureEndpoints, customId, listRemoteModels, normalizeBaseUrl, type UrlProblem } from '../api/custom'
+import { listAnthropicModels } from '../api/anthropic'
 import { newId } from '../lib/conv'
 import { ChatError, type ChatModel } from '../lib/types'
+import type { ImageModel } from '../api/api'
 
-export interface Provider { id: string; name: string; baseUrl: string; models: { id: string; name?: string }[]; updatedAt: number }
+export interface ModelCaps { tools?: boolean; vision?: boolean; reasoning?: boolean; image?: boolean; asr?: boolean }
+export interface Provider { id: string; name: string; baseUrl: string; kind?: 'anthropic'; models: { id: string; name?: string; caps?: ModelCaps }[]; updatedAt: number }
 const KEY = 'bc.providers.v1', keyName = (id: string) => `bc.pk.${id}`
 const SECURE = { keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK }
 
@@ -21,26 +24,29 @@ const getKey = async (id: string) => { try { return (await SecureStore.getItemAs
 export type AddFailure = UrlProblem | 'name' | 'models' | ChatError['kind']
 interface State {
   providers: Provider[]
-  add(input: { name: string; baseUrl: string; apiKey: string; manualModels: string }): Promise<{ ok: true } | { ok: false; reason: AddFailure }>
+  add(input: { name: string; baseUrl: string; apiKey: string; manualModels: string; kind?: 'anthropic' }): Promise<{ ok: true } | { ok: false; reason: AddFailure }>
   refresh(id: string): Promise<boolean>
   remove(id: string): Promise<void>
   clear(): Promise<void>
+  /** Marks what one model can actually do (user-verified); anything unmarked stays off so the UI never promises a capability that does not work. */
+  setModelCaps(providerId: string, modelId: string, caps: ModelCaps): Promise<void>
 }
 
 export const useProviders = create<State>((set, get) => ({
   providers: readAll(),
-  async add({ name, baseUrl, apiKey, manualModels }) {
+  async add({ name, baseUrl, apiKey, manualModels, kind }) {
     const n = name.trim(); if (!n) return { ok: false, reason: 'name' }
     const u = normalizeBaseUrl(baseUrl); if (!u.ok) return { ok: false, reason: u.problem }
     const key = apiKey.trim()
+    const listModels = kind === 'anthropic' ? listAnthropicModels : listRemoteModels
     let models: Provider['models'] = []
     let failure: ChatError['kind'] | null = null
-    try { models = await listRemoteModels(u.url, key) } catch (e) { failure = e instanceof ChatError ? e.kind : 'network' }
+    try { models = await listModels(u.url, key) } catch (e) { failure = e instanceof ChatError ? e.kind : 'network' }
     if (failure === 'badkey') return { ok: false, reason: 'badkey' }   // a wrong key is worth telling about even if the user typed model ids
     const typed = manualModels.split(/[,\n]/).map(x => x.trim()).filter(Boolean)
     if (typed.length) models = [...new Map([...typed.map(id => ({ id })), ...models].map(m => [m.id, m])).values()]
     if (!models.length) return { ok: false, reason: failure ?? 'models' }
-    const p: Provider = { id: newId().replace(/[^a-z0-9]/gi, '').slice(0, 12), name: n.slice(0, 40), baseUrl: u.url, models, updatedAt: Date.now() }
+    const p: Provider = { id: newId().replace(/[^a-z0-9]/gi, '').slice(0, 12), name: n.slice(0, 40), baseUrl: u.url, ...(kind ? { kind } : {}), models, updatedAt: Date.now() }
     try { if (key) await SecureStore.setItemAsync(keyName(p.id), key, SECURE) } catch { return { ok: false, reason: 'rejected' } }
     const providers = [...get().providers, p]; writeAll(providers); set({ providers })
     return { ok: true }
@@ -48,7 +54,7 @@ export const useProviders = create<State>((set, get) => ({
   async refresh(id) {
     const p = get().providers.find(x => x.id === id); if (!p) return false
     try {
-      const models = await listRemoteModels(p.baseUrl, await getKey(id)); if (!models.length) return false
+      const models = await (p.kind === 'anthropic' ? listAnthropicModels : listRemoteModels)(p.baseUrl, await getKey(id)); if (!models.length) return false
       const providers = get().providers.map(x => (x.id === id ? { ...x, models, updatedAt: Date.now() } : x)); writeAll(providers); set({ providers }); return true
     } catch { return false }
   },
@@ -57,11 +63,35 @@ export const useProviders = create<State>((set, get) => ({
     const providers = get().providers.filter(x => x.id !== id); writeAll(providers); set({ providers })
   },
   async clear() { for (const p of get().providers) await SecureStore.deleteItemAsync(keyName(p.id)).catch(() => {}); writeAll([]); set({ providers: [] }) },
+  async setModelCaps(providerId, modelId, caps) {
+    const providers = get().providers.map(p => p.id !== providerId ? p : ({
+      ...p, models: p.models.map(m => {
+        if (m.id !== modelId) return m
+        const merged: ModelCaps = { ...m.caps, ...caps }
+        return { ...m, ...(Object.keys(merged).length ? { caps: merged } : {}) }
+      }),
+    }))
+    writeAll(providers); set({ providers })
+  },
 }))
 
-configureEndpoints(async id => { const p = useProviders.getState().providers.find(x => x.id === id); return p ? { baseUrl: p.baseUrl, apiKey: await getKey(id) } : null })
+configureEndpoints(async id => { const p = useProviders.getState().providers.find(x => x.id === id); return p ? { baseUrl: p.baseUrl, apiKey: await getKey(id), kind: p.kind } : null })
 
-/** Provider models as picker entries. Capabilities are unknown, so Web search uses search-first (works with every model). */
+/** Provider models as picker entries. Capabilities start unknown (off) and only turn on where the user marked them, so Web search uses search-first (works with every model) until then. */
 export const customModels = (): ChatModel[] => useProviders.getState().providers.flatMap(p => p.models.map((m): ChatModel => ({
-  id: customId(p.id, m.id), name: m.name || m.id, access: 'custom', provider: p.name, vision: false, tools: false, reasoning: false, available: true,
+  id: customId(p.id, m.id), name: m.name || m.id, access: 'custom', provider: p.name, vision: m.caps?.vision ?? false, tools: m.caps?.tools ?? false, reasoning: m.caps?.reasoning ?? false, available: true,
 })))
+
+/** Provider models the user marked as picture-makers (audit F1). Text-to-picture only: the reference
+ * app's photo-editing route needs the multipart edits endpoint, which we don't ship here yet. */
+export const customImageModels = (): ImageModel[] => useProviders.getState().providers.flatMap(p => p.models.filter(m => m.caps?.image).map((m): ImageModel => ({
+  id: customId(p.id, m.id), name: m.name || m.id, access: 'custom', sizes: ['1024x1024', '1536x1024', '1024x1536'], refs: false,
+})))
+
+/** A provider with a transcription model marked (audit F2): the microphone can use it with no account. */
+export const byokAsrAvailable = (): boolean => useProviders.getState().providers.some(p => p.models.some(m => m.caps?.asr))
+/** The first marked transcription model with its provider, for the microphone. */
+export const byokAsrTarget = (): { providerId: string; model: string } | null => {
+  for (const p of useProviders.getState().providers) for (const m of p.models) if (m.caps?.asr) return { providerId: p.id, model: m.id }
+  return null
+}

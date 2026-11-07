@@ -29,6 +29,7 @@ export function TranslateSettingsSheet({ visible, onClose }: { visible: boolean;
           <Pressable onPress={onClose} hitSlop={12} accessibilityLabel={t('close')} testID="trs-close"><Icon name="Close" color={th.ink} /></Pressable>
         </View>
         <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
+          <Text style={{ color: th.muted, fontSize: 13, lineHeight: 19 }}>{t('trScopeNote')}</Text>
           {row('trs-model-default', t('trModelDefault'), !model, () => setModel(null))}
           {models.filter(m => !m.image).map(m => row(`trs-model-${m.id}`, m.name, (model ?? chatModelId) === m.id, () => setModel(m.id)))}
 

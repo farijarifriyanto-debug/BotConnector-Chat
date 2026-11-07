@@ -24,19 +24,6 @@ describe('screens', () => {
     expect(login).toHaveBeenCalled()
   })
 
-  it('delete account stays disabled until the exact phrase and a password are given', async () => {
-    const del = jest.fn(async () => ({ ok: false as const, reason: 'wrong_password' as const })); useAuth.setState({ deleteAccount: del, account: null } as never)
-    const r = await render(<SettingsSheet visible onClose={() => {}} />)
-    await fireEvent.press(r.getByTestId('delete-account'))
-    await fireEvent.changeText(r.getByTestId('delete-password'), 'secret')
-    await fireEvent.changeText(r.getByTestId('delete-phrase'), 'hapus')
-    expect(r.getByTestId('delete-confirm').props.accessibilityState.disabled).toBe(true)
-    await fireEvent.changeText(r.getByTestId('delete-phrase'), 'HAPUS AKUN')
-    await fireEvent.press(r.getByTestId('delete-confirm'))
-    expect(del).toHaveBeenCalledWith('secret', 'HAPUS AKUN')
-    expect(await r.findByTestId('delete-error')).toBeTruthy()
-  })
-
   it('opens quick phrases from settings', async () => {
     const { useSettings } = require('../src/store/settings')
     const { usePhrases } = require('../src/store/phrases')

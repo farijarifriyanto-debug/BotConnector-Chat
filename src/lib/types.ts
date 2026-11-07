@@ -30,6 +30,8 @@ export interface Attachment {
   uri?: string
   /** Documents are uploaded once; the server retrieves the relevant parts for every question. */
   fileId?: string
+  /** Documents read on this phone (no account): the extracted text joined to the message itself. */
+  text?: string
   status?: 'uploading' | 'processing' | 'ready' | 'failed'
   /** when this file started uploading/processing (drives the elapsed-time hint) */
   startedAt?: number
@@ -111,7 +113,7 @@ export interface Conv {
   messages: Msg[]
 }
 
-export type ChatErrorKind = 'auth' | 'privacy' | 'balance' | 'plan' | 'capacity' | 'too_large' | 'unavailable' | 'rejected' | 'network' | 'aborted' | 'files' | 'quota' | 'badkey'
+export type ChatErrorKind = 'auth' | 'privacy' | 'balance' | 'plan' | 'capacity' | 'too_large' | 'unavailable' | 'rejected' | 'network' | 'aborted' | 'files' | 'quota' | 'badkey' | 'model'
 
 export class ChatError extends Error {
   kind: ChatErrorKind

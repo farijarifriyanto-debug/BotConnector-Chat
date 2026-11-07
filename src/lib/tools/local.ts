@@ -5,6 +5,7 @@
  * actually stores: a flat list of memory facts and a flat profile of standing instructions.
  */
 import { sha256 } from 'js-sha256'
+import { MEMORY_ITEM_MAX, MEMORY_MAX } from '../conv'
 import type { ToolDef } from '../toolSchema'
 
 export type ToolGroup = 'search' | 'memory' | 'device'
@@ -24,7 +25,7 @@ export interface LocalContext {
 /** One past conversation that matched chat_search. */
 export interface ChatHit { conversationId: string; title: string; updatedAt: number; snippets: string[] }
 
-export const MEMORY_MAX = 100, MEMORY_ITEM_MAX = 400
+export { MEMORY_ITEM_MAX, MEMORY_MAX } from '../conv'   // one set of limits: the memory form, the tools and the store all share these
 /** Stable id derived from the fact itself: no storage change, and the model gets an id to edit or delete. */
 export const memoryId = (text: string): string => `mem_${sha256(text).slice(0, 8)}`
 

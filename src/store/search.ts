@@ -44,11 +44,13 @@ export const useSearch = create<State>((set, get) => ({
   },
 }))
 
-/** The user's own provider when one is chosen and has a key; null means "use BotConnector Search". */
+/** The user's own provider when one is chosen and has a key; null only means "no own provider configured, use BotConnector Search". */
 export async function searchByok(query: string, signal?: AbortSignal): Promise<Hit[] | null> {
   const { provider, count } = useSearch.getState(); const key = provider === 'botconnector' ? '' : keys.get(provider) ?? ''
   if (provider === 'botconnector' || !key) return null
-  try { const hits = await byokSearch(provider, key, query, count, signal); return hits.length ? hits : null } catch (e) { if (signal?.aborted) throw e; return null }   // a failing own key falls back to BotConnector Search
+  // A configured provider answers for itself: failures surface as failures and zero results stay zero,
+  // so the recipient of the user's words never silently changes to BotConnector.
+  return byokSearch(provider, key, query, count, signal)
 }
 
 /** Reads a page through the chosen provider when it can read pages; null means "use the app's own reader". */

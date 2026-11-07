@@ -224,6 +224,17 @@ export function parseChunk(payload: string): Delta | null {
   return out
 }
 
+/** Maps one non-OK HTTP status from a BYOK provider to the honest error kind the UI already knows. */
+export function providerFailure(status: number, wait?: number): ChatError {
+  const o = { status, retryAfterSeconds: wait }
+  if (status === 401 || status === 403) return new ChatError('badkey', o)
+  if (status === 402) return new ChatError('balance', o)
+  if (status === 413) return new ChatError('too_large', o)
+  if (status === 429) return new ChatError('capacity', o)
+  if (status >= 500) return new ChatError('unavailable', o)
+  return new ChatError('rejected', o)
+}
+
 /** Splits an SSE text buffer into complete "data:" payloads; returns the unfinished tail. */
 export function drainSse(buf: string): { payloads: string[]; rest: string } {
   const payloads: string[] = []

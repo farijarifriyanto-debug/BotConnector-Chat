@@ -1,7 +1,9 @@
 // Custom OpenAI-compatible providers. These calls go straight to the provider with the user's own key; the BotConnector token is never sent.
 import { fetch } from 'expo/fetch'
 import { PadGuard } from '../lib/pad'
-import { padGuard, drainSse, parseChunk, registerStreamer, type Delta } from './api'
+import { bytesToBase64 } from '../lib/bytes'
+import { drainSse, padGuard, parseChunk, providerFailure, registerStreamer, type Delta } from './api'
+import { streamClaude } from './anthropic'
 import { ChatError } from '../lib/types'
 
 export const CUSTOM_PREFIX = 'custom:'
@@ -12,7 +14,7 @@ export function parseCustomId(id: string): { providerId: string; raw: string } |
   return i > 0 ? { providerId: rest.slice(0, i), raw: rest.slice(i + 1) } : null
 }
 
-export interface Endpoint { baseUrl: string; apiKey: string }
+export interface Endpoint { baseUrl: string; apiKey: string; kind?: 'anthropic' }
 let endpointOf: (providerId: string) => Promise<Endpoint | null> = async () => null
 /** The provider store tells this module where a provider's address and key live. */
 export const configureEndpoints = (fn: typeof endpointOf) => { endpointOf = fn }
@@ -39,22 +41,13 @@ export function normalizeBaseUrl(input: string): { ok: true; url: string } | { o
 
 const authHeader = (key: string): Record<string, string> => (key ? { authorization: `Bearer ${key}` } : {})
 
-function failure(status: number, wait?: number): ChatError {
-  const o = { status, retryAfterSeconds: wait }
-  if (status === 401 || status === 403) return new ChatError('badkey', o)
-  if (status === 402) return new ChatError('balance', o)
-  if (status === 413) return new ChatError('too_large', o)
-  if (status === 429) return new ChatError('capacity', o)
-  if (status >= 500) return new ChatError('unavailable', o)
-  return new ChatError('rejected', o)
-}
 const waitOf = (v: string | null) => { const n = Number(v); return v && Number.isFinite(n) && n >= 0 ? Math.ceil(n) : undefined }
 
 /** GET {base}/models. OpenAI shape ({data:[{id}]}); also accepts a bare array or Ollama's {models:[{name}]}. */
 export async function listRemoteModels(baseUrl: string, apiKey: string, signal?: AbortSignal): Promise<{ id: string; name?: string }[]> {
   let r: Response
   try { r = await fetch(`${baseUrl}/models`, { headers: { accept: 'application/json', ...authHeader(apiKey) }, signal }) } catch { throw new ChatError('network') }
-  if (!r.ok) throw failure(r.status, waitOf(r.headers.get('retry-after')))
+  if (!r.ok) throw providerFailure(r.status, waitOf(r.headers.get('retry-after')))
   const j: any = await r.json().catch(() => null)
   const rows: any[] = Array.isArray(j) ? j : Array.isArray(j?.data) ? j.data : Array.isArray(j?.models) ? j.models : []
   const seen = new Set<string>()
@@ -66,10 +59,11 @@ export async function listRemoteModels(baseUrl: string, apiKey: string, signal?:
 async function* streamCustom(body: Record<string, unknown>, signal?: AbortSignal): AsyncGenerator<Delta> {
   const ref = parseCustomId(String(body.model)); const ep = ref ? await endpointOf(ref.providerId) : null
   if (!ref || !ep) throw new ChatError('rejected')
+  if (ep.kind === 'anthropic') { yield* streamClaude(body, ep, signal); return }
   let r: Response
   try { r = await fetch(`${ep.baseUrl}/chat/completions`, { method: 'POST', headers: { 'content-type': 'application/json', accept: 'text/event-stream, application/json', ...authHeader(ep.apiKey) }, body: JSON.stringify({ ...body, model: ref.raw, stream: true }), signal }) }
   catch (e) { throw (e as Error)?.name === 'AbortError' ? new ChatError('aborted') : new ChatError('network') }
-  if (!r.ok) throw failure(r.status, waitOf(r.headers.get('retry-after')))
+  if (!r.ok) throw providerFailure(r.status, waitOf(r.headers.get('retry-after')))
   if (!(r.headers.get('content-type') || '').includes('text/event-stream') || !r.body) {
     const j = await r.json().catch(() => null); const d = j ? parseChunk(JSON.stringify(j)) : null
     if (d) yield { ...d, finish: d.finish ?? 'stop' }
@@ -92,3 +86,52 @@ async function* streamCustom(body: Record<string, unknown>, signal?: AbortSignal
   } finally { try { reader.releaseLock?.() } catch { /* cancelled while a read was pending */ } }
 }
 registerStreamer(CUSTOM_PREFIX, streamCustom)
+
+/** Voice transcription against the provider itself (audit F2, the reference app's transcription-service pattern):
+ * the recording is wrapped as a wav on this phone and posted to {base}/audio/transcriptions with the user's
+ * key and their marked transcription model; the BotConnector token and account never appear. */
+export async function transcribeCustomAudio(providerId: string, asrModel: string, wav: Uint8Array, language?: string, signal?: AbortSignal): Promise<{ text: string }> {
+  const ep = await endpointOf(providerId)
+  if (!ep) throw new ChatError('rejected')
+  const timeout = new AbortController(); const timer = setTimeout(() => timeout.abort(), 120_000)
+  const onAbort = () => timeout.abort(); signal?.addEventListener('abort', onAbort)
+  try {
+    const form = new FormData()
+    form.append('file', new Blob([wav as unknown as BlobPart], { type: 'audio/wav' }), 'audio.wav')
+    form.append('model', asrModel)
+    if (language) form.append('language', language)
+    let r: Response
+    try { r = await fetch(`${ep.baseUrl}/audio/transcriptions`, { method: 'POST', headers: { accept: 'application/json', ...authHeader(ep.apiKey) }, body: form, signal: timeout.signal }) }
+    catch (e) { throw (e as Error)?.name === 'AbortError' ? new ChatError('aborted') : new ChatError('network') }
+    if (!r.ok) throw providerFailure(r.status, waitOf(r.headers.get('retry-after')))
+    const j: any = await r.json().catch(() => null)
+    if (typeof j?.text === 'string' && j.text) return { text: j.text }
+    throw new ChatError('unavailable')
+  } finally { clearTimeout(timer); signal?.removeEventListener('abort', onAbort) }
+}
+
+/** Picture generation against the provider itself (audit F1, the reference app's Images API pattern):
+ * POST {base}/images/generations with the user's own key; the BotConnector token and account never appear. */
+export async function generateCustomImage(req: { model: string; prompt: string; size: string }, signal?: AbortSignal): Promise<{ b64: string; mime: string; left?: number }> {
+  const ref = parseCustomId(req.model); const ep = ref ? await endpointOf(ref.providerId) : null
+  if (!ref || !ep) throw new ChatError('rejected')
+  const timeout = new AbortController(); const timer = setTimeout(() => timeout.abort(), 240_000)
+  const onAbort = () => timeout.abort(); signal?.addEventListener('abort', onAbort)
+  try {
+    let r: Response
+    try { r = await fetch(`${ep.baseUrl}/images/generations`, { method: 'POST', headers: { 'content-type': 'application/json', accept: 'application/json', ...authHeader(ep.apiKey) }, body: JSON.stringify({ model: ref.raw, prompt: req.prompt, n: 1, size: req.size }), signal: timeout.signal }) }
+    catch (e) { throw (e as Error)?.name === 'AbortError' ? new ChatError('aborted') : new ChatError('network') }
+    if (!r.ok) throw providerFailure(r.status, waitOf(r.headers.get('retry-after')))
+    const j: any = await r.json().catch(() => null)
+    const first = j?.data?.[0] ?? {}
+    if (typeof first.b64_json === 'string' && first.b64_json) return { b64: first.b64_json, mime: typeof first.mime_type === 'string' ? first.mime_type : 'image/png' }
+    if (typeof first.url === 'string' && /^https?:\/\//i.test(first.url)) {
+      let img: Response
+      try { img = await fetch(first.url, { signal: timeout.signal }) } catch (e) { throw (e as Error)?.name === 'AbortError' ? new ChatError('aborted') : new ChatError('network') }
+      if (!img.ok) throw providerFailure(img.status)
+      const head = (img.headers.get('content-type') || '').split(';')[0] ?? ''
+      return { b64: bytesToBase64(new Uint8Array(await img.arrayBuffer())), mime: /^image\//.test(head) ? head : 'image/png' }
+    }
+    throw new ChatError('unavailable')
+  } finally { clearTimeout(timer); signal?.removeEventListener('abort', onAbort) }
+}

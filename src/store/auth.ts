@@ -4,8 +4,9 @@ import { configureApi } from '../api/api'
 import { configureFiles } from '../api/files'
 import { configureLaptop } from '../laptop/api'
 import { configureSync } from '../sync/chatSync'
-import { AuthError, clearSession, deleteAccount as apiDelete, deleteAccountByReauth, fetchAccount, loadSession, login as apiLogin, logout as apiLogout, revokeSession, type Account, type DeleteFailure, type Session } from '../auth/session'
-import { AppleError, appleAvailable, appleDeleteAccount, appleLink, appleLinked, appleRegister, appleSignIn, type ApplePending } from '../auth/apple'
+import { AuthError, clearSession, deleteAccount as apiDelete, deleteAccountByReauth, fetchAccount, login as apiLogin, logout as apiLogout, revokeSession, type Account, type DeleteFailure, type Session } from '../auth/session'
+import { migrateToStandalone } from '../lib/standalone'
+import { AppleError, appleDeleteAccount, appleLink, appleLinked, appleRegister, appleSignIn, type ApplePending } from '../auth/apple'
 import { clearConvs } from '../db/convs'
 
 export type AppleDeleteFailure = DeleteFailure | 'apple_mismatch' | 'cancelled'
@@ -14,7 +15,6 @@ const appleReason = (e: unknown): string | null =>
 
 type Status = 'loading' | 'signedOut' | 'signedIn' | 'guest'
 const GUEST = 'bc.guest'
-const guestFlag = () => { try { return Storage.getItemSync(GUEST) === '1' } catch { return false } }
 const setGuestFlag = (on: boolean) => { try { if (on) Storage.setItemSync(GUEST, '1'); else Storage.removeItemSync(GUEST) } catch { /* not persisted */ } }
 interface AuthState {
   status: Status; session: Session | null; account: Account | null; busy: boolean; error: string | null
@@ -33,15 +33,11 @@ interface AuthState {
 export const useAuth = create<AuthState>((set, get) => ({
   status: 'loading', session: null, account: null, busy: false, error: null, apple: false, applePending: null, appleLinked: null,
   async init() {
-    void appleAvailable().then(apple => set({ apple }))
-    const session = await loadSession()
-    if (!session) { set({ status: guestFlag() ? 'guest' : 'signedOut' }); return }
-    set({ session, status: 'signedIn' })   // show the app at once; the account is verified in the background
-    try {
-      const account = await fetchAccount(session)
-      if (!account) { await clearSession(); set({ status: 'signedOut', session: null, account: null }); return }
-      set({ account })
-    } catch { /* offline: keep the session, retry on the next foreground */ }
+    // Standalone app: the old account session is migrated away, never restored, and the account
+    // service is never asked. Everything the person made (chats, providers, keys, models) stays.
+    await migrateToStandalone()
+    setGuestFlag(true)
+    set({ status: 'guest', session: null, account: null })
   },
   /** Own providers and on-device models need no BotConnector account. */
   continueAsGuest() { setGuestFlag(true); set({ status: 'guest' }) },

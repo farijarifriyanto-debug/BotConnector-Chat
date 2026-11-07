@@ -28,5 +28,8 @@ describe('web page reading setting', () => {
 
     await fireEvent.press(r.getByTestId('web-fetch-local'))
     expect(useSearch.getState().webFetch).toBe('local')
+    // audit E2: the server-backed reader must be labelled as BotConnector, never as something running on the device
+    expect(r.getByText('BotConnector')).toBeTruthy()
+    expect(r.getByText('BotConnector reads the page and returns it as Markdown.')).toBeTruthy()
   })
 })
