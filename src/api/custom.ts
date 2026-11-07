@@ -1,6 +1,7 @@
 // Custom OpenAI-compatible providers. These calls go straight to the provider with the user's own key; the BotConnector token is never sent.
 import { fetch } from 'expo/fetch'
 import { PadGuard } from '../lib/pad'
+import { bytesToBase64 } from '../lib/bytes'
 import { drainSse, padGuard, parseChunk, providerFailure, registerStreamer, type Delta } from './api'
 import { streamClaude } from './anthropic'
 import { ChatError } from '../lib/types'
@@ -85,3 +86,29 @@ async function* streamCustom(body: Record<string, unknown>, signal?: AbortSignal
   } finally { try { reader.releaseLock?.() } catch { /* cancelled while a read was pending */ } }
 }
 registerStreamer(CUSTOM_PREFIX, streamCustom)
+
+/** Picture generation against the provider itself (audit F1, the reference app's Images API pattern):
+ * POST {base}/images/generations with the user's own key; the BotConnector token and account never appear. */
+export async function generateCustomImage(req: { model: string; prompt: string; size: string }, signal?: AbortSignal): Promise<{ b64: string; mime: string; left?: number }> {
+  const ref = parseCustomId(req.model); const ep = ref ? await endpointOf(ref.providerId) : null
+  if (!ref || !ep) throw new ChatError('rejected')
+  const timeout = new AbortController(); const timer = setTimeout(() => timeout.abort(), 240_000)
+  const onAbort = () => timeout.abort(); signal?.addEventListener('abort', onAbort)
+  try {
+    let r: Response
+    try { r = await fetch(`${ep.baseUrl}/images/generations`, { method: 'POST', headers: { 'content-type': 'application/json', accept: 'application/json', ...authHeader(ep.apiKey) }, body: JSON.stringify({ model: ref.raw, prompt: req.prompt, n: 1, size: req.size }), signal: timeout.signal }) }
+    catch (e) { throw (e as Error)?.name === 'AbortError' ? new ChatError('aborted') : new ChatError('network') }
+    if (!r.ok) throw providerFailure(r.status, waitOf(r.headers.get('retry-after')))
+    const j: any = await r.json().catch(() => null)
+    const first = j?.data?.[0] ?? {}
+    if (typeof first.b64_json === 'string' && first.b64_json) return { b64: first.b64_json, mime: typeof first.mime_type === 'string' ? first.mime_type : 'image/png' }
+    if (typeof first.url === 'string' && /^https?:\/\//i.test(first.url)) {
+      let img: Response
+      try { img = await fetch(first.url, { signal: timeout.signal }) } catch (e) { throw (e as Error)?.name === 'AbortError' ? new ChatError('aborted') : new ChatError('network') }
+      if (!img.ok) throw providerFailure(img.status)
+      const head = (img.headers.get('content-type') || '').split(';')[0] ?? ''
+      return { b64: bytesToBase64(new Uint8Array(await img.arrayBuffer())), mime: /^image\//.test(head) ? head : 'image/png' }
+    }
+    throw new ChatError('unavailable')
+  } finally { clearTimeout(timer); signal?.removeEventListener('abort', onAbort) }
+}

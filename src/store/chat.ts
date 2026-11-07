@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { fetchCapabilities, fetchImageModels, fetchModels, generateImage, streamCompletion, webFetch, type Capabilities, type ImageModel } from '../api/api'
+import { generateCustomImage } from '../api/custom'
 import { deleteConv, listConvs, putConv } from '../db/convs'
 import { noteDeleted, registerReload, scheduleSync, useSync } from '../sync/store'
 import { runAssistant, TOOLS } from '../lib/agent'
@@ -16,7 +17,7 @@ import '../laptop/api'
 import { laptopModels, useLaptop } from '../laptop/store'
 import { localModels, useLocal } from '../local/store'
 import { useAuth } from './auth'
-import { customModels } from './providers'
+import { customImageModels, customModels } from './providers'
 import { readByok, useSearch } from './search'
 import { instructionBlock } from './instructions'
 import { activeBooks } from './worldbook'
@@ -167,7 +168,9 @@ export const useChat = create<ChatState>((set, get) => {
         const im = get().imageModels.find(x => x.id === get().imageModelId); if (!im) throw new ChatError('unavailable')
         const size = (opts.size && im.sizes.includes(opts.size) ? opts.size : defaultSize(im.sizes)) ?? '1024x1024'
         const refs = im.refs ? [...history].reverse().find(x => x.role === 'user')?.attachments?.filter(a => a.kind === 'image' && a.dataUrl).map(a => a.dataUrl!) : undefined   // photos the user attached in the Studio: "edit" starts from them
-        const g = await generateImage({ model: im.id, prompt: question, size, refs }, signal)
+        const g = im.id.startsWith('custom:')
+          ? await generateCustomImage({ model: im.id, prompt: question, size }, signal)   // the provider itself, with its own key (audit F1)
+          : await generateImage({ model: im.id, prompt: question, size, refs }, signal)
         const file = await saveImage(g.b64, g.mime)
         update({ content: '', attachments: [{ kind: 'image', name: 'image', mime: g.mime, size: file.size, uri: file.uri }], image: { prompt: question, modelId: im.id, model: im.name, size, ...(g.left !== undefined ? { left: String(g.left) } : {}) }, model: im.name, ms: Date.now() - t0 }, true)
       } else if (opts.research && caps?.web !== false) {
@@ -234,8 +237,9 @@ export const useChat = create<ChatState>((set, get) => {
     syncCustom() {
       set(s => {
         const models = [...s.models.filter(m => m.access !== 'custom' && m.access !== 'local' && m.access !== 'laptop'), ...customModels(), ...localModels(), ...laptopModels()]
+        const imageModels = [...s.imageModels.filter(m => m.access !== 'custom'), ...customImageModels()]
         const modelId = models.some(m => m.id === s.modelId && m.available) ? s.modelId : (models.find(m => m.access === 'free' && m.available)?.id ?? models.find(m => m.available)?.id ?? '')
-        return { models, modelId, draft: s.draft && !s.activeId ? { ...s.draft, model: modelId } : s.draft }
+        return { models, imageModels, modelId, draft: s.draft && !s.activeId ? { ...s.draft, model: modelId } : s.draft }
       })
     },
     selectImageModel(id) { set({ imageModelId: id }) },

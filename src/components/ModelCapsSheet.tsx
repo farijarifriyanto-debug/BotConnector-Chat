@@ -7,11 +7,15 @@ import { useProviders, type ModelCaps } from '../store/providers'
 import { useTheme } from '../theme/theme'
 import { Icon } from './Icons'
 
-const CAPS: { key: keyof ModelCaps; label: 'capsTools' | 'capsVision' | 'capsReasoning'; note?: 'capsToolsNote' }[] = [
+const CAPS: { key: keyof ModelCaps; label: 'capsTools' | 'capsVision' | 'capsReasoning' | 'capsImage'; note?: 'capsToolsNote' }[] = [
   { key: 'tools', label: 'capsTools', note: 'capsToolsNote' },
   { key: 'vision', label: 'capsVision' },
   { key: 'reasoning', label: 'capsReasoning' },
+  { key: 'image', label: 'capsImage' },
 ]
+
+/** Anthropic's native Messages transport has no picture endpoint, so the marking would promise nothing that works. */
+const IMAGELESS = new Set(['anthropic'])
 
 /**
  * Per-model capability marking (audit E3): a custom provider's models start with everything off;
@@ -37,7 +41,7 @@ export function ModelCapsSheet({ visible, onClose }: { visible: boolean; onClose
             <View key={`${p.id}:${m.id}`} testID={`caps-row-${p.id}-${m.id}`} style={{ marginTop: 14, borderRadius: 14, borderWidth: 1, borderColor: th.line, backgroundColor: th.surface, padding: 14 }}>
               <Text style={{ color: th.ink, fontSize: 15, fontWeight: '600' }}>{m.name || m.id}</Text>
               <Text style={{ color: th.muted, fontSize: 12.5, marginTop: 2 }}>{p.name}</Text>
-              {CAPS.map(c => (
+              {CAPS.filter(c => c.key !== 'image' || !IMAGELESS.has(p.kind ?? '')).map(c => (
                 <Pressable key={c.key} testID={`cap-${c.key}-${p.id}-${m.id}`} accessibilityRole="button" accessibilityState={{ selected: !!m.caps?.[c.key] }} onPress={() => toggle(p.id, m.id, c.key, !!m.caps?.[c.key])}
                   style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12, minHeight: 44 }}>
                   <View style={{ flex: 1 }}>

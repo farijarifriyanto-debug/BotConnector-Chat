@@ -1,12 +1,13 @@
 import Storage from 'expo-sqlite/kv-store'
 import * as SecureStore from 'expo-secure-store'
 import { create } from 'zustand'
-import { configureEndpoints, customId, listRemoteModels, normalizeBaseUrl, type UrlProblem } from '../api/custom'
+import { configureEndpoints, customId, listRemoteModels, normalizeBaseUrl, type Endpoint, type UrlProblem } from '../api/custom'
 import { listAnthropicModels } from '../api/anthropic'
 import { newId } from '../lib/conv'
 import { ChatError, type ChatModel } from '../lib/types'
+import type { ImageModel } from '../api/api'
 
-export interface ModelCaps { tools?: boolean; vision?: boolean; reasoning?: boolean }
+export interface ModelCaps { tools?: boolean; vision?: boolean; reasoning?: boolean; image?: boolean }
 export interface Provider { id: string; name: string; baseUrl: string; kind?: 'anthropic'; models: { id: string; name?: string; caps?: ModelCaps }[]; updatedAt: number }
 const KEY = 'bc.providers.v1', keyName = (id: string) => `bc.pk.${id}`
 const SECURE = { keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK }
@@ -79,4 +80,10 @@ configureEndpoints(async id => { const p = useProviders.getState().providers.fin
 /** Provider models as picker entries. Capabilities start unknown (off) and only turn on where the user marked them, so Web search uses search-first (works with every model) until then. */
 export const customModels = (): ChatModel[] => useProviders.getState().providers.flatMap(p => p.models.map((m): ChatModel => ({
   id: customId(p.id, m.id), name: m.name || m.id, access: 'custom', provider: p.name, vision: m.caps?.vision ?? false, tools: m.caps?.tools ?? false, reasoning: m.caps?.reasoning ?? false, available: true,
+})))
+
+/** Provider models the user marked as picture-makers (audit F1). Text-to-picture only: the reference
+ * app's photo-editing route needs the multipart edits endpoint, which we don't ship here yet. */
+export const customImageModels = (): ImageModel[] => useProviders.getState().providers.flatMap(p => p.models.filter(m => m.caps?.image).map((m): ImageModel => ({
+  id: customId(p.id, m.id), name: m.name || m.id, access: 'custom', sizes: ['1024x1024', '1536x1024', '1024x1536'], refs: false,
 })))
