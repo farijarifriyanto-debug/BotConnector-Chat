@@ -42,7 +42,7 @@ describe('grouped settings (Kelivo layout, approved mockup)', () => {
     expect(r.getByTestId('val-language').props.children).toBe('English')
     expect([].concat(r.getByTestId('val-providers').props.children as never).join('')).toContain('2')   // two providers connected
     expect([].concat(r.getByTestId('val-local').props.children as never).join('')).toContain('1')        // one local model installed
-    expect(r.getByTestId('val-search').props.children).toBe('BotConnector Search')
+    expect(r.getByTestId('val-search').props.children).toBe('Brave')
   })
   it('filters rows by the search box and says when nothing matches', async () => {
     const r = await render(wrap(<SettingsSheet visible onClose={() => {}} />))

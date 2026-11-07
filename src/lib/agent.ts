@@ -1,5 +1,5 @@
 import { sha256 } from 'js-sha256'
-import { streamCompletion, webFetch, webSearch, type SearchHit, type TokenUsage, type ToolCallDelta } from '../api/api'
+import { streamCompletion, webSearch, type SearchHit, type TokenUsage, type ToolCallDelta } from '../api/api'
 import type { ChatModel, Source, WebFetchMode } from './types'
 import type { ToolDef } from './toolSchema'
 
@@ -149,7 +149,7 @@ export async function runAssistant(o: RunOptions): Promise<RunResult> {
   /** Names the model was actually offered this run; anything else it emits is refused, never executed. */
   const offered = new Set((o.tools ?? TOOLS).map(t => t.function.name))
   const mode = o.fetchMode ?? 'follow'
-  const readPage = o.fetchPage ?? webFetch
+  const readPage = o.fetchPage
 
   if (o.web) {   // the user switched web search on: always search first with their question (a model left to decide may just ask for details), then answer from the results; tool-capable models may search more
     const q = lastUserText(messages)
@@ -202,6 +202,7 @@ export async function runAssistant(o: RunOptions): Promise<RunResult> {
           const asked = typeof args.start_index === 'number' && Number.isFinite(args.start_index) ? Math.floor(args.start_index) : 0
           if (asked < 0) result = JSON.stringify({ error: 'start_index must not be negative' })
           else if (mode === 'off') result = JSON.stringify({ error: 'Reading web pages is turned off' })
+          else if (!readPage) result = JSON.stringify({ error: 'The chosen search provider cannot read pages. Pick Tavily or Exa, whose API returns pages.' })
           else {
             o.onStatus({ reading: args.url })
             const page = await readPage(args.url, o.signal); addSources(sources, [{ title: page.title, url: args.url }])

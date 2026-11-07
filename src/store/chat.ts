@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { fetchCapabilities, fetchImageModels, fetchModels, generateImage, streamCompletion, webFetch, type Capabilities, type ImageModel } from '../api/api'
+import { fetchCapabilities, fetchImageModels, fetchModels, generateImage, streamCompletion, type Capabilities, type ImageModel } from '../api/api'
 import { generateCustomImage } from '../api/custom'
 import { deleteConv, listConvs, putConv } from '../db/convs'
 import { noteDeleted, registerReload, scheduleSync, useSync } from '../sync/store'
@@ -191,7 +191,12 @@ export const useChat = create<ChatState>((set, get) => {
         ]
         const res = await runAssistant({ model: m, messages: applyLore(messages, activatedEntries(activeBooks(), messages)), tools, onTool: (name, args) => runLocalTool(name, args, localContext), web: webOn, think: opts.think !== false, fileIds: isPrivate(m) ? [] : fileIdsOf(history, projectFileIds(base, convs)), signal,
           fetchMode,
-          fetchPage: fetchMode === 'follow' ? async (url, signal) => (await readByok(url, signal)) ?? webFetch(url, signal) : webFetch,
+          fetchPage: fetchMode === 'follow' ? async (url, signal) => {
+            // The reader is the user's own search provider when it can read; nothing else, and never a cloud lane (audit E2).
+            const r = await readByok(url, signal)
+            if (!r) throw new ChatError('unavailable')
+            return r
+          } : undefined,
           onText: c => noteText(c), onReasoning: r => noteReasoning(r), onStatus: s => set({ status: s }) })
         update({ content: res.content, reasoning: res.reasoning || undefined, sources: res.sources.length ? res.sources : undefined, searched: res.queries.length ? res.queries : undefined, ms: Date.now() - t0,
           ...(res.usage ? { promptTokens: res.usage.input, completionTokens: res.usage.output, ...(res.usage.cached ? { cachedTokens: res.usage.cached } : {}), totalTokens: res.usage.total } : {}),

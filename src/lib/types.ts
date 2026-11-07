@@ -43,7 +43,7 @@ export interface ProjectFile { fileId: string; name: string; mime: string; size:
 export interface Source { title: string; url: string; /** short id the model cites with [cite:id] */ id?: string }
 
 /** How the model reads a page it was given: follow the search provider, the app's own reader, or nothing. */
-export type WebFetchMode = 'follow' | 'local' | 'off'
+export type WebFetchMode = 'follow' | 'off'
 
 export interface Msg {
   id: string
