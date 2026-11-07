@@ -1,4 +1,5 @@
 import * as DocumentPicker from 'expo-document-picker'
+import * as FileSystem from 'expo-file-system'
 import * as ImageManipulator from 'expo-image-manipulator'
 import * as ImagePicker from 'expo-image-picker'
 import { newId } from './conv'
@@ -31,4 +32,32 @@ export async function pickDocument(): Promise<LocalAttachment | null> {
   const r = await DocumentPicker.getDocumentAsync({ type: DOC_TYPES, copyToCacheDirectory: true, multiple: false })
   const f = r.canceled ? null : r.assets[0]; if (!f) return null
   return { id: newId(), kind: 'file', name: f.name, mime: f.mimeType || 'application/octet-stream', size: f.size ?? 0, sourceUri: f.uri, status: 'uploading', progress: 0 }
+}
+
+/** Plain-text documents the phone can read by itself (audit F3): the extension decides, the mime fills in. */
+export const isPlainDoc = (name: string, mime: string): boolean => {
+  const ext = (name.split('.').pop() ?? '').toLowerCase()
+  if (ext && ['txt', 'md', 'markdown', 'csv', 'json'].includes(ext)) return true
+  if (ext && ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'exe', 'bin', 'zip'].includes(ext)) return false
+  return /^text\//i.test(mime) || mime === 'application/json'
+}
+/** Documents are read whole but clipped: 80 pages of notes would blow past every request limit. */
+export const DOC_TEXT_MAX = 40_000
+export const clipDocText = (text: string): string =>
+  text.length <= DOC_TEXT_MAX ? text : text.slice(0, DOC_TEXT_MAX) + `\n\n[file truncated; only the first ${DOC_TEXT_MAX} characters were included]`
+
+/**
+ * Pick a document and read its text right here, with no upload and no account (the reference app's
+ * on-device extraction, text formats only until a PDF/DOCX parser exists). 'unsupported' - the type
+ * is not readable on this phone yet; 'error' - the file could not be read; null - cancelled.
+ */
+export async function pickLocalDocument(): Promise<LocalAttachment | null | 'unsupported' | 'error'> {
+  const r = await DocumentPicker.getDocumentAsync({ type: DOC_TYPES, copyToCacheDirectory: true, multiple: false })
+  const f = r.canceled ? null : r.assets[0]; if (!f) return null
+  const mime = f.mimeType || 'application/octet-stream'
+  if (!isPlainDoc(f.name, mime)) return 'unsupported'
+  try {
+    const text = await FileSystem.readAsStringAsync(f.uri, { encoding: FileSystem.EncodingType.UTF8 })
+    return { id: newId(), kind: 'file', name: f.name, mime, size: f.size ?? text.length, text: clipDocText(text), status: 'ready' }
+  } catch { return 'error' }
 }

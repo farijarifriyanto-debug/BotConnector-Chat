@@ -42,8 +42,11 @@ export function toApiMessages(system: string, messages: Msg[], vision: boolean):
   if (system.trim()) out.push({ role: 'system', content: system.trim() })
   for (const m of messages) {
     if (m.role === 'assistant') { if (m.content.trim()) out.push({ role: 'assistant', content: m.content }); else if (m.image && !m.error) out.push({ role: 'assistant', content: '[An image was generated for the previous request.]' }); continue }
+    // On-phone documents (audit F3) carry their extracted text inside the message itself; cloud documents (fileId) are retrieved by the server instead.
+    const docs = (m.attachments ?? []).filter(a => a.kind === 'file' && a.text && !a.fileId && a.status !== 'failed')
+    const content = docs.length ? (m.content || '') + docs.map(a => `\n\n[Attached file: ${a.name}]\n${a.text}`).join('') : m.content
     const images = vision ? (m.attachments ?? []).filter(a => a.kind === 'image' && a.dataUrl) : []
-    out.push({ role: 'user', content: images.length ? [{ type: 'text', text: m.content || ' ' }, ...images.map(a => ({ type: 'image_url', image_url: { url: a.dataUrl } }))] : m.content })
+    out.push({ role: 'user', content: images.length ? [{ type: 'text', text: content || ' ' }, ...images.map(a => ({ type: 'image_url', image_url: { url: a.dataUrl } }))] : content })
   }
   return out
 }

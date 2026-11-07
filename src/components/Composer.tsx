@@ -85,6 +85,9 @@ export function Composer({ busy, model, webAvailable, onSend, onStop, image, fil
       // Explicit user action also constitutes consent for nonsensitive cloud processing.
       // Default remains local; the backend independently enforces the cloud limit.
       options.push({ text: t('attachFileCloud'), action: () => { void att.addDocument(true) } })
+    } else {
+      // No cloud plan to lean on: the phone reads plain-text documents itself, honestly refusing the rest (audit F3).
+      options.push({ text: t('attachFile'), action: () => { void att.addLocalDocument().then(d => { if (d === 'unsupported') setNote(t('docUnsupported')); if (d === 'error') setNote(t('docReadFail')) }) } })
     }
     if (Platform.OS === 'ios') {
       ActionSheetIOS.showActionSheetWithOptions({

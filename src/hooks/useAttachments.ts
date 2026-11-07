@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { fileStatus, isTerminal, uploadFile } from '../api/files'
-import { pickDocument, pickPhotos, takePhoto, MAX_IMAGES, type LocalAttachment } from '../lib/attachments'
+import { pickDocument, pickLocalDocument, pickPhotos, takePhoto, MAX_IMAGES, type LocalAttachment } from '../lib/attachments'
 import type { Attachment } from '../lib/types'
 
 const POLL_MS = 1500, GIVE_UP_MS = 15 * 60_000
@@ -36,10 +36,16 @@ export function useAttachments() {
     if (r) setItems(l => [...l, r]); return 'ok'
   }, [photoCount])
   const addDocument = useCallback(async (cloudProcessingAllowed = false) => { const d = await pickDocument(); if (!d) return; setItems(l => [...l, d]); void track(d, cloudProcessingAllowed) }, [track])
+  /** Documents read on this phone (audit F3): no upload and no account; the text joins the message. */
+  const addLocalDocument = useCallback(async (): Promise<'unsupported' | 'error' | null | undefined> => {
+    const d = await pickLocalDocument()
+    if (!d || d === 'unsupported' || d === 'error') return d
+    setItems(l => [...l, d])
+  }, [])
   const remove = useCallback((id: string) => { aborts.current.get(id)?.abort(); aborts.current.delete(id); setItems(l => l.filter(x => x.id !== id)) }, [])
   const clear = useCallback(() => { aborts.current.forEach(a => a.abort()); aborts.current.clear(); setItems([]) }, [])
   const ready = items.every(x => x.kind === 'image' || x.status === 'ready')
   /** the persisted form of the attachments (no local file paths or progress) */
   const toMessage = (): Attachment[] => items.map(({ id: _id, sourceUri: _s, progress: _p, ...a }) => a)
-  return { items, photoCount, addPhotos, addCamera, addDocument, remove, clear, ready, hasFailed: items.some(x => x.status === 'failed'), toMessage }
+  return { items, photoCount, addPhotos, addCamera, addDocument, addLocalDocument, remove, clear, ready, hasFailed: items.some(x => x.status === 'failed'), toMessage }
 }

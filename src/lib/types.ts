@@ -30,6 +30,8 @@ export interface Attachment {
   uri?: string
   /** Documents are uploaded once; the server retrieves the relevant parts for every question. */
   fileId?: string
+  /** Documents read on this phone (no account): the extracted text joined to the message itself. */
+  text?: string
   status?: 'uploading' | 'processing' | 'ready' | 'failed'
   /** when this file started uploading/processing (drives the elapsed-time hint) */
   startedAt?: number
