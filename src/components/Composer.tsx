@@ -3,6 +3,9 @@ import { ActionSheetIOS, ActivityIndicator, Alert, Image, Modal, Platform, Press
 import { requestRecordingPermissionsAsync, setAudioModeAsync, useAudioStream } from 'expo-audio'
 import { Text, TextInput } from './Text'
 import { useAttachments } from '../hooks/useAttachments'
+import { transcribeCustomAudio } from '../api/custom'
+import { wrapPcmAsWav } from '../lib/wav'
+import { byokAsrTarget } from '../store/providers'
 import { useT } from '../hooks/useT'
 import { MAX_IMAGES } from '../lib/attachments'
 import { insertPhrase } from '../lib/phrases'
@@ -51,8 +54,11 @@ export function Composer({ busy, model, webAvailable, onSend, onStop, image, fil
   const [text, setText] = useState(''), [web, setWeb] = useState(false), [research, setResearch] = useState(false), [img, setImg] = useState(false), [note, setNote] = useState<string | null>(null)
   const [rowW, setRowW] = useState(0), [more, setMore] = useState(false), [quick, setQuick] = useState(false), [manage, setManage] = useState(false)
   const [sel, setSel] = useState<{ start: number; end: number } | null>(null)
-  const audio = useAudioStream({ sampleRate: 16000, channels: 1, encoding: 'int16', onBuffer: buffer => { session.current?.send(new Uint8Array(buffer.data)) } })
+  const audio = useAudioStream({ sampleRate: 16000, channels: 1, encoding: 'int16', onBuffer: buffer => { if (asrMode.current) byokPcm.current.push(new Uint8Array(buffer.data)); else session.current?.send(new Uint8Array(buffer.data)) } })
   const session = useRef<AsrSession | null>(null)
+  /** Voice without an account (audit F2): the buffers pile up in memory and are wrapped as a wav on finish. */
+  const asrMode = useRef<{ providerId: string; model: string } | null>(null)
+  const byokPcm = useRef<Uint8Array[]>([])
   const baseText = useRef(''), voiceFailed = useRef(false), finalWait = useRef<{ resolve: (text: string | null) => void } | null>(null)
   const [recording, setRecording] = useState(false), [transcribing, setTranscribing] = useState(false), [recordedMs, setRecordedMs] = useState(0)
   const hasPhotos = att.photoCount > 0
@@ -114,22 +120,27 @@ export function Composer({ busy, model, webAvailable, onSend, onStop, image, fil
     if (!voice?.available || recording || transcribing || busy) return
     setNote(null); voiceFailed.current = false
     const token = useAuth.getState().session?.accessToken
-    if (!token) { setNote(t('micDenied')); return }
+    const asrTarget = !token ? byokAsrTarget() : null
+    if (!token && !asrTarget) { setNote(t('micDenied')); return }
     try {
       const permission = await requestRecordingPermissionsAsync()
       if (!permission.granted) { setNote(t('micDenied')); return }
       await setAudioModeAsync({ playsInSilentMode: true, allowsRecording: true })
       await audio.stream.start()
       baseText.current = text
-      session.current = openAsrStream({
-        token, sampleRate: audio.stream.sampleRate || 16000, language: /^[a-z]{2,3}$/.test(lang) ? lang : undefined,
-        handlers: {
-          onPartial: partial => setText(joinVoiceText(baseText.current, partial)),
-          onFinal: final => { setText(joinVoiceText(baseText.current, final)); finalWait.current?.resolve(final) },
-          onError: () => { voiceFailed.current = true; setNote(t('micFail')); finalWait.current?.resolve(null) },
-          onClose: () => finalWait.current?.resolve(null),
-        },
-      })
+      asrMode.current = asrTarget
+      byokPcm.current = []
+      if (token && !asrTarget) {
+        session.current = openAsrStream({
+          token, sampleRate: audio.stream.sampleRate || 16000, language: /^[a-z]{2,3}$/.test(lang) ? lang : undefined,
+          handlers: {
+            onPartial: partial => setText(joinVoiceText(baseText.current, partial)),
+            onFinal: final => { setText(joinVoiceText(baseText.current, final)); finalWait.current?.resolve(final) },
+            onError: () => { voiceFailed.current = true; setNote(t('micFail')); finalWait.current?.resolve(null) },
+            onClose: () => finalWait.current?.resolve(null),
+          },
+        })
+      }
       setRecording(true)
     } catch { setNote(t('micFail')) }
   }
@@ -138,13 +149,25 @@ export function Composer({ busy, model, webAvailable, onSend, onStop, image, fil
   const finishVoice = async (sendAfter: boolean) => {
     if (!recording || transcribing) return
     setRecording(false); setTranscribing(true)
-    const done = new Promise<string | null>(resolve => {
-      const timer = setTimeout(() => resolve(null), 8000)
-      finalWait.current = { resolve: text => { clearTimeout(timer); resolve(text) } }
-    })
-    try { session.current?.finish(); session.current = null } catch { /* the socket may already be closed */ }
-    try { audio.stream.stop() } catch { /* already stopped */ }
-    const final = await Promise.race([done, new Promise<null>(resolve => setTimeout(() => resolve(null), 8000))])
+    let done: Promise<string | null> | null = null
+    if (asrMode.current) {
+      // Account-less voice (audit F2): the recording wraps up as a wav and lands at the provider.
+      const byok = asrMode.current; asrMode.current = null
+      try { audio.stream.stop() } catch { /* already stopped */ }
+      const wav = wrapPcmAsWav(byokPcm.current, audio.stream.sampleRate || 16000)
+      byokPcm.current = []
+      let text: string | null = null
+      try { text = (await transcribeCustomAudio(byok.providerId, byok.model, wav, /^[a-z]{2,3}$/.test(lang) ? lang : undefined)).text } catch { voiceFailed.current = true }
+      done = Promise.resolve(text)
+    } else {
+      done = new Promise<string | null>(resolve => {
+        const timer = setTimeout(() => resolve(null), 8000)
+        finalWait.current = { resolve: text => { clearTimeout(timer); resolve(text) } }
+      })
+      try { session.current?.finish(); session.current = null } catch { /* the socket may already be closed */ }
+      try { audio.stream.stop() } catch { /* already stopped */ }
+    }
+    const final = await Promise.race([done, new Promise<null>(resolve => setTimeout(() => resolve(null), 30000))])
     finalWait.current = null
     setTranscribing(false)
     void setAudioModeAsync({ allowsRecording: false }).catch(() => {})
@@ -161,6 +184,7 @@ export function Composer({ busy, model, webAvailable, onSend, onStop, image, fil
   const cancelVoice = async () => {
     if (!recording) return
     setRecording(false)
+    asrMode.current = null; byokPcm.current = []
     try { session.current?.cancel(); session.current = null } catch { /* already closed */ }
     try { audio.stream.stop() } catch { /* already stopped */ }
     setText(baseText.current); setSel(null)

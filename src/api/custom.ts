@@ -87,6 +87,29 @@ async function* streamCustom(body: Record<string, unknown>, signal?: AbortSignal
 }
 registerStreamer(CUSTOM_PREFIX, streamCustom)
 
+/** Voice transcription against the provider itself (audit F2, the reference app's transcription-service pattern):
+ * the recording is wrapped as a wav on this phone and posted to {base}/audio/transcriptions with the user's
+ * key and their marked transcription model; the BotConnector token and account never appear. */
+export async function transcribeCustomAudio(providerId: string, asrModel: string, wav: Uint8Array, language?: string, signal?: AbortSignal): Promise<{ text: string }> {
+  const ep = await endpointOf(providerId)
+  if (!ep) throw new ChatError('rejected')
+  const timeout = new AbortController(); const timer = setTimeout(() => timeout.abort(), 120_000)
+  const onAbort = () => timeout.abort(); signal?.addEventListener('abort', onAbort)
+  try {
+    const form = new FormData()
+    form.append('file', new Blob([wav as unknown as BlobPart], { type: 'audio/wav' }), 'audio.wav')
+    form.append('model', asrModel)
+    if (language) form.append('language', language)
+    let r: Response
+    try { r = await fetch(`${ep.baseUrl}/audio/transcriptions`, { method: 'POST', headers: { accept: 'application/json', ...authHeader(ep.apiKey) }, body: form, signal: timeout.signal }) }
+    catch (e) { throw (e as Error)?.name === 'AbortError' ? new ChatError('aborted') : new ChatError('network') }
+    if (!r.ok) throw providerFailure(r.status, waitOf(r.headers.get('retry-after')))
+    const j: any = await r.json().catch(() => null)
+    if (typeof j?.text === 'string' && j.text) return { text: j.text }
+    throw new ChatError('unavailable')
+  } finally { clearTimeout(timer); signal?.removeEventListener('abort', onAbort) }
+}
+
 /** Picture generation against the provider itself (audit F1, the reference app's Images API pattern):
  * POST {base}/images/generations with the user's own key; the BotConnector token and account never appear. */
 export async function generateCustomImage(req: { model: string; prompt: string; size: string }, signal?: AbortSignal): Promise<{ b64: string; mime: string; left?: number }> {

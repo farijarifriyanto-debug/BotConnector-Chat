@@ -1,13 +1,13 @@
 import Storage from 'expo-sqlite/kv-store'
 import * as SecureStore from 'expo-secure-store'
 import { create } from 'zustand'
-import { configureEndpoints, customId, listRemoteModels, normalizeBaseUrl, type Endpoint, type UrlProblem } from '../api/custom'
+import { configureEndpoints, customId, listRemoteModels, normalizeBaseUrl, type UrlProblem } from '../api/custom'
 import { listAnthropicModels } from '../api/anthropic'
 import { newId } from '../lib/conv'
 import { ChatError, type ChatModel } from '../lib/types'
 import type { ImageModel } from '../api/api'
 
-export interface ModelCaps { tools?: boolean; vision?: boolean; reasoning?: boolean; image?: boolean }
+export interface ModelCaps { tools?: boolean; vision?: boolean; reasoning?: boolean; image?: boolean; asr?: boolean }
 export interface Provider { id: string; name: string; baseUrl: string; kind?: 'anthropic'; models: { id: string; name?: string; caps?: ModelCaps }[]; updatedAt: number }
 const KEY = 'bc.providers.v1', keyName = (id: string) => `bc.pk.${id}`
 const SECURE = { keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK }
@@ -87,3 +87,11 @@ export const customModels = (): ChatModel[] => useProviders.getState().providers
 export const customImageModels = (): ImageModel[] => useProviders.getState().providers.flatMap(p => p.models.filter(m => m.caps?.image).map((m): ImageModel => ({
   id: customId(p.id, m.id), name: m.name || m.id, access: 'custom', sizes: ['1024x1024', '1536x1024', '1024x1536'], refs: false,
 })))
+
+/** A provider with a transcription model marked (audit F2): the microphone can use it with no account. */
+export const byokAsrAvailable = (): boolean => useProviders.getState().providers.some(p => p.models.some(m => m.caps?.asr))
+/** The first marked transcription model with its provider, for the microphone. */
+export const byokAsrTarget = (): { providerId: string; model: string } | null => {
+  for (const p of useProviders.getState().providers) for (const m of p.models) if (m.caps?.asr) return { providerId: p.id, model: m.id }
+  return null
+}

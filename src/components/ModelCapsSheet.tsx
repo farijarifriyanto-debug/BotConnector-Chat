@@ -7,11 +7,12 @@ import { useProviders, type ModelCaps } from '../store/providers'
 import { useTheme } from '../theme/theme'
 import { Icon } from './Icons'
 
-const CAPS: { key: keyof ModelCaps; label: 'capsTools' | 'capsVision' | 'capsReasoning' | 'capsImage'; note?: 'capsToolsNote' }[] = [
+const CAPS: { key: keyof ModelCaps; label: 'capsTools' | 'capsVision' | 'capsReasoning' | 'capsImage' | 'capsAsr'; note?: 'capsToolsNote' }[] = [
   { key: 'tools', label: 'capsTools', note: 'capsToolsNote' },
   { key: 'vision', label: 'capsVision' },
   { key: 'reasoning', label: 'capsReasoning' },
   { key: 'image', label: 'capsImage' },
+  { key: 'asr', label: 'capsAsr' },
 ]
 
 /** Anthropic's native Messages transport has no picture endpoint, so the marking would promise nothing that works. */
@@ -41,7 +42,7 @@ export function ModelCapsSheet({ visible, onClose }: { visible: boolean; onClose
             <View key={`${p.id}:${m.id}`} testID={`caps-row-${p.id}-${m.id}`} style={{ marginTop: 14, borderRadius: 14, borderWidth: 1, borderColor: th.line, backgroundColor: th.surface, padding: 14 }}>
               <Text style={{ color: th.ink, fontSize: 15, fontWeight: '600' }}>{m.name || m.id}</Text>
               <Text style={{ color: th.muted, fontSize: 12.5, marginTop: 2 }}>{p.name}</Text>
-              {CAPS.filter(c => c.key !== 'image' || !IMAGELESS.has(p.kind ?? '')).map(c => (
+              {CAPS.filter(c => (c.key !== 'image' && c.key !== 'asr') || !IMAGELESS.has(p.kind ?? '')).map(c => (
                 <Pressable key={c.key} testID={`cap-${c.key}-${p.id}-${m.id}`} accessibilityRole="button" accessibilityState={{ selected: !!m.caps?.[c.key] }} onPress={() => toggle(p.id, m.id, c.key, !!m.caps?.[c.key])}
                   style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12, minHeight: 44 }}>
                   <View style={{ flex: 1 }}>
