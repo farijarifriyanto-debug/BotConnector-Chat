@@ -54,16 +54,16 @@ describe('search_web', () => {
 describe('fetch_url', () => {
   it('returns a 10.000 character window with next_start_index and honours start_index', async () => {
     const content = 'x'.repeat(PAGE_SIZE) + 'tail'
-    mockFetch.mockResolvedValue({ title: 'Page', text: content })
+    const readOwn = jest.fn(async () => ({ title: 'Page', text: content }))
     mockStream.mockImplementationOnce(() => toolCall('fetch_url', { url: 'https://a.example/x' })).mockImplementationOnce(() => answer('ok'))
-    await runAssistant(opts({ web: true, fetchMode: 'local' }))
+    await runAssistant(opts({ web: true, fetchMode: 'follow', fetchPage: readOwn }))
 
     const first = JSON.parse(lastTool(1))
     expect(first).toEqual({ url: 'https://a.example/x', title: 'Page', content: 'x'.repeat(PAGE_SIZE), total_length: content.length, next_start_index: PAGE_SIZE })
 
     mockStream.mockReset()
     mockStream.mockImplementationOnce(() => toolCall('fetch_url', { url: 'https://a.example/x', start_index: PAGE_SIZE })).mockImplementationOnce(() => answer('ok'))
-    await runAssistant(opts({ web: true, fetchMode: 'local' }))
+    await runAssistant(opts({ web: true, fetchMode: 'follow', fetchPage: readOwn }))
     expect(JSON.parse(lastTool(1))).toEqual({ url: 'https://a.example/x', title: 'Page', content: 'tail', total_length: content.length })
   })
 
@@ -89,6 +89,14 @@ describe('fetch_url', () => {
     await runAssistant(opts({ web: true, fetchMode: 'follow', fetchPage: readOwn }))
     expect(readOwn).toHaveBeenCalledWith('https://a.example/x', undefined)
     expect(JSON.parse(lastTool(1)).content).toBe('from my provider')
+    expect(mockFetch).not.toHaveBeenCalled()
+  })
+
+  it('says so when the chosen search provider cannot read pages, never asking BotConnector', async () => {
+    mockFetch.mockResolvedValueOnce({ title: 'Cloud', text: 'from BotConnector' })
+    mockStream.mockImplementationOnce(() => toolCall('fetch_url', { url: 'https://a.example/x' })).mockImplementationOnce(() => answer('ok'))
+    await runAssistant(opts({ web: true, fetchMode: 'follow' }))
+    expect(String(JSON.parse(lastTool(1)).error)).toContain('read pages')
     expect(mockFetch).not.toHaveBeenCalled()
   })
 })

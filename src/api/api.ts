@@ -173,19 +173,15 @@ export async function withRetry<T>(run: () => Promise<T>, signal?: AbortSignal):
 }
 
 export interface SearchHit { title: string; url: string; snippet: string }
-/** Chosen by the app: the user's own search provider (BYOK), or null to use BotConnector Search. */
+/** Chosen by the app: the user's own search provider. Web search runs nowhere else. */
 let byokSearch: (q: string, signal?: AbortSignal) => Promise<SearchHit[] | null> = async () => null
 export const configureByokSearch = (fn: typeof byokSearch) => { byokSearch = fn }
 export async function webSearch(query: string, signal?: AbortSignal): Promise<SearchHit[]> {
-  const own = await byokSearch(query, signal); if (own) return own
-  const j = await withRetry(() => postJson<{ results?: any[] }>('/v1/web/search', { query, max_results: 5 }, signal), signal)
-  return (j.results ?? []).filter(x => x && typeof x.url === 'string').map(x => ({ title: String(x.title || x.url).slice(0, 200), url: String(x.url), snippet: String(x.snippet || '').slice(0, 700) }))
-}
-export async function webFetch(url: string, signal?: AbortSignal): Promise<{ title: string; text: string }> {
-  const j = await withRetry(() => postJson<any>('/v1/web/fetch', { url }, signal), signal)
-  // The tool hands out 10.000 characters at a time and continues with start_index, so the whole
-  // page has to survive here; clipping at a few thousand would silently end every long page.
-  return { title: String(j?.title || url).slice(0, 200), text: String(j?.content ?? j?.text ?? j?.markdown ?? '').slice(0, 200000) }
+  const own = await byokSearch(query, signal)
+  if (own) return own
+  // No provider key is set: the UI offered no web option, so reaching here means an internal mistake,
+  // not a reason to send the user's words to any cloud lane.
+  throw new ChatError('rejected')
 }
 
 // ---------- streaming completions ----------

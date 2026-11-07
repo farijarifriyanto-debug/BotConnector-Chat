@@ -2,8 +2,8 @@
 import { fetch } from 'expo/fetch'
 import { ChatError } from '../lib/types'
 
-export type SearchProviderId = 'botconnector' | 'brave' | 'tavily' | 'exa' | 'parallel'
-export const BYOK_PROVIDERS: Exclude<SearchProviderId, 'botconnector'>[] = ['brave', 'tavily', 'exa', 'parallel']
+export type SearchProviderId = 'brave' | 'tavily' | 'exa' | 'parallel'
+export const BYOK_PROVIDERS: SearchProviderId[] = ['brave', 'tavily', 'exa', 'parallel']
 export interface Hit { title: string; url: string; snippet: string }
 const clip = (s: unknown, n: number) => (typeof s === 'string' ? s.slice(0, n) : '')
 
@@ -18,7 +18,7 @@ async function json(url: string, init: { method: string; headers: Record<string,
 const shape = (rows: any[], title: string, url: string, snippet: (r: any) => unknown): Hit[] =>
   rows.filter(r => r && typeof r[url] === 'string' && /^https?:\/\//.test(r[url])).map(r => ({ title: clip(r[title] || r[url], 200), url: r[url], snippet: clip(snippet(r), 700) }))
 
-export async function byokSearch(id: Exclude<SearchProviderId, 'botconnector'>, key: string, query: string, max: number, signal?: AbortSignal): Promise<Hit[]> {
+export async function byokSearch(id: SearchProviderId, key: string, query: string, max: number, signal?: AbortSignal): Promise<Hit[]> {
   if (!key.trim()) throw new ChatError('badkey')
   const k = key.trim()
   switch (id) {
@@ -30,13 +30,13 @@ export async function byokSearch(id: Exclude<SearchProviderId, 'botconnector'>, 
 }
 
 /** Providers whose own API can also return the text of a page (not just search results). */
-export const BYOK_READERS: Exclude<SearchProviderId, 'botconnector'>[] = ['tavily', 'exa']
+export const BYOK_READERS: SearchProviderId[] = ['tavily', 'exa']
 
 /**
  * Reads one page through the user's own provider, like the reference app's page-reading setting.
  * Returns null when that provider cannot read pages or returns nothing usable.
  */
-export async function byokFetch(id: Exclude<SearchProviderId, 'botconnector'>, key: string, url: string, signal?: AbortSignal): Promise<{ title: string; text: string } | null> {
+export async function byokFetch(id: SearchProviderId, key: string, url: string, signal?: AbortSignal): Promise<{ title: string; text: string } | null> {
   if (!BYOK_READERS.includes(id) || !key.trim()) return null
   const k = key.trim()
   if (id === 'tavily') {

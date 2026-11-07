@@ -40,12 +40,16 @@ describe('BYOK web search', () => {
     expect(mockFetch).not.toHaveBeenCalled()
   })
 
-  it('uses BotConnector Search when no key is set', async () => {
+  it('refuses honestly when no key is set instead of asking BotConnector', async () => {
+    const Storage = (require('expo-sqlite/kv-store') as { default: { setItemSync: (k: string, v: string) => void } }).default
+    Storage.setItemSync('bc.search.provider', 'botconnector')
+    let fresh: typeof import('../src/store/search') | null = null
+    jest.isolateModules(() => { fresh = require('../src/store/search') })   // an upgrade from an old build carries the stale choice
+    expect(fresh!.useSearch.getState().provider).toBe('brave')
     useSearch.setState({ provider: 'brave' })
     expect(await searchByok('q')).toBeNull()                       // chosen provider but no key saved
-    mockFetch.mockResolvedValueOnce(reply(200, { results: [{ title: 'BC', url: 'https://bc.example', snippet: 's' }] }))
-    expect((await webSearch('q'))[0].title).toBe('BC')
-    expect(String(mockFetch.mock.calls[0][0])).toContain('/v1/web/search')
+    await expect(webSearch('q')).rejects.toMatchObject({ kind: 'rejected' })
+    expect(mockFetch).not.toHaveBeenCalled()
   })
 
   it('never silently switches recipient when the chosen provider fails or returns nothing (audit E4)', async () => {

@@ -1,8 +1,10 @@
 // Deep research: plan → search → read → (one gap check) → write a report whose every claim cites a numbered source.
 // Runs in the browser through the same audited routes as normal chat (web-search, web-fetch, completions); nothing new on the server.
 import type { ApiMessage } from './agent'
-import { streamCompletion, webFetch, webSearch, type SearchHit } from '../api/api'
+import { streamCompletion, webSearch, type SearchHit } from '../api/api'
+import { readByok } from '../store/search'
 import { fixCitations } from './cite'
+import { ChatError } from './types'
 import type { ChatModel, Source } from './types'
 
 export const LIMITS = { plan: 5, gap: 3, searches: 8, reads: 12, firstReads: 8, perDomain: 2, pageChars: 6000, fetchMs: 25_000, concurrency: 3, minPageChars: 200 }
@@ -93,7 +95,9 @@ async function ask(stream: Deps['stream'], model: ChatModel, system: string, use
 }
 
 export async function research(o: ResearchOptions): Promise<ResearchResult> {
-  const deps: Deps = { search: webSearch, fetchPage: webFetch, stream: streamCompletion, ...o.deps }
+  const deps: Deps = { search: webSearch, stream: streamCompletion,
+  // pages are read by the user's own reader when it can; there is no cloud lane
+  fetchPage: async (u, s) => { const r = await readByok(u, s); if (!r) throw new ChatError('unavailable'); return r }, ...o.deps }
   const today = (o.today ?? new Date()).toISOString().slice(0, 10)
   const pool = new Map<string, Hit>(), used: string[] = [], taken = new Set<string>(), docs: Doc[] = []
   let searches = 0

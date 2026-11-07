@@ -73,7 +73,7 @@ export function SettingsSheet({ visible, onClose }: { visible: boolean; onClose:
       { kw: 'providers penyedia qr api key openai gemini openrouter model connect sambung', node: row('open-providers', t('provTitle'), t('setProvidersN', { n: providers.length }), () => setProvidersOpen(true)) },
       { kw: 'local lokal on-device perangkat gguf download unduh model', node: row('open-local', t('locManage'), t('setLocalN', { n: localCount }), () => setLocal(true)) },
       { kw: 'capabilities kemampuan tools visi vision reasoning', node: row('open-caps', t('capsTitle'), null, () => setCaps(true), t('capsTools') + ' · ' + t('capsVision') + ' · ' + t('capsReasoning')) },
-      { kw: 'search pencarian web brave tavily exa parallel reader membaca halaman', node: row('open-search', t('srchTitle'), searchProvider === 'botconnector' ? t('srchDefault') : SEARCH_NAME[searchProvider] ?? searchProvider, () => setSearch(true)) },
+      { kw: 'search pencarian web brave tavily exa parallel reader membaca halaman', node: row('open-search', t('srchTitle'), SEARCH_NAME[searchProvider] ?? searchProvider, () => setSearch(true)) },
       { kw: 'translate terjemahan translation', node: row('open-translate-settings', t('trModelLabel'), null, () => setTrSettings(true)) },
       { kw: 'tools deskripsi description', node: row('open-tools', t('toolTitle'), null, () => setTools(true)) },
       { kw: 'memory memori tools', node: segRow('row-toolsmem', t('toolsMemTitle'), seg<'on' | 'off'>(s.toolsMemory ? 'on' : 'off', [{ v: 'on', label: t('msgMetaOn') }, { v: 'off', label: t('msgMetaOff') }], v => s.setToolsMemory(v === 'on'))) },
