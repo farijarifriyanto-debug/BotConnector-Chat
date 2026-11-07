@@ -1,7 +1,7 @@
 import { normalizeBaseUrl } from '../api/custom'
 import { base64ToBytes } from './bytes'
 
-export interface ProviderImport { name: string; baseUrl: string; apiKey: string }
+export interface ProviderImport { name: string; baseUrl: string; apiKey: string; kind?: 'anthropic' }
 export class ProviderImportError extends Error {
   constructor(public readonly code: 'format' | 'unsupported' | 'url') { super(code); this.name = 'ProviderImportError' }
 }
@@ -24,10 +24,11 @@ export function decodeProviderImport(raw: string): ProviderImport {
       if (obj[field] !== undefined && typeof obj[field] !== 'string') throw new Error()
     }
   } catch { throw new ProviderImportError('format') }
-  if (obj.type !== 'openai' && obj.type !== 'google') throw new ProviderImportError('unsupported')
+  if (obj.type !== 'openai' && obj.type !== 'google' && obj.type !== 'claude' && obj.type !== 'anthropic') throw new ProviderImportError('unsupported')
+  const claude = obj.type === 'claude' || obj.type === 'anthropic'
   const google = obj.type === 'google'
   const supplied = (obj.baseUrl as string | undefined)?.trim()
-  let baseUrl = supplied || (google ? 'https://generativelanguage.googleapis.com/v1beta' : 'https://api.openai.com/v1')
+  let baseUrl = supplied || (google ? 'https://generativelanguage.googleapis.com/v1beta' : claude ? 'https://api.anthropic.com/v1' : 'https://api.openai.com/v1')
   try {
     const u = new URL(baseUrl)
     if (u.search || u.hash || u.username || u.password) throw new Error()
@@ -35,6 +36,11 @@ export function decodeProviderImport(raw: string): ProviderImport {
   const normalized = normalizeBaseUrl(baseUrl)
   if (!normalized.ok) throw new ProviderImportError('url')
   baseUrl = normalized.url
+  if (claude) {
+    // The native Messages transport appends /messages, so only a /v1-style base can be spoken to honestly.
+    if (!baseUrl.endsWith('/v1')) throw new ProviderImportError('unsupported')
+    return { name: (obj.name as string | undefined)?.trim().slice(0, 40) || 'Anthropic', baseUrl, apiKey: (obj.apiKey as string | undefined)?.trim() || '', kind: 'anthropic' as const }
+  }
   if (google) {
     // This application has no native Gemini transport; adapt only the known official base.
     if (!['https://generativelanguage.googleapis.com/v1beta', 'https://generativelanguage.googleapis.com/v1beta/openai'].includes(baseUrl)) throw new ProviderImportError('unsupported')

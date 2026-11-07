@@ -45,16 +45,17 @@ function ProviderEditor({ onClose }: { onClose: () => void }) {
   const visible = true
   const th = useTheme(), t = useT(), providers = useProviders(s => s.providers)
   const [picked, setPicked] = useState<string | null>(null), [adding, setAdding] = useState(false), [name, setName] = useState(''), [url, setUrl] = useState(''), [key, setKey] = useState(''), [manual, setManual] = useState('')
+  const [kind, setKind] = useState<'anthropic' | undefined>(undefined)
   const [busy, setBusy] = useState(false), [err, setErr] = useState<AddFailure | null>(null), [refreshing, setRefreshing] = useState<string | null>(null)
   const [mode, setMode] = useState<'list' | 'choices' | 'scan' | 'paste' | 'form'>('list'), [raw, setRaw] = useState(''), [importError, setImportError] = useState<'qrInvalid' | 'qrUnsupported' | 'qrUrl' | null>(null), [imported, setImported] = useState(false), [reading, setReading] = useState(false)
   const epoch = useRef(0)
-  const reset = () => { epoch.current++; setMode('list'); setRaw(''); setImportError(null); setImported(false); setReading(false); setPicked(null); setAdding(false); setName(''); setUrl(''); setKey(''); setManual(''); setErr(null); setBusy(false) }
+  const reset = () => { epoch.current++; setMode('list'); setRaw(''); setImportError(null); setImported(false); setReading(false); setPicked(null); setAdding(false); setName(''); setUrl(''); setKey(''); setManual(''); setErr(null); setBusy(false); setKind(undefined) }
   useEffect(() => () => { epoch.current = -1 }, [])
   const changeMode = (next: typeof mode) => { epoch.current++; setMode(next); setImportError(null); setReading(false) }
   const importText = (text: string) => {
     try {
       const config = decodeProviderImport(text)
-      setName(config.name); setUrl(config.baseUrl); setKey(config.apiKey); setManual(''); setRaw(''); setPicked(null); setImported(true); setAdding(true); changeMode('form')
+      setName(config.name); setUrl(config.baseUrl); setKey(config.apiKey); setManual(''); setRaw(''); setPicked(null); setImported(true); setAdding(true); changeMode('form'); setKind(config.kind)
     } catch (e) { setImportError(e instanceof ProviderImportError && e.code === 'unsupported' ? 'qrUnsupported' : e instanceof ProviderImportError && e.code === 'url' ? 'qrUrl' : 'qrInvalid'); if (mode === 'scan') setMode('choices') }
   }
   const gallery = async () => {
@@ -74,7 +75,7 @@ function ProviderEditor({ onClose }: { onClose: () => void }) {
   const close = () => { if (!busy) { reset(); onClose() } }
   const save = async () => {
     setBusy(true); setErr(null)
-    const r = await useProviders.getState().add({ name, baseUrl: url, apiKey: key, manualModels: manual })
+    const r = await useProviders.getState().add({ name, baseUrl: url, apiKey: key, manualModels: manual, kind })
     if (r.ok) { useChat.getState().syncCustom(); reset() } else { setBusy(false); setErr(r.reason) }
   }
   const refresh = async (id: string) => { setRefreshing(id); await useProviders.getState().refresh(id); useChat.getState().syncCustom(); setRefreshing(null) }
@@ -84,7 +85,7 @@ function ProviderEditor({ onClose }: { onClose: () => void }) {
   const pickPreset = (presetName: string, destination: string) => {
     if (busy) return
     if (destination !== url) setKey('')
-    setImported(false); setErr(null); setPicked(presetName); setName(presetName === 'other' ? '' : presetName); setUrl(destination)
+    setImported(false); setErr(null); setPicked(presetName); setName(presetName === 'other' ? '' : presetName); setUrl(destination); setKind(undefined)
   }
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={close}>
@@ -111,6 +112,11 @@ function ProviderEditor({ onClose }: { onClose: () => void }) {
               <Text style={{ color: th.muted, fontSize: 12.5, marginTop: 10 }}>{t('provOtherNote')}</Text>
               <Text style={{ color: th.muted, marginTop: 16 }}>{t('provName')}</Text>
               <TextInput testID="prov-name" accessibilityLabel={t('provName')} style={input} value={name} onChangeText={setName} placeholder={t('provName')} placeholderTextColor={th.muted2} editable={!busy} maxLength={40} />
+              <Text style={{ color: th.muted, marginTop: 16 }}>{t('provKind')}</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
+                <Pressable testID="prov-kind-openai" disabled={busy} onPress={() => setKind(undefined)} accessibilityRole="button" accessibilityState={{ selected: kind !== 'anthropic', disabled: busy }} style={{ minHeight: 44, justifyContent: 'center', paddingHorizontal: 12, paddingVertical: 7, borderRadius: 16, borderWidth: 1, borderColor: kind !== 'anthropic' ? th.accent : th.lineStrong, backgroundColor: kind !== 'anthropic' ? th.accentSoft : th.surface }}><Text style={{ color: kind !== 'anthropic' ? th.accentStrong : th.ink, fontSize: 13.5 }}>{t('provKindOpenai')}</Text></Pressable>
+                <Pressable testID="prov-kind-claude" disabled={busy} onPress={() => setKind('anthropic')} accessibilityRole="button" accessibilityState={{ selected: kind === 'anthropic', disabled: busy }} style={{ minHeight: 44, justifyContent: 'center', paddingHorizontal: 12, paddingVertical: 7, borderRadius: 16, borderWidth: 1, borderColor: kind === 'anthropic' ? th.accent : th.lineStrong, backgroundColor: kind === 'anthropic' ? th.accentSoft : th.surface }}><Text style={{ color: kind === 'anthropic' ? th.accentStrong : th.ink, fontSize: 13.5 }}>{t('provKindClaude')}</Text></Pressable>
+              </View>
               <Text style={{ color: th.muted, marginTop: 16 }}>{t('provUrlLabel')}</Text>
               <TextInput testID="prov-url" style={input} value={url} onChangeText={setUrl} placeholder={t('provUrlLabel')} placeholderTextColor={th.muted2} autoCapitalize="none" autoCorrect={false} keyboardType="url" editable={!busy} />
               <Text style={{ color: th.muted, marginTop: 16 }}>{t('provKey')}</Text>

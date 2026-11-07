@@ -23,7 +23,7 @@ describe('Kelivo provider configuration', () => {
   it('preserves a private-network endpoint', () => {
     expect(decodeProviderImport(qr({ type: 'openai', baseUrl: 'http://192.168.1.4:11434/v1' })).baseUrl).toBe('http://192.168.1.4:11434/v1')
   })
-  it.each(['claude', 'oauth', 'other'])('rejects unsupported %s rather than silently misrouting', type => {
+  it.each(['oauth', 'other'])('rejects unsupported %s rather than silently misrouting', type => {
     expect(() => decodeProviderImport(qr({ type }))).toThrow('unsupported')
   })
   it.each(['https://name:secret@example.com/v1', 'https://example.com/v1?key=secret', 'https://example.com/v1#fragment', 'http://example.com/v1', 'javascript:alert(1)'])('rejects a destination that cannot be used unchanged: %s', baseUrl => {

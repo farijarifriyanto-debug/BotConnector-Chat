@@ -1,7 +1,8 @@
 // Custom OpenAI-compatible providers. These calls go straight to the provider with the user's own key; the BotConnector token is never sent.
 import { fetch } from 'expo/fetch'
 import { PadGuard } from '../lib/pad'
-import { padGuard, drainSse, parseChunk, registerStreamer, type Delta } from './api'
+import { drainSse, padGuard, parseChunk, providerFailure, registerStreamer, type Delta } from './api'
+import { streamClaude } from './anthropic'
 import { ChatError } from '../lib/types'
 
 export const CUSTOM_PREFIX = 'custom:'
@@ -12,7 +13,7 @@ export function parseCustomId(id: string): { providerId: string; raw: string } |
   return i > 0 ? { providerId: rest.slice(0, i), raw: rest.slice(i + 1) } : null
 }
 
-export interface Endpoint { baseUrl: string; apiKey: string }
+export interface Endpoint { baseUrl: string; apiKey: string; kind?: 'anthropic' }
 let endpointOf: (providerId: string) => Promise<Endpoint | null> = async () => null
 /** The provider store tells this module where a provider's address and key live. */
 export const configureEndpoints = (fn: typeof endpointOf) => { endpointOf = fn }
@@ -39,22 +40,13 @@ export function normalizeBaseUrl(input: string): { ok: true; url: string } | { o
 
 const authHeader = (key: string): Record<string, string> => (key ? { authorization: `Bearer ${key}` } : {})
 
-function failure(status: number, wait?: number): ChatError {
-  const o = { status, retryAfterSeconds: wait }
-  if (status === 401 || status === 403) return new ChatError('badkey', o)
-  if (status === 402) return new ChatError('balance', o)
-  if (status === 413) return new ChatError('too_large', o)
-  if (status === 429) return new ChatError('capacity', o)
-  if (status >= 500) return new ChatError('unavailable', o)
-  return new ChatError('rejected', o)
-}
 const waitOf = (v: string | null) => { const n = Number(v); return v && Number.isFinite(n) && n >= 0 ? Math.ceil(n) : undefined }
 
 /** GET {base}/models. OpenAI shape ({data:[{id}]}); also accepts a bare array or Ollama's {models:[{name}]}. */
 export async function listRemoteModels(baseUrl: string, apiKey: string, signal?: AbortSignal): Promise<{ id: string; name?: string }[]> {
   let r: Response
   try { r = await fetch(`${baseUrl}/models`, { headers: { accept: 'application/json', ...authHeader(apiKey) }, signal }) } catch { throw new ChatError('network') }
-  if (!r.ok) throw failure(r.status, waitOf(r.headers.get('retry-after')))
+  if (!r.ok) throw providerFailure(r.status, waitOf(r.headers.get('retry-after')))
   const j: any = await r.json().catch(() => null)
   const rows: any[] = Array.isArray(j) ? j : Array.isArray(j?.data) ? j.data : Array.isArray(j?.models) ? j.models : []
   const seen = new Set<string>()
@@ -66,10 +58,11 @@ export async function listRemoteModels(baseUrl: string, apiKey: string, signal?:
 async function* streamCustom(body: Record<string, unknown>, signal?: AbortSignal): AsyncGenerator<Delta> {
   const ref = parseCustomId(String(body.model)); const ep = ref ? await endpointOf(ref.providerId) : null
   if (!ref || !ep) throw new ChatError('rejected')
+  if (ep.kind === 'anthropic') { yield* streamClaude(body, ep, signal); return }
   let r: Response
   try { r = await fetch(`${ep.baseUrl}/chat/completions`, { method: 'POST', headers: { 'content-type': 'application/json', accept: 'text/event-stream, application/json', ...authHeader(ep.apiKey) }, body: JSON.stringify({ ...body, model: ref.raw, stream: true }), signal }) }
   catch (e) { throw (e as Error)?.name === 'AbortError' ? new ChatError('aborted') : new ChatError('network') }
-  if (!r.ok) throw failure(r.status, waitOf(r.headers.get('retry-after')))
+  if (!r.ok) throw providerFailure(r.status, waitOf(r.headers.get('retry-after')))
   if (!(r.headers.get('content-type') || '').includes('text/event-stream') || !r.body) {
     const j = await r.json().catch(() => null); const d = j ? parseChunk(JSON.stringify(j)) : null
     if (d) yield { ...d, finish: d.finish ?? 'stop' }
