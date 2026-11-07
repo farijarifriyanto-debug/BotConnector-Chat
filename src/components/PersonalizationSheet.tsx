@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Switch, View } from 'react-native'
 import { Text, TextInput } from './Text'
 import { useT } from '../hooks/useT'
-import { MEMORY_ID } from '../lib/conv'
+import { MEMORY_ID, MEMORY_ITEM_MAX, MEMORY_MAX, SYSTEM_MAX } from '../lib/conv'
 import { useChat } from '../store/chat'
 import { useTheme } from '../theme/theme'
 import { Icon } from './Icons'
@@ -13,8 +13,8 @@ export function PersonalizationSheet({ visible, onClose }: { visible: boolean; o
   const [system, setSystem] = useState(''), [note, setNote] = useState('')
   useEffect(() => { if (visible) setSystem(rec?.system ?? '') }, [visible])   // eslint-disable-line react-hooks/exhaustive-deps
   const memory = rec?.memory ?? []
-  const close = () => { if (system !== (rec?.system ?? '')) void useChat.getState().saveMemory({ system: system.slice(0, 4000) }); onClose() }
-  const add = () => { const n = note.trim().slice(0, 300); if (!n || memory.length >= 50) return; void useChat.getState().saveMemory({ memory: [...memory, n] }); setNote('') }
+  const close = () => { if (system !== (rec?.system ?? '')) void useChat.getState().saveMemory({ system: system.slice(0, SYSTEM_MAX) }); onClose() }
+  const add = () => { const n = note.trim().slice(0, MEMORY_ITEM_MAX); if (!n || memory.length >= MEMORY_MAX) return; void useChat.getState().saveMemory({ memory: [...memory, n] }); setNote('') }
   const input = { borderWidth: 1, borderColor: th.lineStrong, borderRadius: 10, padding: 12, color: th.ink, backgroundColor: th.surface, fontSize: 16 } as const
   const label = (txt: string) => <Text style={{ color: th.muted2, fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 18, marginBottom: 6 }}>{txt}</Text>
   return (
@@ -26,12 +26,12 @@ export function PersonalizationSheet({ visible, onClose }: { visible: boolean; o
         </View>
         <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
           {label(t('customInstr'))}
-          <TextInput testID="personal-system" style={[input, { minHeight: 110, textAlignVertical: 'top' }]} value={system} onChangeText={setSystem} multiline placeholder={t('customInstrPh')} placeholderTextColor={th.muted2} maxLength={4000} />
+          <TextInput testID="personal-system" style={[input, { minHeight: 110, textAlignVertical: 'top' }]} value={system} onChangeText={setSystem} multiline placeholder={t('customInstrPh')} placeholderTextColor={th.muted2} maxLength={SYSTEM_MAX} />
           {label(t('memoryTitle'))}
           <Text style={{ color: th.muted, fontSize: 13, lineHeight: 19 }}>{t('memoryNote')}</Text>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 12 }}><Text style={{ color: th.ink, flex: 1, paddingRight: 10 }}>{t('memoryUse')}</Text><Switch testID="sw-memory" value={rec?.useMemory !== false} onValueChange={v => void useChat.getState().saveMemory({ useMemory: v })} /></View>
           <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
-            <TextInput testID="personal-note" style={[input, { flex: 1 }]} value={note} onChangeText={setNote} onSubmitEditing={add} placeholder={t('memoryAddPh')} placeholderTextColor={th.muted2} maxLength={300} />
+            <TextInput testID="personal-note" style={[input, { flex: 1 }]} value={note} onChangeText={setNote} onSubmitEditing={add} placeholder={t('memoryAddPh')} placeholderTextColor={th.muted2} maxLength={MEMORY_ITEM_MAX} />
             <Pressable testID="personal-add" onPress={add} accessibilityRole="button" style={{ paddingHorizontal: 16, justifyContent: 'center', borderRadius: 10, backgroundColor: th.accent }}><Text style={{ color: th.accentInk, fontWeight: '700' }}>{t('memoryAdd')}</Text></Pressable>
           </View>
           {memory.length === 0 && <Text style={{ color: th.muted, marginTop: 14 }}>{t('memoryEmpty')}</Text>}

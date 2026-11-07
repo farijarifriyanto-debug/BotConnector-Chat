@@ -2,7 +2,7 @@ import type { ApiMessage } from './agent'
 import type { Conv, Msg, ProjectFile } from './types'
 
 export const MEMORY_ID = 'bc-memory-v1'
-export const MEMORY_MAX = 100, MEMORY_ITEM_MAX = 400, INSTR_MAX = 1500, PROJECT_FILES_MAX = 10
+export const MEMORY_MAX = 100, MEMORY_ITEM_MAX = 400, SYSTEM_MAX = 4000, PROJECT_FILES_MAX = 10
 
 import { randomUUID } from 'expo-crypto'
 export const newId = (): string => randomUUID()

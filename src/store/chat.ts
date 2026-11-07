@@ -7,9 +7,9 @@ import { applyOverrides } from '../lib/toolSchema'
 import { useToolSchema } from './toolSchema'
 import { deleteImagesOf, saveImage } from '../lib/images'
 import { defaultSize } from '../lib/modelPicker'
-import { MEMORY_ID, composedSystem, fileIdsOf, isChat, newConv, newId, titleFrom, toApiMessages, blankRecord, projectFileIds } from '../lib/conv'
+import { MEMORY_ID, MEMORY_ITEM_MAX, MEMORY_MAX, SYSTEM_MAX, composedSystem, fileIdsOf, isChat, newConv, newId, titleFrom, toApiMessages, blankRecord, projectFileIds } from '../lib/conv'
 import { research, ResearchError, type Progress } from '../lib/research'
-import { buildPrompt, languageName } from '../lib/translate'
+import { translateText } from '../lib/translate'
 import { ChatError, type Attachment, type ChatModel, type Conv, type Msg } from '../lib/types'
 import '../local/engine'
 import '../laptop/api'
@@ -55,6 +55,7 @@ const localContext: LocalContext = {
   clipboardWrite: async text => { await Clipboard.setStringAsync(text)  },
 }
 import { useSettings } from './settings'
+import { useTranslate } from './translate'
 
 const TITLE_PROMPT = 'Write a short title (at most 6 words) for this conversation, in the same language as the user. No quotes, no trailing punctuation. Reply with the title only.'
 export interface RunStatus { searching?: string; reading?: string; research?: Progress }
@@ -247,7 +248,13 @@ export const useChat = create<ChatState>((set, get) => {
     },
     async saveMemory(patch) {
       const cur = get().convs.find(c => c.id === MEMORY_ID) ?? { ...newConv(''), id: MEMORY_ID, kind: 'memory' as const }
-      const next = { ...cur, ...patch, updatedAt: Date.now() }
+      // one set of limits for the form and the memory tools, enforced here so no writer can exceed them (audit E7)
+      const clamped = {
+        ...patch,
+        ...(patch.memory ? { memory: patch.memory.slice(-MEMORY_MAX).map(m => m.slice(0, MEMORY_ITEM_MAX)) } : {}),
+        ...(patch.system !== undefined ? { system: patch.system.slice(0, SYSTEM_MAX) } : {}),
+      }
+      const next = { ...cur, ...clamped, updatedAt: Date.now() }
       set(s => ({ convs: sortConvs([next, ...s.convs.filter(c => c.id !== MEMORY_ID)]) }))   // not "put": this record must never become the open chat
       await putConv(next).catch(() => {})
     },
@@ -298,18 +305,16 @@ export const useChat = create<ChatState>((set, get) => {
     async translateMessage(msgId, code) {
       const s = get(), conv = currentConv(s), msg = conv?.messages.find(m => m.id === msgId)
       if (!conv || !msg || !msg.content.trim()) return { ok: false as const, kind: 'unavailable' }
-      const model = s.models.find(x => x.id === conv.model) ?? s.models.find(x => x.id === s.modelId)
+      // the same settings the Translate page uses, so "Translation model" means one thing everywhere (audit E6)
+      const tr = useTranslate.getState()
+      const model = (tr.model ? s.models.find(x => x.id === tr.model) : undefined) ?? s.models.find(x => x.id === conv.model) ?? s.models.find(x => x.id === s.modelId)
       translations.get(msgId)?.abort()
       const ctrl = new AbortController(); translations.set(msgId, ctrl)
       setTranslation(msgId, '')   // the card says "Translating…" until the first words arrive
-      let out = ''
       try {
-        for await (const d of streamCompletion({ model: model?.id ?? conv.model, messages: [{ role: 'user', content: buildPrompt('', languageName(code), msg.content) }], reasoning_effort: 'none' }, ctrl.signal)) {
-          if (d.content) { out += d.content; setTranslation(msgId, out) }
-        }
-        const done = out.trim()
-        setTranslation(msgId, done || undefined)
-        return done ? { ok: true as const } : { ok: false as const, kind: 'unavailable' }
+        const out = await translateText({ text: msg.content, target: code, model: model?.id ?? conv.model, prompt: tr.prompt, think: tr.think, signal: ctrl.signal, onText: text => setTranslation(msgId, text) })
+        setTranslation(msgId, out || undefined)
+        return out ? { ok: true as const } : { ok: false as const, kind: 'unavailable' }
       } catch (e) {
         if (ctrl.signal.aborted) return { ok: false as const, kind: 'aborted' }
         setTranslation(msgId, undefined)
