@@ -10,9 +10,8 @@ BotConnector is now a standalone **bring-your-own-key (BYOK)** AI chat client.
 - **Guideline 3.1.1.** There is **no BotConnector account, no sign-in, no balance, no credits, no plan and
   no in-app purchase**. Nothing is sold in the app and no price is shown. The Video Studio screen, the usage
   screen and the sign-in screens are gone. A person who used 2.0.0 keeps their chats; the old account
-  session is dropped on first launch. BotConnector appears in the provider list the same way OpenAI or
-  Anthropic do: an OpenAI-compatible endpoint where the person enters an API key they already hold. The app
-  does not sell, advertise or link to the purchase of that key, and does not unlock any feature with it.
+  session is dropped on first launch. Nothing in the app
+  leads to a BotConnector service: no preset, link or login.
 - **Providers.** The user connects an AI provider they already use (OpenAI, Anthropic Claude, Google
   Gemini, xAI, Mistral, DeepSeek, OpenRouter and similar, or a local server such as Ollama) with **their own
   API key**. The app talks **directly from the phone to that provider**. BotConnector does not proxy,

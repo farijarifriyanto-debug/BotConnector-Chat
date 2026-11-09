@@ -11,7 +11,6 @@ import { useTheme } from '../theme/theme'
 import { Icon } from './Icons'
 
 const PRESETS = [
-  { name: 'BotConnector', url: 'https://api.botconnector.id/v1' },
   { name: 'OpenAI', url: 'https://api.openai.com/v1' },
   { name: 'Google Gemini', url: 'https://generativelanguage.googleapis.com/v1beta/openai' },
   { name: 'xAI', url: 'https://api.x.ai/v1' },
