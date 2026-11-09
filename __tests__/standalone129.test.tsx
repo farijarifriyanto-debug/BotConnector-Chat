@@ -92,3 +92,14 @@ describe('agreement before the first provider is saved (Guideline 5.1.2(i))', ()
     expect(r.getByTestId('prov-save').props.accessibilityState.disabled).toBeFalsy()
   })
 })
+
+describe('BotConnector as a provider preset', () => {
+  it('fills the BotConnector endpoint and leaves the key empty for the person to enter', async () => {
+    useSettings.setState({ lang: 'en', dataConsent: true }); useProviders.setState({ providers: [] })
+    const r = await render(<ProvidersSheet visible onClose={() => {}} />)
+    await fireEvent.press(r.getByTestId('provider-manual'))
+    await fireEvent.press(r.getByTestId('preset-BotConnector'))
+    expect(r.getByTestId('prov-url').props.value).toBe('https://api.botconnector.id/v1')
+    expect(r.getByTestId('prov-key').props.value).toBe('')
+  })
+})
