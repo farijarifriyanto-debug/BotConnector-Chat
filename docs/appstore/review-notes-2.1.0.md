@@ -51,5 +51,4 @@ gives guidance instead of an error.
 - **On-device models** can be downloaded under **Settings → Local models** if you prefer not to use a
   remote key; no network credential is needed for that path.
 - The test key is scoped to the review period and can be rotated by us without an app update.
-- Not verified on a physical device at the time of writing: camera QR scanning on iPad and the upgrade
-  from 2.0.0. Device results are recorded separately before submission.
+- Not verified on a physical device at the time of writing: the upgrade from 2.0.0 and iPad layout. Device results are recorded separately before submission.
