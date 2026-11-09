@@ -48,12 +48,12 @@ describe('a provider that says "no balance"', () => {
 })
 
 describe('agreement before the first provider is saved (Guideline 5.1.2(i))', () => {
-  const qr = (value: unknown) => 'ai-provider:v1:' + btoa(JSON.stringify(value))
   const openForm = async () => {
     const r = await render(<ProvidersSheet visible onClose={() => {}} />)
-    await fireEvent.press(r.getByTestId('provider-paste'))
-    await fireEvent.changeText(r.getByTestId('provider-import-text'), qr({ type: 'openai', name: 'My AI', baseUrl: 'https://example.com/v1', apiKey: 'fake-key' }))
-    await fireEvent.press(r.getByTestId('provider-import-submit'))
+    await fireEvent.press(r.getByTestId('provider-manual'))
+    await fireEvent.changeText(r.getByTestId('prov-name'), 'My AI')
+    await fireEvent.changeText(r.getByTestId('prov-url'), 'https://example.com/v1')
+    await fireEvent.changeText(r.getByTestId('prov-key'), 'fake-key')
     return r
   }
   beforeEach(() => { useSettings.setState({ lang: 'en', dataConsent: false }); useProviders.setState({ providers: [] }) })

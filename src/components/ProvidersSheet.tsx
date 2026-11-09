@@ -1,6 +1,4 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { Camera } from 'expo-camera'
-import * as ImagePicker from 'expo-image-picker'
 import { decodeProviderImport, ProviderImportError } from '../lib/providerImport'
 import { ProviderQrScanner } from './ProviderQrScanner'
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, View } from 'react-native'
@@ -60,20 +58,6 @@ function ProviderEditor({ onClose }: { onClose: () => void }) {
       const config = decodeProviderImport(text)
       setName(config.name); setUrl(config.baseUrl); setKey(config.apiKey); setManual(''); setRaw(''); setPicked(null); setImported(true); setAdding(true); changeMode('form'); setKind(config.kind)
     } catch (e) { setImportError(e instanceof ProviderImportError && e.code === 'unsupported' ? 'qrUnsupported' : e instanceof ProviderImportError && e.code === 'url' ? 'qrUrl' : 'qrInvalid'); if (mode === 'scan') setMode('choices') }
-  }
-  const gallery = async () => {
-    if (reading) return
-    const token = ++epoch.current; setReading(true); setImportError(null)
-    try {
-      const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: false })
-      if (token !== epoch.current || result.canceled || !result.assets[0]) return
-      const codes = await Camera.scanFromURLAsync(result.assets[0].uri, ['qr'])
-      if (token !== epoch.current) return
-      const code = codes.find(c => c.data.startsWith('ai-provider:v1:'))
-      if (!code) { setImportError('qrInvalid'); return }
-      importText(code.data)
-    } catch { if (token === epoch.current) setImportError('qrInvalid') }
-    finally { if (token === epoch.current) setReading(false) }
   }
   const close = () => { if (!busy) { reset(); onClose() } }
   const save = async () => {
@@ -143,12 +127,8 @@ function ProviderEditor({ onClose }: { onClose: () => void }) {
             <Text accessibilityRole="header" style={{ color: th.ink, fontSize: 28, fontWeight: '600', letterSpacing: -0.6 }}>{t('connectChoice')}</Text>
             <Text style={{ color: th.muted, fontSize: 15, lineHeight: 23, marginTop: 10, marginBottom: 24 }}>{t('connectChoiceHint')}</Text>
             {([
-              { id: 'provider-scan', icon: 'Qr', title: 'qrScan', hint: 'qrHint', next: 'scan' },
               { id: 'provider-manual', icon: 'Key', title: 'connectManual', hint: 'connectManualHint', next: 'form' },
-            ] as const).map(option => <Pressable key={option.id} testID={option.id} accessibilityRole="button" onPress={() => { changeMode(option.next); if (option.next === 'form') setAdding(true) }} style={{ borderWidth: 1, borderColor: option.id === 'provider-scan' ? th.accent : th.lineStrong, backgroundColor: th.surface, borderRadius: 17, padding: 18, flexDirection: 'row', gap: 14, marginBottom: 12 }}><Icon name={option.icon} color={th.accentStrong} /><View style={{ flex: 1 }}><Text style={{ color: th.ink, fontWeight: '600', fontSize: 16 }}>{t(option.title)}</Text><Text style={{ color: th.muted, lineHeight: 20, marginTop: 7 }}>{t(option.hint)}</Text></View><Icon name="ChevR" color={th.muted} /></Pressable>)}
-            <Pressable testID="provider-gallery" accessibilityRole="button" disabled={reading} onPress={() => void gallery()} style={{ minHeight: 48, padding: 14 }}><Text style={{ color: th.accentStrong }}>{t('qrGallery')}</Text>{reading && <ActivityIndicator color={th.accent} />}</Pressable>
-            <Pressable testID="provider-paste" accessibilityRole="button" onPress={() => changeMode('paste')} style={{ minHeight: 48, padding: 14 }}><Text style={{ color: th.accentStrong }}>{t('qrPaste')}</Text></Pressable>
-            <Text style={{ color: th.muted, fontSize: 13, lineHeight: 21, marginTop: 18 }}>{t('qrPrivacy')}</Text>
+            ] as const).map(option => <Pressable key={option.id} testID={option.id} accessibilityRole="button" onPress={() => { changeMode(option.next); if (option.next === 'form') setAdding(true) }} style={{ borderWidth: 1, borderColor: th.lineStrong, backgroundColor: th.surface, borderRadius: 17, padding: 18, flexDirection: 'row', gap: 14, marginBottom: 12 }}><Icon name={option.icon} color={th.accentStrong} /><View style={{ flex: 1 }}><Text style={{ color: th.ink, fontWeight: '600', fontSize: 16 }}>{t(option.title)}</Text><Text style={{ color: th.muted, lineHeight: 20, marginTop: 7 }}>{t(option.hint)}</Text></View><Icon name="ChevR" color={th.muted} /></Pressable>)}
             <Text style={{ color: th.muted, fontSize: 12, lineHeight: 19, marginTop: 16 }}>{t('qrCost')}</Text>
           </View> : (
             <View style={{ marginTop: 12 }}>

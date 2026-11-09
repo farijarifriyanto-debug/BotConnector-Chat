@@ -22,8 +22,8 @@ BotConnector is now a standalone **bring-your-own-key (BYOK)** AI chat client.
   person's messages and any files or images they attach are sent from the device to that provider and that
   the provider's own privacy policy applies, and requires a tick to continue. The agreement is remembered
   after the provider is saved.
-- **Camera.** Used to scan a provider QR code and to take photos the person attaches to a chat. The
-  permission text says so.
+- **Camera.** Used only to take photos the person attaches to a chat. QR import of providers is switched
+  off in this version.
 
 ## Region change (Guideline 5, China)
 
@@ -34,7 +34,7 @@ only to storefronts outside China, where the app lets people connect providers t
 ## Steps for the reviewer
 
 1. Launch the app. On the empty chat screen tap **Connect AI** (or open **Settings → Providers**).
-2. Choose **Enter an API key** (or **Scan QR code** with the sample QR supplied in App Review Information).
+2. Choose **Enter an API key**.
 3. Pick the **OpenAI** preset under **Quick start**.
 4. Paste the limited test key: `[LIMITED-TEST-API-KEY]` (a real, rate-limited key is supplied with the
    submission in App Review Information; it is never part of the repository).
