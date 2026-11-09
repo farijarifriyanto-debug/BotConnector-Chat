@@ -12,7 +12,7 @@ const nl: Record<string, string> = {
   dAcctWrong: 'Het wachtwoord is onjuist.', delete: 'Chat verwijderen', deleteChatQ: 'Deze chat verwijderen?', done: 'Klaar',
   emptySub: 'Vraag iets, zoek op het web of voeg een bestand toe om samen te vatten.', emptyTitle: 'Waarmee kan ik helpen?',
   errAuth: 'Je sessie is verlopen. Log opnieuw in.', errBadKey: 'De aanbieder heeft de API-sleutel geweigerd. Controleer hem in Instellingen → Aanbieders.',
-  errBalance: 'Dit model heeft PAYG-saldo nodig. Laad op in de Workspace of kies een gratis of inbegrepen model.', errCapacity: 'Het model is druk. Probeer het over {s} seconden opnieuw.',
+  errCapacity: 'Het model is druk. Probeer het over {s} seconden opnieuw.',
   errCapacityNoWait: 'Het model is druk. Probeer het zo opnieuw of kies een ander model.', errFiles: 'Het bijgevoegde bestand kon niet worden gebruikt (wordt het nog verwerkt, of bevat je abonnement bestanden?).',
   errNetwork: 'Verbindingsprobleem. Controleer je internet en probeer het opnieuw.', errPlan: 'Dit model vereist een betaald abonnement. Kies een ander model.',
   errPrivacy: 'De privacymodus blokkeert dit. Open de privacyinstellingen van de Workspace om cloud-AI toe te staan.',

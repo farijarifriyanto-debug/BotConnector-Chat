@@ -12,7 +12,7 @@ const ms: Record<string, string> = {
   dAcctWrong: 'Kata laluan salah.', delete: 'Padam sembang', deleteChatQ: 'Padam sembang ini?', done: 'Selesai',
   emptySub: 'Tanya apa sahaja, cari di web, atau lampirkan fail untuk diringkaskan.', emptyTitle: 'Apa yang boleh saya bantu?',
   errAuth: 'Sesi anda telah tamat. Log masuk semula.', errBadKey: 'Pembekal menolak kunci API. Semak di Tetapan → Pembekal.',
-  errBalance: 'Model ini memerlukan baki PAYG. Tambah nilai di Workspace atau pilih model percuma atau yang termasuk dalam pelan.', errCapacity: 'Model sedang sibuk. Cuba lagi dalam {s} saat.',
+  errCapacity: 'Model sedang sibuk. Cuba lagi dalam {s} saat.',
   errCapacityNoWait: 'Model sedang sibuk. Cuba lagi sebentar nanti atau pilih model lain.', errFiles: 'Fail yang dilampirkan tidak dapat digunakan (adakah ia masih diproses, atau pelan anda termasuk fail?).',
   errNetwork: 'Masalah sambungan. Semak internet anda dan cuba lagi.', errPlan: 'Model ini memerlukan pelan berbayar. Pilih model lain.',
   errPrivacy: 'Mod privasi menyekat ini. Buka tetapan privasi Workspace untuk membenarkan AI awan.',

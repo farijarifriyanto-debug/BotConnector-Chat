@@ -12,7 +12,7 @@ const it: Record<string, string> = {
   dAcctWrong: 'La password non è corretta.', delete: 'Elimina chat', deleteChatQ: 'Eliminare questa chat?', done: 'Fine',
   emptySub: 'Chiedi qualsiasi cosa, cerca sul web o allega un file da riassumere.', emptyTitle: 'Come posso aiutarti?',
   errAuth: 'La sessione è terminata. Accedi di nuovo.', errBadKey: 'Il provider ha rifiutato la chiave API. Controllala in Impostazioni → Provider.',
-  errBalance: 'Questo modello richiede saldo PAYG. Ricarica nel Workspace o scegli un modello gratuito o incluso.', errCapacity: 'Il modello è occupato. Riprova tra {s} secondi.',
+  errCapacity: 'Il modello è occupato. Riprova tra {s} secondi.',
   errCapacityNoWait: 'Il modello è occupato. Riprova tra poco o scegli un altro modello.', errFiles: 'Non è stato possibile usare il file allegato (è ancora in elaborazione o il tuo piano include i file?).',
   errNetwork: 'Problema di connessione. Controlla internet e riprova.', errPlan: 'Questo modello richiede un piano a pagamento. Scegli un altro modello.',
   errPrivacy: 'La modalità privacy lo blocca. Apri le impostazioni privacy del Workspace per consentire l’IA cloud.',

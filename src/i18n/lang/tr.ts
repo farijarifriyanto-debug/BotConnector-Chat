@@ -12,7 +12,7 @@ const tr: Record<string, string> = {
   dAcctWrong: 'Parola yanlış.', delete: 'Sohbeti sil', deleteChatQ: 'Bu sohbet silinsin mi?', done: 'Bitti',
   emptySub: 'Her şeyi sorun, web’de arayın veya özetlenecek bir dosya ekleyin.', emptyTitle: 'Nasıl yardımcı olabilirim?',
   errAuth: 'Oturumunuz sona erdi. Tekrar giriş yapın.', errBadKey: 'Sağlayıcı API anahtarını reddetti. Ayarlar → Sağlayıcılar bölümünden kontrol edin.',
-  errBalance: 'Bu model PAYG bakiyesi gerektirir. Workspace’ten yükleyin veya ücretsiz ya da pakete dahil bir model seçin.', errCapacity: 'Model meşgul. {s} saniye sonra tekrar deneyin.',
+  errCapacity: 'Model meşgul. {s} saniye sonra tekrar deneyin.',
   errCapacityNoWait: 'Model meşgul. Birazdan tekrar deneyin veya başka bir model seçin.', errFiles: 'Ekli dosya kullanılamadı (hâlâ işleniyor olabilir mi, planınız dosyaları içeriyor mu?).',
   errNetwork: 'Bağlantı sorunu. İnternetinizi kontrol edip tekrar deneyin.', errPlan: 'Bu model ücretli bir plan gerektirir. Başka bir model seçin.',
   errPrivacy: 'Gizlilik modu bunu engelliyor. Bulut yapay zekâya izin vermek için Workspace gizlilik ayarlarını açın.',

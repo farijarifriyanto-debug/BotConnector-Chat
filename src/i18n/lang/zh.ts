@@ -12,7 +12,7 @@ const zh: Record<string, string> = {
   dAcctWrong: '密码错误。', delete: '删除聊天', deleteChatQ: '删除此聊天？', done: '完成',
   emptySub: '随便问点什么，搜索网络，或添加文件让我总结。', emptyTitle: '有什么可以帮你？',
   errAuth: '你的会话已结束，请重新登录。', errBadKey: '服务商拒绝了 API 密钥。请在 设置 → 服务商 中检查。',
-  errBalance: '此模型需要 PAYG 余额。请在 Workspace 充值，或选择免费或套餐内的模型。', errCapacity: '模型正忙，请 {s} 秒后重试。',
+  errCapacity: '模型正忙，请 {s} 秒后重试。',
   errCapacityNoWait: '模型正忙，请稍后重试或选择其他模型。', errFiles: '无法使用所添加的文件（它是否仍在处理，或你的套餐是否包含文件功能？）。',
   errNetwork: '连接出现问题，请检查网络后重试。', errPlan: '此模型需要付费套餐，请选择其他模型。',
   errPrivacy: '隐私模式阻止了此操作。请打开 Workspace 的隐私设置以允许云端 AI。',

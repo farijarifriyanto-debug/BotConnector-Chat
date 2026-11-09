@@ -12,7 +12,7 @@ const de: Record<string, string> = {
   dAcctWrong: 'Das Passwort ist falsch.', delete: 'Chat löschen', deleteChatQ: 'Diesen Chat löschen?', done: 'Fertig',
   emptySub: 'Frag etwas, suche im Web oder hänge eine Datei zum Zusammenfassen an.', emptyTitle: 'Wobei kann ich helfen?',
   errAuth: 'Deine Sitzung ist abgelaufen. Melde dich erneut an.', errBadKey: 'Der Anbieter hat den API-Schlüssel abgelehnt. Prüfe ihn unter Einstellungen → Anbieter.',
-  errBalance: 'Dieses Modell braucht PAYG-Guthaben. Lade im Workspace auf oder wähle ein kostenloses oder enthaltenes Modell.', errCapacity: 'Das Modell ist ausgelastet. Versuche es in {s} Sekunden erneut.',
+  errCapacity: 'Das Modell ist ausgelastet. Versuche es in {s} Sekunden erneut.',
   errCapacityNoWait: 'Das Modell ist ausgelastet. Versuche es gleich noch einmal oder wähle ein anderes Modell.', errFiles: 'Die angehängte Datei konnte nicht verwendet werden (wird sie noch verarbeitet, oder enthält dein Plan Dateien?).',
   errNetwork: 'Verbindungsproblem. Prüfe dein Internet und versuche es erneut.', errPlan: 'Dieses Modell braucht einen Bezahlplan. Wähle ein anderes Modell.',
   errPrivacy: 'Der Datenschutzmodus blockiert das. Öffne die Datenschutzeinstellungen im Workspace, um Cloud-KI zu erlauben.',

@@ -12,7 +12,7 @@ const fr: Record<string, string> = {
   dAcctWrong: 'Le mot de passe est incorrect.', delete: 'Supprimer le chat', deleteChatQ: 'Supprimer ce chat ?', done: 'Terminé',
   emptySub: 'Posez une question, cherchez sur le web ou joignez un fichier à résumer.', emptyTitle: 'Comment puis-je vous aider ?',
   errAuth: 'Votre session a pris fin. Reconnectez-vous.', errBadKey: 'Le fournisseur a refusé la clé API. Vérifiez-la dans Réglages → Fournisseurs.',
-  errBalance: 'Ce modèle nécessite un solde PAYG. Rechargez dans le Workspace ou choisissez un modèle gratuit ou inclus.', errCapacity: 'Le modèle est occupé. Réessayez dans {s} secondes.',
+  errCapacity: 'Le modèle est occupé. Réessayez dans {s} secondes.',
   errCapacityNoWait: 'Le modèle est occupé. Réessayez dans un instant ou choisissez un autre modèle.', errFiles: 'Le fichier joint n’a pas pu être utilisé (est-il encore en traitement, ou votre forfait inclut-il les fichiers ?).',
   errNetwork: 'Problème de connexion. Vérifiez votre internet et réessayez.', errPlan: 'Ce modèle nécessite un forfait payant. Choisissez un autre modèle.',
   errPrivacy: 'Le mode confidentialité l’empêche. Ouvrez les réglages de confidentialité du Workspace pour autoriser l’IA cloud.',
