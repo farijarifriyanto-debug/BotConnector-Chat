@@ -2,6 +2,20 @@
 
 This is BotConnector-Chat (Expo), not BotConnector-Mobile/PocketPal. Owner corrected the intended application in this session. Both repositories share `id.botconnector.app`; a future upload must use this repository and a build number greater than every uploaded build (125 was uploaded from the other repository). Check App Store Connect before choosing the next number.
 
+## Status on 9 Nov 2026 (build 129)
+
+Owner confirmed on 9 Nov that this repository (Chat 127 line) is the app to resubmit. Uploaded builds: 126 and 127 from here; 125 and 128 from BotConnector-Mobile, which are not the release line.
+
+| Blocker below | After build 129 |
+|---|---|
+| 1. 3.1.1 payment / account flow | The sign-in screens were already unreachable (no login route, session dropped on first launch). Build 129 removes Video Studio and its API calls, and replaces the "top up in the Workspace" copy that a provider's 402 used to show. Dead cloud code (usage and account calls, plan copy, project file upload) remains in the binary but has no session to run with. Not removed in this build. |
+| 2. 5.1.2(i) data sharing | A tick-to-agree step now precedes saving the first provider. Not audited: the web-search provider and the optional "cloud document" lane. |
+| 3. 2.1 reviewer access | Open: a real bounded test key and a sample QR must be added in App Store Connect. |
+| 4. Native evidence | Open: iPhone and iPad camera, deny/retry, gallery, upgrade from 2.0.0. |
+| 5. 2.3 metadata | Review notes written in `review-notes-2.1.0.md`. Screenshots still must show this app. |
+
+`scripts/ci/asc_fill.rb` is stale (version 2.0.0, build 110, a demo login in the notes). Do not run it with `apply=true` without editing it first.
+
 ## Behavior and evidence
 
 | Reference / approved design | Implementation | Evidence / limit |
