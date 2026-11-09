@@ -8,7 +8,8 @@ import { useProviders } from '../src/store/providers'
 jest.mock('expo-secure-store', () => ({ getItemAsync: jest.fn(async () => null), setItemAsync: jest.fn(async () => {}), deleteItemAsync: jest.fn(async () => {}) }))
 const qr = (value: unknown) => 'ai-provider:v1:' + btoa(JSON.stringify(value))
 
-beforeEach(() => { useSettings.setState({ lang: 'en' }); useProviders.setState({ providers: [] }) })
+// These cases are about the protocol, not the data-sharing agreement (standalone129.test.tsx covers that): start as agreed.
+beforeEach(() => { useSettings.setState({ lang: 'en', dataConsent: true }); useProviders.setState({ providers: [] }) })
 
 describe('choosing the provider protocol (Anthropic native vs OpenAI-compatible)', () => {
   it('defaults manual entry to the OpenAI-compatible protocol', async () => {

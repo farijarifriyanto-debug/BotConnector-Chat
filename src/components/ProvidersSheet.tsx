@@ -8,6 +8,7 @@ import { Text, TextInput } from './Text'
 import { useT } from '../hooks/useT'
 import { useChat } from '../store/chat'
 import { useProviders, type AddFailure } from '../store/providers'
+import { useSettings } from '../store/settings'
 import { useTheme } from '../theme/theme'
 import { Icon } from './Icons'
 
@@ -49,7 +50,9 @@ function ProviderEditor({ onClose }: { onClose: () => void }) {
   const [busy, setBusy] = useState(false), [err, setErr] = useState<AddFailure | null>(null), [refreshing, setRefreshing] = useState<string | null>(null)
   const [mode, setMode] = useState<'list' | 'choices' | 'scan' | 'paste' | 'form'>('list'), [raw, setRaw] = useState(''), [importError, setImportError] = useState<'qrInvalid' | 'qrUnsupported' | 'qrUrl' | null>(null), [imported, setImported] = useState(false), [reading, setReading] = useState(false)
   const epoch = useRef(0)
-  const reset = () => { epoch.current++; setMode('list'); setRaw(''); setImportError(null); setImported(false); setReading(false); setPicked(null); setAdding(false); setName(''); setUrl(''); setKey(''); setManual(''); setErr(null); setBusy(false); setKind(undefined) }
+  // Guideline 5.1.2(i): before the first provider is saved the person agrees that chats go from this phone to that provider; remembered once saved.
+  const consented = useSettings(s => s.dataConsent), [agreed, setAgreed] = useState(false), blocked = !consented && !agreed
+  const reset = () => { epoch.current++; setAgreed(false); setMode('list'); setRaw(''); setImportError(null); setImported(false); setReading(false); setPicked(null); setAdding(false); setName(''); setUrl(''); setKey(''); setManual(''); setErr(null); setBusy(false); setKind(undefined) }
   useEffect(() => () => { epoch.current = -1 }, [])
   const changeMode = (next: typeof mode) => { epoch.current++; setMode(next); setImportError(null); setReading(false) }
   const importText = (text: string) => {
@@ -76,7 +79,7 @@ function ProviderEditor({ onClose }: { onClose: () => void }) {
   const save = async () => {
     setBusy(true); setErr(null)
     const r = await useProviders.getState().add({ name, baseUrl: url, apiKey: key, manualModels: manual, kind })
-    if (r.ok) { useChat.getState().syncCustom(); reset() } else { setBusy(false); setErr(r.reason) }
+    if (r.ok) { useSettings.getState().acceptDataConsent(); useChat.getState().syncCustom(); reset() } else { setBusy(false); setErr(r.reason) }
   }
   const refresh = async (id: string) => { setRefreshing(id); await useProviders.getState().refresh(id); useChat.getState().syncCustom(); setRefreshing(null) }
   const remove = (id: string, n: string) => Alert.alert(n, t('provDeleteQ'), [{ text: t('cancel'), style: 'cancel' }, { text: t('provDelete'), style: 'destructive', onPress: () => { void useProviders.getState().remove(id).then(() => useChat.getState().syncCustom()) } }])
@@ -123,10 +126,15 @@ function ProviderEditor({ onClose }: { onClose: () => void }) {
               <TextInput testID="prov-key" accessibilityLabel={t('provKey')} style={input} value={key} onChangeText={setKey} placeholder={t('provKey')} placeholderTextColor={th.muted2} autoCapitalize="none" autoCorrect={false} secureTextEntry editable={!busy} />
               {imported && !key && <Text style={{ color: th.muted, marginTop: 8 }}>{t('qrMissing')}</Text>}
               <TextInput testID="prov-models" style={input} value={manual} onChangeText={setManual} placeholder={t('provModelsManual')} placeholderTextColor={th.muted2} autoCapitalize="none" autoCorrect={false} editable={!busy} />
+              {!consented && (
+                <Pressable testID="prov-data-consent" accessibilityRole="checkbox" accessibilityState={{ checked: agreed, disabled: busy }} disabled={busy} onPress={() => setAgreed(a => !a)} style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginTop: 16, minHeight: 44 }}>
+                  <View style={{ width: 24, height: 24, borderRadius: 6, borderWidth: 1.5, borderColor: agreed ? th.accent : th.lineStrong, backgroundColor: agreed ? th.accent : 'transparent', alignItems: 'center', justifyContent: 'center', marginTop: 1 }}>{agreed && <Icon name="Check" size={16} color={th.accentInk} />}</View>
+                  <Text style={{ flex: 1, color: th.ink, lineHeight: 21 }}>{t('dataConsent')}</Text>
+                </Pressable>)}
               {!!reasonKey && <Text testID="prov-error" accessibilityRole="alert" style={{ color: th.danger, marginTop: 10 }}>{t(reasonKey)}</Text>}
               <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
                 <Pressable testID="prov-cancel" onPress={reset} disabled={busy} accessibilityRole="button" style={{ flex: 1, padding: 13, borderRadius: 12, borderWidth: 1, borderColor: th.lineStrong, alignItems: 'center' }}><Text style={{ color: th.ink, fontWeight: '600' }}>{t('cancel')}</Text></Pressable>
-                <Pressable testID="prov-save" onPress={save} disabled={busy || !name.trim() || !url.trim()} accessibilityRole="button" style={{ flex: 1, padding: 13, borderRadius: 12, backgroundColor: th.accent, alignItems: 'center', opacity: busy || !name.trim() || !url.trim() ? 0.5 : 1 }}>
+                <Pressable testID="prov-save" onPress={save} disabled={busy || blocked || !name.trim() || !url.trim()} accessibilityRole="button" style={{ flex: 1, padding: 13, borderRadius: 12, backgroundColor: th.accent, alignItems: 'center', opacity: busy || blocked || !name.trim() || !url.trim() ? 0.5 : 1 }}>
                   {busy ? <ActivityIndicator color={th.accentInk} /> : <Text style={{ color: th.accentInk, fontWeight: '700' }}>{t('qrFetch')}</Text>}
                 </Pressable>
               </View>

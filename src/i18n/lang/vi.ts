@@ -12,7 +12,7 @@ const vi: Record<string, string> = {
   dAcctWrong: 'Mật khẩu không đúng.', delete: 'Xóa cuộc trò chuyện', deleteChatQ: 'Xóa cuộc trò chuyện này?', done: 'Xong',
   emptySub: 'Hỏi bất cứ điều gì, tìm kiếm trên web hoặc đính kèm tệp để tóm tắt.', emptyTitle: 'Tôi có thể giúp gì?',
   errAuth: 'Phiên của bạn đã kết thúc. Hãy đăng nhập lại.', errBadKey: 'Nhà cung cấp đã từ chối khóa API. Hãy kiểm tra trong Cài đặt → Nhà cung cấp.',
-  errBalance: 'Mô hình này cần số dư PAYG. Hãy nạp tiền trong Workspace hoặc chọn mô hình miễn phí hoặc có trong gói.', errCapacity: 'Mô hình đang bận. Hãy thử lại sau {s} giây.',
+  errCapacity: 'Mô hình đang bận. Hãy thử lại sau {s} giây.',
   errCapacityNoWait: 'Mô hình đang bận. Hãy thử lại sau ít phút hoặc chọn mô hình khác.', errFiles: 'Không dùng được tệp đính kèm (có thể vẫn đang xử lý, hoặc gói của bạn không gồm tệp?).',
   errNetwork: 'Lỗi kết nối. Hãy kiểm tra internet và thử lại.', errPlan: 'Mô hình này cần gói trả phí. Hãy chọn mô hình khác.',
   errPrivacy: 'Chế độ riêng tư đang chặn việc này. Hãy mở cài đặt riêng tư của Workspace để cho phép AI đám mây.',

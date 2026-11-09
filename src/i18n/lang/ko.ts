@@ -12,7 +12,7 @@ const ko: Record<string, string> = {
   dAcctWrong: '비밀번호가 올바르지 않습니다.', delete: '채팅 삭제', deleteChatQ: '이 채팅을 삭제할까요?', done: '완료',
   emptySub: '무엇이든 물어보고, 웹을 검색하고, 파일을 첨부해 요약해 보세요.', emptyTitle: '무엇을 도와드릴까요?',
   errAuth: '세션이 종료되었습니다. 다시 로그인하세요.', errBadKey: '제공업체가 API 키를 거부했습니다. 설정 → 제공업체에서 확인하세요.',
-  errBalance: '이 모델에는 PAYG 잔액이 필요합니다. Workspace에서 충전하거나 무료 또는 요금제에 포함된 모델을 선택하세요.', errCapacity: '모델이 사용 중입니다. {s}초 후에 다시 시도하세요.',
+  errCapacity: '모델이 사용 중입니다. {s}초 후에 다시 시도하세요.',
   errCapacityNoWait: '모델이 사용 중입니다. 잠시 후 다시 시도하거나 다른 모델을 선택하세요.', errFiles: '첨부한 파일을 사용할 수 없습니다(아직 처리 중이거나 요금제에 파일이 포함되어 있나요?).',
   errNetwork: '연결에 문제가 있습니다. 인터넷을 확인하고 다시 시도하세요.', errPlan: '이 모델에는 유료 요금제가 필요합니다. 다른 모델을 선택하세요.',
   errPrivacy: '개인정보 보호 모드에서 차단되었습니다. 클라우드 AI를 허용하려면 Workspace의 개인정보 설정을 여세요.',

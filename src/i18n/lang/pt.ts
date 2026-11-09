@@ -12,7 +12,7 @@ const pt: Record<string, string> = {
   dAcctWrong: 'A senha está incorreta.', delete: 'Excluir chat', deleteChatQ: 'Excluir este chat?', done: 'Concluído',
   emptySub: 'Pergunte qualquer coisa, pesquise na web ou anexe um arquivo para resumir.', emptyTitle: 'Como posso ajudar?',
   errAuth: 'Sua sessão terminou. Entre novamente.', errBadKey: 'O provedor recusou a chave de API. Verifique em Ajustes → Provedores.',
-  errBalance: 'Este modelo precisa de saldo PAYG. Recarregue no Workspace ou escolha um modelo gratuito ou incluído.', errCapacity: 'O modelo está ocupado. Tente novamente em {s} segundos.',
+  errCapacity: 'O modelo está ocupado. Tente novamente em {s} segundos.',
   errCapacityNoWait: 'O modelo está ocupado. Tente em instantes ou escolha outro modelo.', errFiles: 'Não foi possível usar o arquivo anexado (ainda está processando ou seu plano inclui arquivos?).',
   errNetwork: 'Problema de conexão. Verifique sua internet e tente novamente.', errPlan: 'Este modelo precisa de um plano pago. Escolha outro modelo.',
   errPrivacy: 'O modo de privacidade bloqueia isso. Abra os ajustes de privacidade do Workspace para permitir a IA na nuvem.',
